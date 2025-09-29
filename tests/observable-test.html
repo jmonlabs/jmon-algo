@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Observable VexFlow Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+        .result { border: 1px solid #ddd; padding: 20px; margin: 20px 0; border-radius: 8px; }
+        .success { background: #d4edda; border-color: #c3e6cb; }
+        .error { background: #f8d7da; border-color: #f5c6cb; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 4px; font-size: 12px; }
+    </style>
+</head>
+<body>
+    <h1>Observable VexFlow Test</h1>
+    <p>Testing the exact same scenario as Observable to see what's happening.</p>
+
+    <div id="results"></div>
+
+    <script type="module">
+        // Simulate Observable environment
+        const results = document.getElementById('results');
+
+        function addResult(title, success, content) {
+            const div = document.createElement('div');
+            div.className = `result ${success ? 'success' : 'error'}`;
+            div.innerHTML = `<h3>${title}</h3>${content}`;
+            results.appendChild(div);
+        }
+
+        // Test 1: Load from local build (like Observable would from npm)
+        try {
+            const jm = await import('./dist/jmon.esm.js');
+
+            const c_major_piece = {
+                metadata: { title: 'C Major Scale' },
+                timeSignature: '4/4',
+                keySignature: 'C',
+                tempo: 120,
+                notes: [
+                    { pitch: 60, duration: 1, time: 0 },
+                    { pitch: 62, duration: 1, time: 1 },
+                    { pitch: 64, duration: 1, time: 2 },
+                    { pitch: 65, duration: 1, time: 3 },
+                    { pitch: 67, duration: 1, time: 4 },
+                    { pitch: 69, duration: 1, time: 5 },
+                    { pitch: 71, duration: 1, time: 6 },
+                    { pitch: 72, duration: 1, time: 7 }
+                ]
+            };
+
+            addResult('✅ JMON Import', true, `Version: ${jm.default.VERSION || 'unknown'}<br>Available methods: ${Object.keys(jm.default).join(', ')}`);
+
+            // Test without VexFlow (should return ABC text)
+            const abcResult = jm.default.score(c_major_piece);
+            const isABCText = typeof abcResult === 'object' && abcResult.type === 'abc';
+            addResult('📝 Without VexFlow', isABCText, `Type: ${typeof abcResult}<br>Is ABC object: ${isABCText}<br>Preview: <pre>${isABCText ? abcResult.data.substring(0, 100) + '...' : JSON.stringify(abcResult, null, 2).substring(0, 200) + '...'}</pre>`);
+
+        } catch (error) {
+            addResult('❌ JMON Import Failed', false, error.message);
+        }
+
+        // Test 2: Load VexFlow and test score function
+        try {
+            const VF = await import('https://cdn.skypack.dev/vexflow@4.2.2');
+            const vexflow = VF.default || VF;
+
+            addResult('✅ VexFlow Import', true, `VexFlow loaded: ${!!vexflow}<br>Has Factory: ${!!vexflow.Factory}<br>Has Renderer: ${!!vexflow.Renderer}`);
+
+            // Import JMON again for VexFlow test
+            const jm = await import('./dist/jmon.esm.js');
+            const c_major_piece = {
+                metadata: { title: 'C Major Scale' },
+                timeSignature: '4/4',
+                keySignature: 'C',
+                tempo: 120,
+                notes: [
+                    { pitch: 60, duration: 1, time: 0 },
+                    { pitch: 62, duration: 1, time: 1 },
+                    { pitch: 64, duration: 1, time: 2 },
+                    { pitch: 65, duration: 1, time: 3 }
+                ]
+            };
+
+            // The critical test - same as Observable
+            const vexResult = jm.default.score(c_major_piece, vexflow);
+            const isDOM = vexResult && vexResult.nodeType === 1;
+            const isABCFallback = vexResult && vexResult.type === 'abc';
+            const isVexFlowData = vexResult && vexResult.type === 'vexflow';
+
+            let content = `Type: ${typeof vexResult}<br>`;
+            content += `Is DOM element: ${isDOM}<br>`;
+            content += `Is ABC fallback: ${isABCFallback}<br>`;
+            content += `Is VexFlow data: ${isVexFlowData}<br>`;
+
+            if (isDOM) {
+                content += `Element tag: ${vexResult.tagName}<br>`;
+                content += `Has children: ${vexResult.children.length}<br>`;
+                content += `innerHTML preview: ${vexResult.innerHTML.substring(0, 100)}...`;
+
+                // Actually append it to see what renders
+                const container = document.createElement('div');
+                container.style.border = '2px dashed #007bff';
+                container.style.padding = '10px';
+                container.appendChild(vexResult);
+                content += '<br><strong>Rendered result:</strong><br>' + container.outerHTML;
+            } else if (isABCFallback) {
+                content += `ABC content: <pre>${vexResult.data.substring(0, 200)}...</pre>`;
+            } else {
+                content += `Result: <pre>${JSON.stringify(vexResult, null, 2).substring(0, 300)}...</pre>`;
+            }
+
+            addResult(`🎼 VexFlow Score Test`, isDOM, content);
+
+        } catch (error) {
+            addResult('❌ VexFlow Test Failed', false, `Error: ${error.message}<br>Stack: <pre>${error.stack}</pre>`);
+        }
+    </script>
+</body>
+</html>

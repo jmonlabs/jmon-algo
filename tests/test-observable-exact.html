@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Exact Observable Test</title>
+    <style>
+        body { font-family: monospace; max-width: 1000px; margin: 0 auto; padding: 20px; background: #f5f5f5; }
+        .test { background: white; margin: 20px 0; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .success { border-left: 4px solid #28a745; }
+        .error { border-left: 4px solid #dc3545; }
+        .warning { border-left: 4px solid #ffc107; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 4px; overflow-x: auto; font-size: 11px; }
+        .score-output { border: 2px dashed #007bff; padding: 20px; margin: 10px 0; min-height: 100px; }
+    </style>
+</head>
+<body>
+    <h1>Exact Observable Test</h1>
+    <p>Replicating the exact Observable environment and imports</p>
+
+    <div id="results"></div>
+
+    <script type="module">
+        const results = document.getElementById('results');
+
+        function log(title, type, content, element = null) {
+            const div = document.createElement('div');
+            div.className = `test ${type}`;
+            div.innerHTML = `<h3>${title}</h3><div>${content}</div>`;
+            if (element) {
+                div.appendChild(element);
+            }
+            results.appendChild(div);
+            console.log(`[${type.toUpperCase()}] ${title}:`, content);
+        }
+
+        try {
+            // Exactly like Observable - load JMON with cache busting
+            log('🔄 Loading JMON...', 'warning', 'Using exact Observable import pattern');
+
+            const jm = await (async () => {
+                const { default: jm } = await import(
+                    `./dist/jmon.esm.js?v=${Date.now()}`
+                );
+                return jm;
+            })();
+
+            log('✅ JMON Loaded', 'success', `
+                Version: ${jm.VERSION}<br>
+                Available methods: ${Object.keys(jm).join(', ')}<br>
+                Has score function: ${typeof jm.score === 'function'}
+            `);
+
+            // Load VexFlow exactly like Observable might
+            const vexflow = await import('https://cdn.skypack.dev/vexflow@4.2.2').then(m => m.default);
+
+            log('✅ VexFlow Loaded', 'success', `
+                VexFlow type: ${typeof vexflow}<br>
+                Has Factory: ${!!vexflow.Factory}<br>
+                Has Renderer: ${!!vexflow.Renderer}
+            `);
+
+            // The exact test case
+            const c_major_piece = {
+                metadata: { title: 'C Major Scale' },
+                timeSignature: '4/4',
+                keySignature: 'C',
+                tempo: 120,
+                notes: [
+                    { pitch: 60, duration: 1, time: 0 },
+                    { pitch: 62, duration: 1, time: 1 },
+                    { pitch: 64, duration: 1, time: 2 },
+                    { pitch: 65, duration: 1, time: 3 },
+                    { pitch: 67, duration: 1, time: 4 },
+                    { pitch: 69, duration: 1, time: 5 },
+                    { pitch: 71, duration: 1, time: 6 },
+                    { pitch: 72, duration: 1, time: 7 }
+                ]
+            };
+
+            log('🎼 Test Piece', 'warning', `
+                Notes count: ${c_major_piece.notes.length}<br>
+                Time signature: ${c_major_piece.timeSignature}<br>
+                Key: ${c_major_piece.keySignature}
+            `);
+
+            // THE CRITICAL TEST: jm.score(c_major_piece, vexflow)
+            console.log('Calling jm.score(c_major_piece, vexflow)...');
+            const result = jm.score(c_major_piece, vexflow);
+
+            console.log('Result type:', typeof result);
+            console.log('Result:', result);
+
+            const isDOMElement = result && result.nodeType === 1;
+            const isABCObject = result && typeof result === 'object' && result.type === 'abc';
+            const isVexFlowObject = result && typeof result === 'object' && result.type === 'vexflow';
+
+            let analysis = `
+                <strong>Result Analysis:</strong><br>
+                Type: ${typeof result}<br>
+                Is DOM Element: ${isDOMElement}<br>
+                Is ABC Object: ${isABCObject}<br>
+                Is VexFlow Object: ${isVexFlowObject}<br>
+            `;
+
+            if (isDOMElement) {
+                analysis += `
+                    Element Tag: ${result.tagName}<br>
+                    Element ID: ${result.id || 'none'}<br>
+                    Children Count: ${result.children.length}<br>
+                    Has SVG: ${!!result.querySelector('svg')}<br>
+                `;
+
+                const scoreDiv = document.createElement('div');
+                scoreDiv.className = 'score-output';
+                scoreDiv.appendChild(result.cloneNode(true));
+
+                log('✅ SUCCESS: DOM Element Returned', 'success', analysis, scoreDiv);
+
+            } else if (isABCObject) {
+                analysis += `
+                    ABC Data Length: ${result.data.length}<br>
+                    ABC Preview: <pre>${result.data.substring(0, 200)}...</pre>
+                `;
+
+                log('⚠️ ABC FALLBACK: Still returning ABC text', 'error', analysis + `
+                    <br><strong>This means VexFlow rendering failed!</strong>
+                `);
+
+            } else {
+                analysis += `Raw result: <pre>${JSON.stringify(result, null, 2)}</pre>`;
+                log('❌ UNEXPECTED: Unknown result type', 'error', analysis);
+            }
+
+        } catch (error) {
+            log('❌ ERROR', 'error', `
+                Message: ${error.message}<br>
+                Stack: <pre>${error.stack}</pre>
+            `);
+        }
+    </script>
+</body>
+</html>

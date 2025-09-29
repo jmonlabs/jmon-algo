@@ -1,0 +1,449 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>JMON Studio — VexFlow Score Demo</title>
+        <meta name="viewport" content="width=device-width,initial-scale=1" />
+        <meta
+            name="description"
+            content="VexFlow SVG score rendering demo using JMON Studio."
+        />
+        <link rel="preconnect" href="https://cdn.jsdelivr.net" />
+        <style>
+            :root {
+                --bg: #0b0f14;
+                --card: #121821;
+                --text: #e7edf3;
+                --muted: #9fb2c7;
+                --accent: #67d4ff;
+                --border: #1e2937;
+                --radius: 12px;
+            }
+            * {
+                box-sizing: border-box;
+            }
+            html,
+            body {
+                margin: 0;
+                background:
+                    radial-gradient(
+                            1200px 600px at 20% -10%,
+                            #16202c 0%,
+                            #0b0f14 50%
+                        )
+                        fixed,
+                    var(--bg);
+                color: var(--text);
+                font:
+                    16px/1.55 system-ui,
+                    -apple-system,
+                    Segoe UI,
+                    Roboto,
+                    Helvetica,
+                    Arial,
+                    "Apple Color Emoji",
+                    "Segoe UI Emoji";
+            }
+            a {
+                color: var(--accent);
+                text-decoration: none;
+            }
+            a:hover {
+                text-decoration: underline;
+            }
+            header,
+            main {
+                max-width: 980px;
+                margin: 0 auto;
+                padding: 16px 20px;
+            }
+            header h1 {
+                margin: 8px 0 6px;
+                font-size: clamp(22px, 4.4vw, 34px);
+                letter-spacing: 0.2px;
+                line-height: 1.15;
+            }
+            header p {
+                margin: 0 0 6px;
+                color: var(--muted);
+            }
+            .card {
+                background:
+                    linear-gradient(
+                        180deg,
+                        rgba(255, 255, 255, 0.02),
+                        rgba(0, 0, 0, 0.04)
+                    ),
+                    var(--card);
+                border: 1px solid var(--border);
+                border-radius: var(--radius);
+                padding: 14px;
+                box-shadow:
+                    0 8px 24px rgba(0, 0, 0, 0.25),
+                    inset 0 1px 0 rgba(255, 255, 255, 0.03);
+            }
+            .row {
+                display: grid;
+                grid-template-columns: 1fr;
+                gap: 12px;
+            }
+            @media (min-width: 760px) {
+                .row-2 {
+                    grid-template-columns: 1fr 1fr;
+                }
+            }
+            .controls {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 10px 12px;
+                align-items: center;
+            }
+            label {
+                display: inline-flex;
+                align-items: center;
+                gap: 8px;
+                color: var(--muted);
+                font-size: 14px;
+            }
+            input[type="number"] {
+                width: 110px;
+                padding: 6px 8px;
+                border-radius: 8px;
+                border: 1px solid var(--border);
+                background: rgba(255, 255, 255, 0.04);
+                color: var(--text);
+                outline: none;
+            }
+            button {
+                appearance: none;
+                border: 1px solid var(--border);
+                background: rgba(255, 255, 255, 0.04);
+                color: var(--text);
+                padding: 8px 12px;
+                border-radius: 10px;
+                cursor: pointer;
+            }
+            button:hover {
+                border-color: #2b394c;
+                background: rgba(255, 255, 255, 0.06);
+            }
+            .score-wrap {
+                overflow-x: auto;
+                padding: 8px;
+                background: #0c131a;
+                border: 1px dashed #263140;
+                border-radius: 10px;
+                min-height: 160px;
+            }
+            .note {
+                color: var(--muted);
+                font-size: 13px;
+                margin-top: 6px;
+            }
+            .hint {
+                margin-top: 6px;
+                color: var(--muted);
+                font-size: 12px;
+            }
+            .badge {
+                display: inline-block;
+                padding: 2px 8px;
+                border-radius: 999px;
+                font-size: 11px;
+                background: rgba(103, 212, 255, 0.12);
+                border: 1px solid rgba(103, 212, 255, 0.35);
+                color: var(--accent);
+                margin-left: 6px;
+                vertical-align: middle;
+            }
+        </style>
+    </head>
+    <body>
+        <header>
+            <h1>VexFlow Score Demo <span class="badge">SVG</span></h1>
+            <p>
+                Render a JMON composition as a VexFlow SVG score using the UMD
+                bundle.
+            </p>
+            <p class="hint">
+                Build first: <code>npm run build</code>, then serve this folder
+                (e.g., <code>npx http-server . -p 8080</code>) and open
+                <code>/examples/score-vexflow.html</code>.
+            </p>
+        </header>
+
+        <main class="row">
+            <section class="card">
+                <div class="controls" role="group" aria-label="Score settings">
+                    <label>
+                        Width
+                        <input
+                            id="width"
+                            type="number"
+                            min="200"
+                            max="2000"
+                            step="10"
+                            value="800"
+                        />
+                    </label>
+                    <label>
+                        Height
+                        <input
+                            id="height"
+                            type="number"
+                            min="120"
+                            max="800"
+                            step="10"
+                            value="220"
+                        />
+                    </label>
+                    <button id="btn-render" type="button">Render</button>
+                    <button
+                        id="btn-scale"
+                        type="button"
+                        title="Render a one-octave C major scale"
+                    >
+                        Load C Major Scale
+                    </button>
+                    <button
+                        id="btn-artic"
+                        type="button"
+                        title="Render articulations, arpeggio stroke, and glissando"
+                    >
+                        Load Articulations Demo
+                    </button>
+                    <span class="note" id="engine-note"
+                        >Detecting VexFlow…</span
+                    >
+                </div>
+                <div id="score" class="score-wrap"></div>
+                <div class="note">
+                    If no SVG appears, VexFlow may not be loaded or
+                    <code>dist/jmon.umd.js</code> is missing. See the console
+                    for details.
+                </div>
+            </section>
+
+            <section class="card">
+                <h3>Current JMON piece</h3>
+                <pre
+                    id="piece-json"
+                    style="
+                        white-space: pre-wrap;
+                        margin: 0;
+                        color: #cfe3ff;
+                        font-size: 12px;
+                    "
+                ></pre>
+            </section>
+        </main>
+
+        <!-- App scripts -->
+        <script src="../dist/jmon.umd.js"></script>
+        <!-- Load VexFlow from reliable CDN -->
+        <script src="https://cdn.jsdelivr.net/npm/vexflow@4.2.2/build/umd/vexflow.min.js"></script>
+        <script>
+            (function () {
+                const jm = (function resolveJm() {
+                    if (typeof window !== "undefined" && window.JmonStudio)
+                        return window.JmonStudio;
+                    console.error(
+                        '[JMON] UMD bundle not found. Build first with "npm run build".',
+                    );
+                    return null;
+                })();
+
+                function resolveVF() {
+                    if (typeof window === "undefined") return null;
+                    if (window.VF) return window.VF;
+                    if (window.VexFlow) return window.VexFlow;
+                    if (window.Vex && (window.Vex.Flow || window.Vex))
+                        return window.Vex.Flow || window.Vex;
+                    if (window.Flow && window.Flow.Factory) return window; // support Flow.Factory shape
+                    return null;
+                }
+
+                // Demo pieces using proper JMON schema
+                function cMajorScale() {
+                    const notes = [];
+                    const scale = [60, 62, 64, 65, 67, 69, 71, 72];
+                    for (let i = 0; i < scale.length; i++) {
+                        notes.push({
+                            pitch: scale[i],
+                            duration: "4n",
+                            time: i,
+                        });
+                    }
+                    return {
+                        format: "jmon",
+                        version: "1.0.0",
+                        tempo: 120,
+                        timeSignature: "4/4",
+                        keySignature: "C",
+                        metadata: { title: "C-major scale" },
+                        tracks: [{ label: "melody", notes }],
+                    };
+                }
+
+                function articulationDemo() {
+                    return {
+                        format: "jmon",
+                        version: "1.0.0",
+                        tempo: 108,
+                        timeSignature: "4/4",
+                        keySignature: "G",
+                        metadata: { title: "Articulations & Ornaments" },
+                        tracks: [
+                            {
+                                label: "melody",
+                                notes: [
+                                    {
+                                        pitch: 67,
+                                        duration: "4n",
+                                        time: 0,
+                                        articulation: "staccato",
+                                    },
+                                    {
+                                        pitch: 69,
+                                        duration: "4n",
+                                        time: 1,
+                                        articulation: "accent",
+                                    },
+                                    {
+                                        pitch: 71,
+                                        duration: "4n",
+                                        time: 2,
+                                        articulation: "tenuto",
+                                        ornaments: [
+                                            {
+                                                type: "grace_note",
+                                                parameters: {
+                                                    graceNoteType:
+                                                        "acciaccatura",
+                                                    gracePitches: [70],
+                                                },
+                                            },
+                                        ],
+                                    },
+                                    {
+                                        pitch: 72,
+                                        duration: "2n",
+                                        time: 3,
+                                        articulation: "marcato",
+                                    },
+                                ],
+                            },
+                        ],
+                    };
+                }
+
+                // State
+                let piece = articulationDemo();
+
+                // DOM references
+                const elScore = document.getElementById("score");
+                const elWidth = document.getElementById("width");
+                const elHeight = document.getElementById("height");
+                const elBtnRender = document.getElementById("btn-render");
+                const elBtnScale = document.getElementById("btn-scale");
+                const elBtnArtic = document.getElementById("btn-artic");
+                const elPieceJson = document.getElementById("piece-json");
+                const elEngineNote = document.getElementById("engine-note");
+
+                function updateJson() {
+                    try {
+                        elPieceJson.textContent = JSON.stringify(
+                            piece,
+                            null,
+                            2,
+                        );
+                    } catch {
+                        elPieceJson.textContent = "";
+                    }
+                }
+
+                function renderScore() {
+                    if (!jm) {
+                        elScore.innerHTML =
+                            '<div style="color:#ffb86c">JMON bundle not found.</div>';
+                        return;
+                    }
+
+                    const VF = resolveVF();
+                    elEngineNote.textContent = VF
+                        ? "VexFlow detected."
+                        : "VexFlow not detected — cannot render.";
+
+                    // Clear previous content
+                    elScore.innerHTML = "";
+
+                    const width = Math.max(
+                        200,
+                        Math.min(
+                            2000,
+                            parseInt(elWidth.value || "800", 10) || 800,
+                        ),
+                    );
+                    const height = Math.max(
+                        120,
+                        Math.min(
+                            800,
+                            parseInt(elHeight.value || "220", 10) || 220,
+                        ),
+                    );
+
+                    if (VF) {
+                        try {
+                            // Use jm.score directly - this should work in all environments
+                            const result = jm.score(piece, VF, {
+                                width,
+                                height,
+                            });
+                            if (result && result.nodeType === 1) {
+                                elScore.appendChild(result);
+                                return;
+                            } else {
+                                throw new Error(
+                                    "jm.score did not return a DOM element",
+                                );
+                            }
+                        } catch (e) {
+                            console.error("[VexFlow] Render failed:", e);
+                            elScore.innerHTML =
+                                '<div style="color:#ffb86c">VexFlow rendering error: ' +
+                                e.message +
+                                "</div>";
+                        }
+                    } else {
+                        elScore.innerHTML =
+                            '<div style="color:#ffb86c">VexFlow is required but not loaded.</div>';
+                    }
+                }
+
+                // Wire controls
+                elBtnRender.addEventListener("click", renderScore);
+                elBtnScale.addEventListener("click", () => {
+                    piece = cMajorScale();
+                    updateJson();
+                    renderScore();
+                });
+                elBtnArtic.addEventListener("click", () => {
+                    piece = articulationDemo();
+                    updateJson();
+                    renderScore();
+                });
+
+                // Initial render - VexFlow should be loaded by now
+                updateJson();
+                renderScore();
+
+                // Re-render on resize to reflow width
+                window.addEventListener("resize", () => {
+                    // Only re-render if we currently have an SVG
+                    const hasSvg = !!elScore.querySelector("svg");
+                    if (hasSvg) renderScore();
+                });
+            })();
+        </script>
+    </body>
+</html>

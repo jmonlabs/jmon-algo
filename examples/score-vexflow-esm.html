@@ -1,0 +1,317 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>JMON Studio — VexFlow Score Demo (ESM)</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="description" content="VexFlow SVG score rendering demo using JMON Studio with ESM imports." />
+  <style>
+    :root {
+      --bg: #0b0f14;
+      --card: #121821;
+      --text: #e7edf3;
+      --muted: #9fb2c7;
+      --accent: #67d4ff;
+      --border: #1e2937;
+      --radius: 12px;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      background: radial-gradient(1200px 600px at 20% -10%, #16202c 0%, #0b0f14 50%) fixed, var(--bg);
+      color: var(--text);
+      font: 16px/1.55 system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+    }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    header, main {
+      max-width: 980px;
+      margin: 0 auto;
+      padding: 16px 20px;
+    }
+    header h1 {
+      margin: 8px 0 6px;
+      font-size: clamp(22px, 4.4vw, 34px);
+      letter-spacing: 0.2px;
+      line-height: 1.15;
+    }
+    header p {
+      margin: 0 0 6px;
+      color: var(--muted);
+    }
+    .card {
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(0,0,0,0.04)), var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.03);
+    }
+    .row {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 12px;
+    }
+    @media (min-width: 760px) {
+      .row-2 {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px 12px;
+      align-items: center;
+    }
+    label {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+    input[type="number"] {
+      width: 110px;
+      padding: 6px 8px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.04);
+      color: var(--text);
+      outline: none;
+    }
+    button {
+      appearance: none;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.04);
+      color: var(--text);
+      padding: 8px 12px;
+      border-radius: 10px;
+      cursor: pointer;
+    }
+    button:hover { border-color: #2b394c; background: rgba(255,255,255,0.06); }
+    .score-wrap {
+      overflow-x: auto;
+      padding: 8px;
+      background: #0c131a;
+      border: 1px dashed #263140;
+      border-radius: 10px;
+      min-height: 160px;
+    }
+    .note {
+      color: var(--muted);
+      font-size: 13px;
+      margin-top: 6px;
+    }
+    .hint {
+      margin-top: 6px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      background: rgba(103,212,255,0.12);
+      border: 1px solid rgba(103,212,255,0.35);
+      color: var(--accent);
+      margin-left: 6px;
+      vertical-align: middle;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>VexFlow Score Demo <span class="badge">ESM</span></h1>
+    <p>Render a JMON composition as a VexFlow SVG score using ESM imports.</p>
+    <p class="hint">Build first: <code>npm run build</code>, then serve this folder (e.g., <code>npx http-server . -p 8080</code>) and open <code>/examples/score-vexflow-esm.html</code>.</p>
+  </header>
+
+  <main class="row">
+    <section class="card">
+      <div class="controls" role="group" aria-label="Score settings">
+        <label>
+          Width
+          <input id="width" type="number" min="200" max="2000" step="10" value="800" />
+        </label>
+        <label>
+          Height
+          <input id="height" type="number" min="120" max="800" step="10" value="220" />
+        </label>
+        <button id="btn-render" type="button">Render</button>
+        <button id="btn-scale" type="button" title="Render A minor scale">Load A Minor Scale</button>
+        <button id="btn-chords" type="button" title="Render chord progression in F major">Load Chord Progression</button>
+        <span class="note" id="engine-note">Loading ESM modules…</span>
+      </div>
+      <div id="score" class="score-wrap"></div>
+      <div class="note">
+        Using modern ESM imports for better reliability. See browser console for loading details.
+      </div>
+    </section>
+
+    <section class="card">
+      <h3>Current JMON piece</h3>
+      <pre id="piece-json" style="white-space:pre-wrap; margin:0; color:#cfe3ff; font-size:12px;"></pre>
+    </section>
+  </main>
+
+  <script type="module">
+    // Import JMON Studio using ESM
+    import jm from '../dist/jmon.esm.js';
+
+    // Import VexFlow using ESM with fallbacks
+    let VF = null;
+    try {
+      console.log('Attempting to load VexFlow via ESM...');
+
+      // Try different ESM CDNs
+      const vfSources = [
+        'https://cdn.skypack.dev/vexflow@4.2.2',
+        'https://esm.sh/vexflow@4.2.2',
+        'https://unpkg.com/vexflow@4.2.2?module'
+      ];
+
+      for (const source of vfSources) {
+        try {
+          const vfModule = await import(source);
+          VF = vfModule.default || vfModule.VF || vfModule;
+          if (VF && (VF.Factory || VF.Renderer)) {
+            console.log(`VexFlow loaded successfully from: ${source}`);
+            break;
+          }
+        } catch (e) {
+          console.warn(`Failed to load VexFlow from ${source}:`, e);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load VexFlow via ESM:', error);
+    }
+
+    // Demo pieces using proper JMON schema - focus on different musical examples
+    function minorScale() {
+      const notes = [];
+      const scale = [57,59,60,62,64,65,67,69]; // A minor scale
+      for (let i = 0; i < scale.length; i++) {
+        notes.push({ pitch: scale[i], duration: "4n", time: i });
+      }
+      return {
+        format: "jmon",
+        version: "1.0.0",
+        tempo: 100,
+        timeSignature: '4/4',
+        keySignature: 'Am',
+        metadata: { title: 'A minor scale' },
+        tracks: [{ label: "melody", notes }]
+      };
+    }
+
+    function chordProgression() {
+      return {
+        format: "jmon",
+        version: "1.0.0",
+        tempo: 80,
+        timeSignature: '4/4',
+        keySignature: 'F',
+        metadata: { title: 'Chord Progression in F Major' },
+        tracks: [{
+          label: "harmony",
+          notes: [
+            { pitch: [65,69,72], duration: "2n", time: 0 }, // F major
+            { pitch: [62,67,70], duration: "2n", time: 2 }, // D minor
+            { pitch: [67,70,74], duration: "2n", time: 4 }, // G minor
+            { pitch: [60,65,69], duration: "2n", time: 6 }  // C major
+          ]
+        }]
+      };
+    }
+
+    // State
+    let piece = chordProgression();
+
+    // DOM references
+    const elScore = document.getElementById('score');
+    const elWidth = document.getElementById('width');
+    const elHeight = document.getElementById('height');
+    const elBtnRender = document.getElementById('btn-render');
+    const elBtnScale = document.getElementById('btn-scale');
+    const elBtnChords = document.getElementById('btn-chords');
+    const elPieceJson = document.getElementById('piece-json');
+    const elEngineNote = document.getElementById('engine-note');
+
+    function updateJson() {
+      try {
+        elPieceJson.textContent = JSON.stringify(piece, null, 2);
+      } catch {
+        elPieceJson.textContent = '';
+      }
+    }
+
+    function renderScore() {
+      if (!jm) {
+        elScore.innerHTML = '<div style="color:#ffb86c">JMON ESM module not found.</div>';
+        return;
+      }
+
+      elEngineNote.textContent = VF ? 'VexFlow loaded via ESM.' : 'VexFlow not available — cannot render.';
+
+      // Clear previous content
+      elScore.innerHTML = '';
+
+      const width = Math.max(200, Math.min(2000, parseInt(elWidth.value || '800', 10) || 800));
+      const height = Math.max(120, Math.min(800, parseInt(elHeight.value || '220', 10) || 220));
+
+      if (VF) {
+        try {
+          console.log('Rendering with VexFlow...');
+          const result = jm.score(piece, VF, { width, height });
+
+          if (result && result.nodeType === 1) {
+            elScore.appendChild(result);
+            const svg = result.querySelector('svg');
+            if (svg) {
+              console.log('✅ VexFlow SVG rendered successfully');
+              return;
+            }
+          }
+          throw new Error('VexFlow rendering returned unexpected result: ' + typeof result);
+        } catch (e) {
+          console.error('[VexFlow] Render failed:', e);
+          elScore.innerHTML = '<div style="color:#ffb86c">VexFlow rendering error: ' + e.message + '</div>';
+        }
+      } else {
+        elScore.innerHTML = '<div style="color:#ffb86c">VexFlow is required but not loaded.</div>';
+      }
+    }
+
+    // Wire controls
+    elBtnRender.addEventListener('click', renderScore);
+    elBtnScale.addEventListener('click', () => {
+      piece = minorScale();
+      updateJson();
+      renderScore();
+    });
+    elBtnChords.addEventListener('click', () => {
+      piece = chordProgression();
+      updateJson();
+      renderScore();
+    });
+
+    // Initial setup
+    updateJson();
+
+    // Wait a bit for VF to be fully initialized, then render
+    setTimeout(() => {
+      renderScore();
+    }, 100);
+
+    // Re-render on resize
+    window.addEventListener('resize', () => {
+      const hasSvg = !!elScore.querySelector('svg');
+      if (hasSvg) renderScore();
+    });
+
+    // Global status
+    console.log('JMON Studio (ESM):', jm);
+    console.log('VexFlow (ESM):', VF);
+  </script>
+</body>
+</html>

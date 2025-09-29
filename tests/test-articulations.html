@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JMON Articulation Examples</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f8f9fa;
+        }
+        h1 { color: #2c3e50; }
+        .example {
+            background: white;
+            margin: 20px 0;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .example h3 {
+            margin-top: 0;
+            color: #34495e;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 5px;
+        }
+        .score-container {
+            border: 1px dashed #bdc3c7;
+            padding: 10px;
+            background: #fefefe;
+            min-height: 200px;
+            margin: 10px 0;
+        }
+        .description {
+            color: #7f8c8d;
+            font-style: italic;
+            margin-bottom: 10px;
+        }
+        button {
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background: #2980b9; }
+        .controls {
+            margin: 10px 0;
+            padding: 10px;
+            background: #ecf0f1;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <h1>JMON Articulation Examples</h1>
+    <p>These examples showcase different articulations supported by the JMON schema and rendered with VexFlow.</p>
+
+    <div class="example">
+        <h3>1. Basic Articulations</h3>
+        <div class="description">
+            Shows the four most common articulations: staccato (detached), accent (emphasized), tenuto (sustained), and marcato (strongly accented).
+        </div>
+        <div class="controls">
+            <button onclick="renderExample('basicArticulations', 'basic-score')">Render Score</button>
+        </div>
+        <div id="basic-score" class="score-container"></div>
+    </div>
+
+    <div class="example">
+        <h3>2. Advanced Articulations</h3>
+        <div class="description">
+            Demonstrates legato (smooth connection) and articulations on notes of different durations.
+        </div>
+        <div class="controls">
+            <button onclick="renderExample('advancedArticulations', 'advanced-score')">Render Score</button>
+        </div>
+        <div id="advanced-score" class="score-container"></div>
+    </div>
+
+    <div class="example">
+        <h3>3. Articulations with Ornaments</h3>
+        <div class="description">
+            Combines articulations with grace notes (acciaccatura and appoggiatura ornaments).
+        </div>
+        <div class="controls">
+            <button onclick="renderExample('articulationsWithOrnaments', 'ornaments-score')">Render Score</button>
+        </div>
+        <div id="ornaments-score" class="score-container"></div>
+    </div>
+
+    <div class="example">
+        <h3>4. Dynamics & Articulations</h3>
+        <div class="description">
+            Shows how articulations work with different dynamic markings (f, p, mf, ff).
+        </div>
+        <div class="controls">
+            <button onclick="renderExample('dynamicsAndArticulations', 'dynamics-score')">Render Score</button>
+        </div>
+        <div id="dynamics-score" class="score-container"></div>
+    </div>
+
+    <div class="example">
+        <h3>5. Chords with Articulations</h3>
+        <div class="description">
+            Demonstrates how articulations apply to chord progressions.
+        </div>
+        <div class="controls">
+            <button onclick="renderExample('chordsWithArticulations', 'chords-score')">Render Score</button>
+        </div>
+        <div id="chords-score" class="score-container"></div>
+    </div>
+
+    <!-- Load libraries -->
+    <script src="./dist/jmon.umd.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vexflow@4.2.2/build/umd/vexflow.min.js"></script>
+    <script src="./articulation-example.js"></script>
+
+    <script>
+        // Wait for everything to load
+        window.addEventListener('load', () => {
+            console.log('JMON loaded:', !!window.JmonStudio);
+            console.log('VexFlow loaded:', !!window.VF);
+            console.log('Examples loaded:', !!window.articulationExamples);
+        });
+
+        function renderExample(exampleName, containerId) {
+            const container = document.getElementById(containerId);
+            const jm = window.JmonStudio;
+            const VF = window.VF;
+            const examples = window.articulationExamples;
+
+            if (!jm || !VF || !examples) {
+                container.innerHTML = '<div style="color: red;">Libraries not loaded properly</div>';
+                return;
+            }
+
+            const example = examples[exampleName];
+            if (!example) {
+                container.innerHTML = '<div style="color: red;">Example not found: ' + exampleName + '</div>';
+                return;
+            }
+
+            try {
+                container.innerHTML = ''; // Clear previous content
+
+                // Render with VexFlow
+                const result = jm.score(example, VF, {
+                    width: 700,
+                    height: 180,
+                    outputType: 'div' // Use div for HTML environments
+                });
+
+                if (result && result.nodeType === 1) {
+                    container.appendChild(result);
+
+                    // Add some info about the example
+                    const info = document.createElement('div');
+                    info.style.fontSize = '12px';
+                    info.style.color = '#7f8c8d';
+                    info.style.marginTop = '10px';
+                    info.innerHTML = `
+                        <strong>${example.metadata.title}</strong> -
+                        ${example.tracks[0].notes.length} notes,
+                        Key: ${example.keySignature},
+                        Time: ${example.timeSignature},
+                        Tempo: ${example.tempo}
+                    `;
+                    container.appendChild(info);
+                } else {
+                    container.innerHTML = '<div style="color: orange;">Score rendered but no DOM element returned</div>';
+                }
+            } catch (error) {
+                console.error('Rendering error:', error);
+                container.innerHTML = '<div style="color: red;">Rendering error: ' + error.message + '</div>';
+            }
+        }
+
+        // Auto-render the first example
+        setTimeout(() => {
+            renderExample('basicArticulations', 'basic-score');
+        }, 500);
+    </script>
+</body>
+</html>
