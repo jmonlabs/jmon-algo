@@ -1,7 +1,7 @@
 {
   "name": "jmon-studio",
   "type": "module",
-  "version": "1.5.30",
+  "version": "0.1.0",
   "description": "Complete JMON (JSON Music Object Notation) studio: format conversion, algorithmic composition, and music visualization (JavaScript version)",
   "main": "./dist/jmon.umd.js",
   "module": "./dist/jmon.esm.js",

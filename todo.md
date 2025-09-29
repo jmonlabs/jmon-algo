@@ -1,5 +1,6 @@
 Done
 - add sampler dicts linking notes to cdn served from https://github.com/jmonlabs/midi-js-soundfonts/tree/gh-pages/FluidR3_GM
+- rename the project jmon-algo (jmon-algo being the web app)
 
 Now
 - deprecating abcjs in favor of vexflow
