@@ -148,3 +148,5 @@ node_modules/
 # ai coding agents
 WARP.md
 .claude
+.zed
+jmon-jam
