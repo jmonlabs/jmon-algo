@@ -8,8 +8,17 @@ import {
   GM_INSTRUMENTS,
 } from "../utils/gm-instruments.js";
 import { SYNTHESIZER_TYPES, ALL_EFFECTS } from "../constants/audio-effects.js";
-import { COLORS, PLAYER_DIMENSIONS, TIMELINE_CONFIG, LAYOUT } from "../constants/ui-constants.js";
-import { AUDIO_CONFIG, ERROR_MESSAGES, LOG_PREFIXES } from "../constants/player-constants.js";
+import {
+  COLORS,
+  PLAYER_DIMENSIONS,
+  TIMELINE_CONFIG,
+  LAYOUT,
+} from "../constants/ui-constants.js";
+import {
+  AUDIO_CONFIG,
+  ERROR_MESSAGES,
+  LOG_PREFIXES,
+} from "../constants/player-constants.js";
 /**
  * Music Player
  * Comprehensive music player inspired by djalgo player.py
@@ -44,11 +53,15 @@ export function createPlayer(composition, options = {}) {
   // Normalize sequences/tracks to ensure forEach works
   const tracks = composition.tracks || composition.sequences || [];
   if (!Array.isArray(tracks)) {
-    console.error(`${LOG_PREFIXES.PLAYER} Tracks/sequences must be an array:`, tracks);
+    console.error(
+      `${LOG_PREFIXES.PLAYER} Tracks/sequences must be an array:`,
+      tracks,
+    );
     throw new Error(ERROR_MESSAGES.TRACKS_MUST_BE_ARRAY);
   }
 
-  const tempo = composition.tempo || composition.bpm || AUDIO_CONFIG.DEFAULT_TEMPO;
+  const tempo =
+    composition.tempo || composition.bpm || AUDIO_CONFIG.DEFAULT_TEMPO;
 
   // Convert JMON to Tone.js format with multivoice support
   const conversionOptions = { autoMultivoice, maxVoices, showDebug };
@@ -295,8 +308,8 @@ export function createPlayer(composition, options = {}) {
 
   originalTracks.forEach((track, index) => {
     // Find analysis for this track from converted data
-    const trackAnalysis = convertedTracks.find((t) =>
-      t.originalTrackIndex === index
+    const trackAnalysis = convertedTracks.find(
+      (t) => t.originalTrackIndex === index,
     )?.analysis;
     if (trackAnalysis?.hasGlissando) {
       console.warn(
@@ -392,7 +405,8 @@ export function createPlayer(composition, options = {}) {
         option.selected = true;
       } else if (
         !trackAnalysis?.hasGlissando &&
-        !composition.tracks?.[index]?.synthRef && synthType === "PolySynth"
+        !composition.tracks?.[index]?.synthRef &&
+        synthType === "PolySynth"
       ) {
         option.selected = true;
       }
@@ -424,26 +438,28 @@ export function createPlayer(composition, options = {}) {
     });
 
     // Add instruments organized by category
-    Object.keys(instrumentsByCategory).sort().forEach((category) => {
-      const categoryGroup = document.createElement("optgroup");
-      categoryGroup.label = category;
+    Object.keys(instrumentsByCategory)
+      .sort()
+      .forEach((category) => {
+        const categoryGroup = document.createElement("optgroup");
+        categoryGroup.label = category;
 
-      instrumentsByCategory[category].forEach((instrument) => {
-        const option = document.createElement("option");
-        option.value = `GM: ${instrument.name}`;
-        option.textContent = instrument.name;
+        instrumentsByCategory[category].forEach((instrument) => {
+          const option = document.createElement("option");
+          option.value = `GM: ${instrument.name}`;
+          option.textContent = instrument.name;
 
-        // Disable GM instruments for glissando (samplers don't support smooth pitch bending well)
-        if (trackAnalysis?.hasGlissando) {
-          option.disabled = true;
-          option.textContent += " (not suitable for glissando)";
-        }
+          // Disable GM instruments for glissando (samplers don't support smooth pitch bending well)
+          if (trackAnalysis?.hasGlissando) {
+            option.disabled = true;
+            option.textContent += " (not suitable for glissando)";
+          }
 
-        categoryGroup.appendChild(option);
+          categoryGroup.appendChild(option);
+        });
+
+        synthSelect.appendChild(categoryGroup);
       });
-
-      synthSelect.appendChild(categoryGroup);
-    });
 
     synthSelectors.push(synthSelect);
     synthSelectorItem.append(synthLabel, synthSelect);
@@ -519,8 +535,7 @@ export function createPlayer(composition, options = {}) {
   verticalDownloads.classList.add("jmon-music-player-vertical-downloads");
 
   const downloadMIDIButtonVertical = document.createElement("button");
-  downloadMIDIButtonVertical.innerHTML =
-    `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-keyboard-music" style="margin-right: 8px;"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="M6 8h4"/><path d="M14 8h.01"/><path d="M18 8h.01"/><path d="M2 12h20"/><path d="M6 12v4"/><path d="M10 12v4"/><path d="M14 12v4"/><path d="M18 12v4"/></svg><span>MIDI</span>`;
+  downloadMIDIButtonVertical.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-keyboard-music" style="margin-right: 8px;"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="M6 8h4"/><path d="M14 8h.01"/><path d="M18 8h.01"/><path d="M2 12h20"/><path d="M6 12v4"/><path d="M10 12v4"/><path d="M14 12v4"/><path d="M18 12v4"/></svg><span>MIDI</span>`;
   downloadMIDIButtonVertical.style.cssText = `
         padding: 12px 16px;
         border: none;
@@ -541,8 +556,7 @@ export function createPlayer(composition, options = {}) {
   downloadMIDIButtonVertical.classList.add("jmon-music-player-btn-vertical");
 
   const downloadWavButtonVertical = document.createElement("button");
-  downloadWavButtonVertical.innerHTML =
-    `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-audio-lines" style="margin-right: 8px;"><path d="M2 10v3"/><path d="M6 6v11"/><path d="M10 3v18"/><path d="M14 8v7"/><path d="M18 5v13"/><path d="M22 10v3"/></svg><span>WAV</span>`;
+  downloadWavButtonVertical.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-audio-lines" style="margin-right: 8px;"><path d="M2 10v3"/><path d="M6 6v11"/><path d="M10 3v18"/><path d="M14 8v7"/><path d="M18 5v13"/><path d="M22 10v3"/></svg><span>WAV</span>`;
   downloadWavButtonVertical.style.cssText = `
         padding: 12px 16px;
         border: none;
@@ -562,10 +576,13 @@ export function createPlayer(composition, options = {}) {
     `;
   downloadWavButtonVertical.classList.add("jmon-music-player-btn-vertical");
 
-  verticalDownloads.append(downloadMIDIButtonVertical, downloadWavButtonVertical);
+  verticalDownloads.append(
+    downloadMIDIButtonVertical,
+    downloadWavButtonVertical,
+  );
 
   // Hide vertical downloads by default - CSS will show them on larger screens
-  verticalDownloads.style.display = 'none';
+  verticalDownloads.style.display = "none";
 
   rightColumn.append(bpmContainer, verticalDownloads);
 
@@ -620,9 +637,9 @@ export function createPlayer(composition, options = {}) {
         height: 8px;
     `;
 
-    // Add timeline track styling to ensure visibility across browsers
-    const timelineStyle = document.createElement("style");
-    timelineStyle.textContent = `
+  // Add timeline track styling to ensure visibility across browsers
+  const timelineStyle = document.createElement("style");
+  timelineStyle.textContent = `
         input[type="range"].jmon-timeline-slider {
             background: ${colors.secondary} !important;
             border: 1px solid ${colors.border} !important;
@@ -663,13 +680,12 @@ export function createPlayer(composition, options = {}) {
             box-shadow: 0 1px 3px rgba(0,0,0,0.2) !important;
         }
     `;
-    document.head.appendChild(timelineStyle);
-    timeline.classList.add("jmon-timeline-slider");
+  document.head.appendChild(timelineStyle);
+  timeline.classList.add("jmon-timeline-slider");
 
   // Play/Pause button
   const playButton = document.createElement("button");
-  playButton.innerHTML =
-    `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-play"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg>`;
+  playButton.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-play"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg>`;
   playButton.style.cssText = `
         width: 40px;
         height: 40px;
@@ -694,8 +710,7 @@ export function createPlayer(composition, options = {}) {
 
   // Stop button
   const stopButton = document.createElement("button");
-  stopButton.innerHTML =
-    `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-square"><rect width="18" height="18" x="3" y="3" rx="2"/></svg>`;
+  stopButton.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-square"><rect width="18" height="18" x="3" y="3" rx="2"/></svg>`;
   stopButton.style.cssText = `
         width: 40px;
         height: 40px;
@@ -751,8 +766,7 @@ export function createPlayer(composition, options = {}) {
   buttonContainer.classList.add("jmon-music-player-downloads");
 
   const downloadMIDIButton = document.createElement("button");
-  downloadMIDIButton.innerHTML =
-    `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-keyboard-music" style="margin-right: 5px;"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="M6 8h4"/><path d="M14 8h.01"/><path d="M18 8h.01"/><path d="M2 12h20"/><path d="M6 12v4"/><path d="M10 12v4"/><path d="M14 12v4"/><path d="M18 12v4"/></svg><span>MIDI</span>`;
+  downloadMIDIButton.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-keyboard-music" style="margin-right: 5px;"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="M6 8h4"/><path d="M14 8h.01"/><path d="M18 8h.01"/><path d="M2 12h20"/><path d="M6 12v4"/><path d="M10 12v4"/><path d="M14 12v4"/><path d="M18 12v4"/></svg><span>MIDI</span>`;
   downloadMIDIButton.style.cssText = `
         padding: 15px 30px;
         margin: 0 5px;
@@ -776,8 +790,7 @@ export function createPlayer(composition, options = {}) {
   downloadMIDIButton.classList.add("jmon-music-player-btn");
 
   const downloadWavButton = document.createElement("button");
-  downloadWavButton.innerHTML =
-    `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-audio-lines" style="margin-right: 5px;"><path d="M2 10v3"/><path d="M6 6v11"/><path d="M10 3v18"/><path d="M14 8v7"/><path d="M18 5v13"/><path d="M22 10v3"/></svg><span>WAV</span>`;
+  downloadWavButton.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-audio-lines" style="margin-right: 5px;"><path d="M2 10v3"/><path d="M6 6v11"/><path d="M10 3v18"/><path d="M14 8v7"/><path d="M18 5v13"/><path d="M22 10v3"/></svg><span>WAV</span>`;
   downloadWavButton.style.cssText = `
         padding: 15px 30px;
         margin: 0 5px;
@@ -809,13 +822,13 @@ export function createPlayer(composition, options = {}) {
   mainLayout.appendChild(timelineContainer);
 
   // Keep original horizontal buttons for mobile
-  container.append(
-    mainLayout,
-    buttonContainer,
-  );
+  container.append(mainLayout, buttonContainer);
 
   // Initialize Tone.js functionality
-  let Tone, isPlaying = false, synths = [], parts = [];
+  let Tone,
+    isPlaying = false,
+    synths = [],
+    parts = [];
 
   // Track sampler loading promises so we can await before starting
   let samplerLoadPromises = [];
@@ -907,7 +920,10 @@ export function createPlayer(composition, options = {}) {
           // Effect support - create the effect but don't connect yet
           try {
             instrument = new Tone[type](options);
-            console.log(`[PLAYER] Created effect ${id} (${type}) with options:`, options);
+            console.log(
+              `[PLAYER] Created effect ${id} (${type}) with options:`,
+              options,
+            );
           } catch (e) {
             console.warn(`[PLAYER] Failed to create ${type} effect:`, e);
             instrument = null;
@@ -949,7 +965,9 @@ export function createPlayer(composition, options = {}) {
           } else {
             // No target specified, connect directly to destination
             currentNode.toDestination();
-            console.log(`[PLAYER] Connected ${id} -> Destination (no target specified)`);
+            console.log(
+              `[PLAYER] Connected ${id} -> Destination (no target specified)`,
+            );
           }
         });
       }
@@ -963,14 +981,16 @@ export function createPlayer(composition, options = {}) {
 
   // iOS detection utility
   const isIOS = () => {
-    return /iPad|iPhone|iPod/.test(navigator.userAgent) ||
-      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    return (
+      /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+      (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1)
+    );
   };
 
   const formatTime = (seconds) => {
-    return `${Math.floor(seconds / 60)}:${
-      Math.floor(seconds % 60).toString().padStart(2, "0")
-    }`;
+    return `${Math.floor(seconds / 60)}:${Math.floor(seconds % 60)
+      .toString()
+      .padStart(2, "0")}`;
   };
 
   // Set initial total time display
@@ -979,7 +999,9 @@ export function createPlayer(composition, options = {}) {
   const initializeTone = async () => {
     if (typeof window !== "undefined") {
       // Check for Tone.js as parameter, in window, or as global variable
-      const existingTone = externalTone || window.Tone ||
+      const existingTone =
+        externalTone ||
+        window.Tone ||
         (typeof Tone !== "undefined" ? Tone : null);
       if (!existingTone) {
         try {
@@ -989,7 +1011,9 @@ export function createPlayer(composition, options = {}) {
             console.log("[PLAYER] Loading Tone.js via require()...");
             const ToneFromRequire = await require("tone@14.8.49/build/Tone.js");
             // Handle different export formats
-            window.Tone = ToneFromRequire.default || ToneFromRequire.Tone ||
+            window.Tone =
+              ToneFromRequire.default ||
+              ToneFromRequire.Tone ||
               ToneFromRequire;
           } else {
             // Fallback to ES6 import with correct module path
@@ -1000,7 +1024,8 @@ export function createPlayer(composition, options = {}) {
 
           // Validate that we got a proper Tone object with essential constructors
           if (
-            !window.Tone || typeof window.Tone !== "object" ||
+            !window.Tone ||
+            typeof window.Tone !== "object" ||
             !window.Tone.PolySynth
           ) {
             console.warn(
@@ -1027,8 +1052,8 @@ export function createPlayer(composition, options = {}) {
                 const ToneJsdelivr = await import(
                   "https://cdn.jsdelivr.net/npm/tone@14.8.49/build/Tone.js"
                 );
-                window.Tone = ToneJsdelivr.default || ToneJsdelivr.Tone ||
-                  ToneJsdelivr;
+                window.Tone =
+                  ToneJsdelivr.default || ToneJsdelivr.Tone || ToneJsdelivr;
 
                 if (!window.Tone || !window.Tone.PolySynth) {
                   throw new Error("All CDN attempts failed");
@@ -1093,7 +1118,9 @@ export function createPlayer(composition, options = {}) {
 
         // iOS-specific logging
         if (isIOS()) {
-          console.log("[PLAYER] iOS device detected - audio context will start on user interaction");
+          console.log(
+            "[PLAYER] iOS device detected - audio context will start on user interaction",
+          );
         }
 
         return true;
@@ -1123,10 +1150,9 @@ export function createPlayer(composition, options = {}) {
       );
       console.error(
         "[PLAYER] Available Tone properties:",
-        Object.keys(Tone).filter((k) => typeof Tone[k] === "function").slice(
-          0,
-          20,
-        ),
+        Object.keys(Tone)
+          .filter((k) => typeof Tone[k] === "function")
+          .slice(0, 20),
       );
       console.error("[PLAYER] Tone object:", Tone);
       console.error(
@@ -1145,8 +1171,8 @@ export function createPlayer(composition, options = {}) {
     if (!graphInstruments) {
       graphInstruments = buildAudioGraphInstruments();
       if (graphInstruments) {
-        const samplerIds = Object.keys(graphInstruments).filter((k) =>
-          graphInstruments[k] && graphInstruments[k].name === "Sampler"
+        const samplerIds = Object.keys(graphInstruments).filter(
+          (k) => graphInstruments[k] && graphInstruments[k].name === "Sampler",
         );
         if (samplerIds.length > 0) {
           console.log(
@@ -1227,12 +1253,12 @@ export function createPlayer(composition, options = {}) {
       // Normalize event times: treat numeric times/durations as beats and convert to seconds
       const secPerBeat = 60 / metadata.tempo;
       const normalizedEvents = (partEvents || []).map((ev) => {
-        const time = (typeof ev.time === "number")
-          ? ev.time * secPerBeat
-          : ev.time;
-        const duration = (typeof ev.duration === "number")
-          ? ev.duration * secPerBeat
-          : ev.duration;
+        const time =
+          typeof ev.time === "number" ? ev.time * secPerBeat : ev.time;
+        const duration =
+          typeof ev.duration === "number"
+            ? ev.duration * secPerBeat
+            : ev.duration;
         return { ...ev, time, duration };
       });
 
@@ -1261,8 +1287,8 @@ export function createPlayer(composition, options = {}) {
             }
           } else if (selectedSynth.startsWith("GM: ")) {
             const instrumentName = selectedSynth.substring(4); // Remove 'GM: ' prefix
-            const gmInstrument = gmInstruments.find((inst) =>
-              inst.name === instrumentName
+            const gmInstrument = gmInstruments.find(
+              (inst) => inst.name === instrumentName,
             );
 
             if (gmInstrument) {
@@ -1306,9 +1332,10 @@ export function createPlayer(composition, options = {}) {
             }
           } else {
             // Use synth type from converter (handles glissando compatibility)
-            const synthType = (synthConfig.reason === "glissando_compatibility")
-              ? synthConfig.type
-              : selectedSynth;
+            const synthType =
+              synthConfig.reason === "glissando_compatibility"
+                ? synthConfig.type
+                : selectedSynth;
 
             // Validate that the synth constructor exists
             if (!Tone[synthType] || typeof Tone[synthType] !== "function") {
@@ -1373,17 +1400,30 @@ export function createPlayer(composition, options = {}) {
           });
         } else if (
           Array.isArray(note.modulations) &&
-          note.modulations.some((m) => m.type === "pitch" && (m.subtype === "glissando" || m.subtype === "portamento") && (m.to !== undefined || m.target !== undefined))
+          note.modulations.some(
+            (m) =>
+              m.type === "pitch" &&
+              (m.subtype === "glissando" || m.subtype === "portamento") &&
+              (m.to !== undefined || m.target !== undefined),
+          )
         ) {
           // Glissando: play both notes with slight overlap to simulate slide
-          let noteName = typeof note.pitch === "number"
-            ? Tone.Frequency(note.pitch, "midi").toNote()
-            : note.pitch;
-          const gliss = note.modulations.find((m) => m.type === "pitch" && (m.subtype === "glissando" || m.subtype === "portamento") && (m.to !== undefined || m.target !== undefined));
-          const glissTarget = gliss && (gliss.to !== undefined ? gliss.to : gliss.target);
-          let targetName = typeof glissTarget === "number"
-            ? Tone.Frequency(glissTarget, "midi").toNote()
-            : glissTarget;
+          let noteName =
+            typeof note.pitch === "number"
+              ? Tone.Frequency(note.pitch, "midi").toNote()
+              : note.pitch;
+          const gliss = note.modulations.find(
+            (m) =>
+              m.type === "pitch" &&
+              (m.subtype === "glissando" || m.subtype === "portamento") &&
+              (m.to !== undefined || m.target !== undefined),
+          );
+          const glissTarget =
+            gliss && (gliss.to !== undefined ? gliss.to : gliss.target);
+          let targetName =
+            typeof glissTarget === "number"
+              ? Tone.Frequency(glissTarget, "midi").toNote()
+              : glissTarget;
 
           console.log("[PLAYER] Glissando", {
             fromNote: noteName,
@@ -1409,7 +1449,8 @@ export function createPlayer(composition, options = {}) {
 
           // Create pitch slide using detune if available
           if (
-            synth.detune && synth.detune.setValueAtTime &&
+            synth.detune &&
+            synth.detune.setValueAtTime &&
             synth.detune.linearRampToValueAtTime
           ) {
             synth.detune.setValueAtTime(0, time);
@@ -1433,8 +1474,8 @@ export function createPlayer(composition, options = {}) {
 
             for (let i = 1; i < steps; i++) {
               const ratio = i / (steps - 1);
-              const currentFreq = startFreq *
-                Math.pow(endFreq / startFreq, ratio);
+              const currentFreq =
+                startFreq * Math.pow(endFreq / startFreq, ratio);
               const currentNote = Tone.Frequency(currentFreq).toNote();
               const currentTime = time + i * stepDuration;
               synth.triggerAttackRelease(
@@ -1460,7 +1501,8 @@ export function createPlayer(composition, options = {}) {
           } else if (typeof note.pitch === "string") {
             noteName = note.pitch;
           } else if (
-            Array.isArray(note.pitch) && typeof note.pitch[0] === "string"
+            Array.isArray(note.pitch) &&
+            typeof note.pitch[0] === "string"
           ) {
             noteName = note.pitch[0];
           }
@@ -1470,13 +1512,18 @@ export function createPlayer(composition, options = {}) {
           const mods = Array.isArray(note.modulations) ? note.modulations : [];
 
           // Apply duration scaling if present
-          const durScale = mods.find((m) => m.type === "durationScale" && typeof m.factor === "number");
+          const durScale = mods.find(
+            (m) => m.type === "durationScale" && typeof m.factor === "number",
+          );
           if (durScale) {
             noteDuration = note.duration * durScale.factor;
           }
 
           // Apply velocity boost if present
-          const velBoost = mods.find((m) => m.type === "velocityBoost" && typeof m.amountBoost === "number");
+          const velBoost = mods.find(
+            (m) =>
+              m.type === "velocityBoost" && typeof m.amountBoost === "number",
+          );
           if (velBoost) {
             noteVelocity = Math.min(noteVelocity + velBoost.amountBoost, 1.0);
           }
@@ -1514,13 +1561,14 @@ export function createPlayer(composition, options = {}) {
 
   const updateTimeline = () => {
     const now = performance.now();
-    const shouldUpdate = (now - lastTimelineUpdate) >= TIMELINE_UPDATE_INTERVAL;
+    const shouldUpdate = now - lastTimelineUpdate >= TIMELINE_UPDATE_INTERVAL;
 
     if (Tone && isPlaying) {
       // Compute loop length in seconds (loopEnd is set in seconds)
-      const loopSeconds = (typeof Tone.Transport.loopEnd === "number")
-        ? Tone.Transport.loopEnd
-        : (Tone.Time(Tone.Transport.loopEnd).toSeconds());
+      const loopSeconds =
+        typeof Tone.Transport.loopEnd === "number"
+          ? Tone.Transport.loopEnd
+          : Tone.Time(Tone.Transport.loopEnd).toSeconds();
 
       if (shouldUpdate) {
         const elapsed = Tone.Transport.seconds % loopSeconds;
@@ -1534,7 +1582,10 @@ export function createPlayer(composition, options = {}) {
       // Check if we should continue updating
       if (Tone.Transport.state === "started" && isPlaying) {
         requestAnimationFrame(updateTimeline);
-      } else if (Tone.Transport.state === "stopped" || Tone.Transport.state === "paused") {
+      } else if (
+        Tone.Transport.state === "stopped" ||
+        Tone.Transport.state === "paused"
+      ) {
         // Keep updating display even when paused
         if (shouldUpdate) {
           const elapsed = Tone.Transport.seconds % loopSeconds;
@@ -1550,8 +1601,7 @@ export function createPlayer(composition, options = {}) {
           timeline.value = 0;
           currentTime.textContent = formatTime(0);
           isPlaying = false;
-          playButton.innerHTML =
-            `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-play"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg>`;
+          playButton.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-play"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg>`;
         }
       }
     }
@@ -1574,8 +1624,7 @@ export function createPlayer(composition, options = {}) {
       Tone.Transport.pause();
 
       isPlaying = false;
-      playButton.innerHTML =
-        `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-play"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg>`;
+      playButton.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-play"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg>`;
       console.log("[PLAYER] Playback paused");
     } else {
       // Ensure audio context is started first - critical for iOS
@@ -1598,7 +1647,8 @@ export function createPlayer(composition, options = {}) {
           // More helpful error messages
           let errorMsg = "Failed to start audio. ";
           if (isIOS()) {
-            errorMsg += "On iOS, please ensure your device isn't in silent mode and try again.";
+            errorMsg +=
+              "On iOS, please ensure your device isn't in silent mode and try again.";
           } else {
             errorMsg += "Please check your audio settings and try again.";
           }
@@ -1639,8 +1689,8 @@ export function createPlayer(composition, options = {}) {
       console.log("[PLAYER] Synths count:", synths.length);
       // Wait for samplers to load if present
       if (graphInstruments) {
-        const samplers = Object.values(graphInstruments).filter((inst) =>
-          inst && inst.name === "Sampler"
+        const samplers = Object.values(graphInstruments).filter(
+          (inst) => inst && inst.name === "Sampler",
         );
         if (samplers.length > 0 && samplerLoadPromises.length > 0) {
           console.log(
@@ -1686,8 +1736,7 @@ export function createPlayer(composition, options = {}) {
       // Start transport at position 0
       Tone.Transport.start();
       isPlaying = true;
-      playButton.innerHTML =
-        `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-pause"><circle cx="12" cy="12" r="10"/><line x1="10" x2="10" y1="15" y2="9"/><line x1="14" x2="14" y1="15" y2="9"/></svg>`;
+      playButton.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-pause"><circle cx="12" cy="12" r="10"/><line x1="10" x2="10" y1="15" y2="9"/><line x1="14" x2="14" y1="15" y2="9"/></svg>`;
       updateTimeline();
     }
   });
@@ -1720,8 +1769,7 @@ export function createPlayer(composition, options = {}) {
     isPlaying = false;
     timeline.value = 0;
     currentTime.textContent = formatTime(0);
-    playButton.innerHTML =
-      `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-play"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg>`;
+    playButton.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-play"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg>`;
 
     console.log("[PLAYER] Playback stopped completely");
   });
@@ -1786,25 +1834,208 @@ export function createPlayer(composition, options = {}) {
           setTimeout(() => {
             Tone.Transport.start();
             isPlaying = true;
-            playButton.innerHTML =
-              `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-pause"><circle cx="12" cy="12" r="10"/><line x1="10" x2="10" y1="15" y2="9"/><line x1="14" x2="14" y1="15" y2="9"/></svg>`;
+            playButton.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-pause"><circle cx="12" cy="12" r="10"/><line x1="10" x2="10" y1="15" y2="9"/><line x1="14" x2="14" y1="15" y2="9"/></svg>`;
           }, 100);
         } else {
-          playButton.innerHTML =
-            `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-play"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg>`;
+          playButton.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-play"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg>`;
         }
       }
     });
   });
 
   // Download button handlers
-  const handleMIDIDownload = () => {
-    console.log("MIDI download - requires MIDI converter implementation");
+  const handleMIDIDownload = async () => {
+    try {
+      // Dynamic import of MIDI converter
+      const { midi } = await import("../converters/index.js");
+
+      // Convert composition to MIDI
+      const midiData = midi(composition);
+
+      // Create MIDI file using @tonejs/midi
+      let ToneMidi;
+      if (typeof require !== "undefined") {
+        ToneMidi = await require("https://esm.sh/@tonejs/midi@2.0.28");
+      } else {
+        const module = await import("https://esm.sh/@tonejs/midi@2.0.28");
+        ToneMidi = module.default || module;
+      }
+
+      const midiFile = new ToneMidi.Midi();
+      midiFile.header.setTempo(midiData.header.bpm);
+
+      // Add tracks
+      midiData.tracks.forEach((trackData) => {
+        const track = midiFile.addTrack();
+        track.name = trackData.label || "Track";
+
+        trackData.notes.forEach((note) => {
+          track.addNote({
+            midi: typeof note.pitch === "number" ? note.pitch : 60,
+            time: note.time || 0,
+            duration: note.duration || 0.5,
+            velocity: note.velocity || 0.8,
+          });
+        });
+      });
+
+      // Create blob and download
+      const blob = new Blob([midiFile.toArray()], { type: "audio/midi" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${composition.metadata?.title || "composition"}.mid`;
+      a.click();
+      URL.revokeObjectURL(url);
+
+      console.log("✓ MIDI download complete");
+    } catch (error) {
+      console.error("MIDI download error:", error);
+      alert("Failed to download MIDI: " + error.message);
+    }
   };
 
-  const handleWavDownload = () => {
-    console.log("WAV download - requires WAV generator implementation");
+  const handleWavDownload = async () => {
+    try {
+      if (!Tone || !Tone.Offline) {
+        alert("Tone.js not loaded - cannot generate WAV");
+        return;
+      }
+
+      console.log("Rendering WAV offline...");
+
+      // Calculate total duration
+      const buffer = await Tone.Offline(async ({ transport }) => {
+        transport.bpm.value = metadata.tempo;
+
+        // Recreate synths for offline rendering
+        const offlineSynths = [];
+
+        convertedTracks.forEach((trackConfig) => {
+          const { originalTrackIndex, partEvents } = trackConfig;
+          const originalTrack = originalTracksSource[originalTrackIndex] || {};
+          const synthRef = originalTrack.synthRef;
+
+          let synth = null;
+          if (synthRef && graphInstruments && graphInstruments[synthRef]) {
+            synth = graphInstruments[synthRef];
+          } else {
+            const selectedSynth =
+              synthSelectors[originalTrackIndex]?.value || "PolySynth";
+
+            if (selectedSynth.startsWith("GM: ")) {
+              // Use simple synth for offline rendering (samplers are complex)
+              synth = new Tone.PolySynth().toDestination();
+            } else {
+              try {
+                synth = new Tone[selectedSynth]().toDestination();
+              } catch {
+                synth = new Tone.PolySynth().toDestination();
+              }
+            }
+          }
+
+          offlineSynths.push(synth);
+
+          // Schedule notes
+          partEvents.forEach((note) => {
+            const time =
+              typeof note.time === "number"
+                ? note.time * (60 / metadata.tempo)
+                : note.time;
+            const duration =
+              typeof note.duration === "number"
+                ? note.duration * (60 / metadata.tempo)
+                : note.duration;
+
+            if (Array.isArray(note.pitch)) {
+              const notes = note.pitch.map((p) =>
+                typeof p === "number" ? Tone.Frequency(p, "midi").toNote() : p,
+              );
+              synth.triggerAttackRelease(
+                notes,
+                duration,
+                time,
+                note.velocity || 0.8,
+              );
+            } else {
+              const noteName =
+                typeof note.pitch === "number"
+                  ? Tone.Frequency(note.pitch, "midi").toNote()
+                  : note.pitch;
+              synth.triggerAttackRelease(
+                noteName,
+                duration,
+                time,
+                note.velocity || 0.8,
+              );
+            }
+          });
+        });
+
+        transport.start(0);
+      }, totalDuration + 1);
+
+      // Convert to WAV
+      const wavBlob = await audioBufferToWav(buffer);
+      const url = URL.createObjectURL(wavBlob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${composition.metadata?.title || "composition"}.wav`;
+      a.click();
+      URL.revokeObjectURL(url);
+
+      console.log("✓ WAV download complete");
+    } catch (error) {
+      console.error("WAV download error:", error);
+      alert("Failed to download WAV: " + error.message);
+    }
   };
+
+  // Helper: Convert AudioBuffer to WAV blob
+  function audioBufferToWav(buffer) {
+    const numberOfChannels = buffer.numberOfChannels;
+    const sampleRate = buffer.sampleRate;
+    const length = buffer.length * numberOfChannels * 2;
+    const arrayBuffer = new ArrayBuffer(44 + length);
+    const view = new DataView(arrayBuffer);
+
+    // WAV header
+    writeString(view, 0, "RIFF");
+    view.setUint32(4, 36 + length, true);
+    writeString(view, 8, "WAVE");
+    writeString(view, 12, "fmt ");
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true);
+    view.setUint16(22, numberOfChannels, true);
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate * numberOfChannels * 2, true);
+    view.setUint16(32, numberOfChannels * 2, true);
+    view.setUint16(34, 16, true);
+    writeString(view, 36, "data");
+    view.setUint32(40, length, true);
+
+    // Interleave channels
+    let offset = 44;
+    for (let i = 0; i < buffer.length; i++) {
+      for (let channel = 0; channel < numberOfChannels; channel++) {
+        const sample = Math.max(
+          -1,
+          Math.min(1, buffer.getChannelData(channel)[i]),
+        );
+        view.setInt16(offset, sample * 0x7fff, true);
+        offset += 2;
+      }
+    }
+
+    return new Blob([arrayBuffer], { type: "audio/wav" });
+  }
+
+  function writeString(view, offset, string) {
+    for (let i = 0; i < string.length; i++) {
+      view.setUint8(offset + i, string.charCodeAt(i));
+    }
+  }
 
   // Horizontal buttons (mobile)
   downloadMIDIButton.addEventListener("click", handleMIDIDownload);
@@ -1815,7 +2046,8 @@ export function createPlayer(composition, options = {}) {
   downloadWavButtonVertical.addEventListener("click", handleWavDownload);
 
   // Initialize if Tone.js is already available
-  const initialTone = (typeof window !== "undefined" && window.Tone) ||
+  const initialTone =
+    (typeof window !== "undefined" && window.Tone) ||
     (typeof Tone !== "undefined" ? Tone : null);
   if (initialTone) {
     initializeTone().then(() => {
@@ -1832,7 +2064,8 @@ export function createPlayer(composition, options = {}) {
   // If autoplay is enabled but Tone.js isn't available yet, try later
   if (autoplay && !initialTone) {
     const autoplayInterval = setInterval(() => {
-      const currentTone = (typeof window !== "undefined" && window.Tone) ||
+      const currentTone =
+        (typeof window !== "undefined" && window.Tone) ||
         (typeof Tone !== "undefined" ? Tone : null);
       if (currentTone) {
         clearInterval(autoplayInterval);

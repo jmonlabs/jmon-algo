@@ -146,7 +146,8 @@ _djalgo/
 node_modules/
 
 # ai coding agents
-WARP.md
 .claude
 .zed
-jmon-jam
+.results.json
+deno.lock
+deno.json
