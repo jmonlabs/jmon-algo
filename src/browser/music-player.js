@@ -39,6 +39,7 @@ export function createPlayer(composition, options = {}) {
     autoMultivoice = true,
     maxVoices = 4,
     Tone: externalTone = null,
+    preloadTone = false,
   } = options;
 
   // Ensure composition has the expected structure
@@ -1897,15 +1898,20 @@ export function createPlayer(composition, options = {}) {
 
   const handleWavDownload = async () => {
     try {
-      if (!Tone || !Tone.Offline) {
-        alert("Tone.js not loaded - cannot generate WAV");
+      // Access Tone from window (it's set globally in setupAudio)
+      const ToneLib = window.Tone;
+
+      if (!ToneLib || !ToneLib.Offline) {
+        alert(
+          "Tone.js not loaded - cannot generate WAV. Try playing the composition first.",
+        );
         return;
       }
 
       console.log("Rendering WAV offline...");
 
       // Calculate total duration
-      const buffer = await Tone.Offline(async ({ transport }) => {
+      const buffer = await ToneLib.Offline(async ({ transport }) => {
         transport.bpm.value = metadata.tempo;
 
         // Recreate synths for offline rendering
@@ -1925,12 +1931,12 @@ export function createPlayer(composition, options = {}) {
 
             if (selectedSynth.startsWith("GM: ")) {
               // Use simple synth for offline rendering (samplers are complex)
-              synth = new Tone.PolySynth().toDestination();
+              synth = new ToneLib.PolySynth().toDestination();
             } else {
               try {
-                synth = new Tone[selectedSynth]().toDestination();
+                synth = new ToneLib[selectedSynth]().toDestination();
               } catch {
-                synth = new Tone.PolySynth().toDestination();
+                synth = new ToneLib.PolySynth().toDestination();
               }
             }
           }
@@ -1950,7 +1956,9 @@ export function createPlayer(composition, options = {}) {
 
             if (Array.isArray(note.pitch)) {
               const notes = note.pitch.map((p) =>
-                typeof p === "number" ? Tone.Frequency(p, "midi").toNote() : p,
+                typeof p === "number"
+                  ? ToneLib.Frequency(p, "midi").toNote()
+                  : p,
               );
               synth.triggerAttackRelease(
                 notes,
@@ -1961,7 +1969,7 @@ export function createPlayer(composition, options = {}) {
             } else {
               const noteName =
                 typeof note.pitch === "number"
-                  ? Tone.Frequency(note.pitch, "midi").toNote()
+                  ? ToneLib.Frequency(note.pitch, "midi").toNote()
                   : note.pitch;
               synth.triggerAttackRelease(
                 noteName,
@@ -2045,11 +2053,11 @@ export function createPlayer(composition, options = {}) {
   downloadMIDIButtonVertical.addEventListener("click", handleMIDIDownload);
   downloadWavButtonVertical.addEventListener("click", handleWavDownload);
 
-  // Initialize if Tone.js is already available
+  // Initialize if Tone.js is already available OR if preload is requested
   const initialTone =
     (typeof window !== "undefined" && window.Tone) ||
     (typeof Tone !== "undefined" ? Tone : null);
-  if (initialTone) {
+  if (initialTone || preloadTone) {
     initializeTone().then(() => {
       setupAudio();
       // Auto-start playback if autoplay is enabled
@@ -2062,7 +2070,7 @@ export function createPlayer(composition, options = {}) {
   }
 
   // If autoplay is enabled but Tone.js isn't available yet, try later
-  if (autoplay && !initialTone) {
+  if (autoplay && !initialTone && !preloadTone) {
     const autoplayInterval = setInterval(() => {
       const currentTone =
         (typeof window !== "undefined" && window.Tone) ||

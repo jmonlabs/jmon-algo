@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>JMON IDE</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: system-ui; height: 100vh; display: flex; flex-direction: column; }
+    #container { display: flex; flex: 1; overflow: hidden; }
+    #editor-container { width: 50%; border-right: 1px solid #ddd; display: flex; flex-direction: column; }
+    #editor { flex: 1; font-family: monospace; padding: 10px; font-size: 14px; }
+    #output { width: 50%; overflow: auto; padding: 20px; }
+    #toolbar { padding: 10px; background: #f5f5f5; border-bottom: 1px solid #ddd; }
+    button { padding: 8px 16px; margin-right: 8px; cursor: pointer; }
+    #score, #player { margin-bottom: 20px; }
+  </style>
+</head>
+<body>
+  <div id="toolbar">
+    <button onclick="runCode()">▶ Run (Ctrl+Enter)</button>
+    <button onclick="clearOutput()">Clear</button>
+  </div>
+  <div id="container">
+    <div id="editor-container">
+      <textarea id="editor" spellcheck="false">// JMON Composition
+const notes = [
+  { pitch: 60, duration: 1, time: 0 },
+  { pitch: 62, duration: 1, time: 1 },
+  { pitch: 64, duration: 1, time: 2 },
+  { pitch: 65, duration: 1, time: 3 },
+  { pitch: 67, duration: 1, time: 4 },
+  { pitch: 69, duration: 1, time: 5 },
+  { pitch: 71, duration: 1, time: 6 },
+  { pitch: 72, duration: 1, time: 7 }
+];
+
+const piece = {
+  metadata: { title: "C Major Scale" },
+  tracks: [{ notes }]
+};
+
+// Return piece to render it
+piece;</textarea>
+    </div>
+    <div id="output">
+      <div id="score"></div>
+      <div id="player"></div>
+      <pre id="logs"></pre>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/vexflow@4.2.2/build/cjs/vexflow.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/tone@15.0.4/build/Tone.js"></script>
+  <script type="module">
+    import { jm } from '/dist/jmon.esm.js';
+    window.jm = jm;
+
+    const editor = document.getElementById('editor');
+
+    // Ctrl+Enter to run
+    editor.addEventListener('keydown', (e) => {
+      if (e.ctrlKey && e.key === 'Enter') {
+        e.preventDefault();
+        runCode();
+      }
+    });
+
+    window.runCode = async function() {
+      const code = editor.value;
+      clearOutput();
+
+      try {
+        const result = eval(code);
+
+        if (result && result.tracks) {
+          await Tone.start();
+
+          const VF = window.Vex?.Flow || window.VF;
+          if (VF) {
+            try {
+              const scoreElement = jm.score(result, VF);
+              document.getElementById('score').appendChild(scoreElement);
+            } catch (e) {
+              document.getElementById('score').innerHTML = '<p style="color:red">Score error: ' + e.message + '</p>';
+            }
+          }
+
+          const playerElement = jm.render(result, { Tone: window.Tone });
+          document.getElementById('player').appendChild(playerElement);
+        }
+
+        document.getElementById('logs').textContent = JSON.stringify(result, null, 2);
+      } catch (e) {
+        document.getElementById('logs').textContent = 'Error: ' + e.message + '\n' + e.stack;
+      }
+    };
+
+    window.clearOutput = function() {
+      document.getElementById('score').innerHTML = '';
+      document.getElementById('player').innerHTML = '';
+      document.getElementById('logs').textContent = '';
+    };
+  </script>
+</body>
+</html>

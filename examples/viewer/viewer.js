@@ -140,7 +140,7 @@ if (import.meta.main) {
           import { createPlayer } from '../src/browser/music-player.js';
           const comp = ${JSON.stringify(r.content)};
           try {
-            const el = createPlayer(comp, { autoplay: false });
+            const el = createPlayer(comp, { autoplay: false, preloadTone: true });
             document.getElementById('player-${i}').appendChild(el);
           } catch(e) {
             document.getElementById('player-${i}').innerHTML = '<p style="color:red">Error creating player: ' + e.message + '</p>';

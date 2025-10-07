@@ -87,8 +87,24 @@ deno run --allow-net --allow-read --allow-write examples/viewer/viewer.js
 
 - `show(data)` - Display any data as JSON
 - `showScore(composition)` - Render musical notation
-- `showPlayer(composition)` - Create interactive player
+- `showPlayer(composition)` - Create interactive player (with Tone.js preloaded for immediate WAV export)
 - `clear()` - Clear all results
+
+## Player Features
+
+The player in the viewer automatically preloads Tone.js, which means:
+- ✅ WAV download works immediately (no need to play first)
+- ✅ MIDI download always works
+- ⚠️ Slower initial page load (~500KB Tone.js library)
+
+For manual use without the viewer:
+```javascript
+// Default: load Tone.js on first play (fast page load)
+createPlayer(composition, { autoplay: false });
+
+// Preload: load Tone.js immediately (enables instant WAV download)
+createPlayer(composition, { autoplay: false, preloadTone: true });
+```
 
 
 ## How the viewer works

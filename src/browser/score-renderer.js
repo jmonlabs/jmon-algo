@@ -6,7 +6,12 @@
 import { convertToVexFlow } from "../converters/index.js";
 
 export function score(composition, options = {}) {
-  const { width = 800, height = 200, scale = 1.0, observable = false } = options;
+  const {
+    width = 800,
+    height = 200,
+    scale = 1.0,
+    observable = false,
+  } = options;
 
   const container = document.createElement("div");
   container.style.width = "100%";
@@ -99,8 +104,21 @@ export function score(composition, options = {}) {
           return new VF.StaveNote({ keys, duration });
         });
 
+        // VexFlow needs num_beats to match the number of beats the notes actually take
+        // Calculate based on VexFlow duration values
+        const vexflowBeats = vfNotes.reduce((sum, note) => {
+          const dur = note.attrs.duration;
+          if (dur === 'w') return sum + 4;
+          if (dur === 'h') return sum + 2;
+          if (dur === 'q') return sum + 1;
+          if (dur === '8') return sum + 0.5;
+          if (dur === '16') return sum + 0.25;
+          if (dur === '32') return sum + 0.125;
+          return sum + 1;
+        }, 0);
+
         const voice = new VF.Voice({
-          num_beats: vfNotes.length,
+          num_beats: vexflowBeats,
           beat_value: 4,
         });
         voice.addTickables(vfNotes);
