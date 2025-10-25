@@ -382,10 +382,78 @@ export class MidiToJmon {
    * @returns {string|null} Key signature like "C", "G", "Dm"
    */
   extractKeySignature(parsed) {
-    // This is tricky as MIDI key signatures are not always reliable
-    // For now, return null and let JMON use default
-    // TODO: Implement key signature detection from MIDI meta events
-    return null;
+    if (!this.options.includeKeySignature) {
+      return null;
+    }
+
+    // MIDI key signatures are stored in meta events
+    // Format: number of sharps/flats (negative for flats), major/minor flag
+    let keySignature = null;
+    let earliestTime = Infinity;
+
+    // Check header for key signature events
+    if (parsed.header && parsed.header.keySignatures && parsed.header.keySignatures.length > 0) {
+      const ks = parsed.header.keySignatures[0];
+      keySignature = this.midiKeySignatureToString(ks.key, ks.scale);
+    }
+
+    // Check all tracks for key signature meta events
+    for (const track of parsed.tracks) {
+      if (track.meta) {
+        for (const meta of track.meta) {
+          if (meta.type === 'keySignature' && meta.time < earliestTime) {
+            // Use the earliest key signature found
+            earliestTime = meta.time;
+            keySignature = this.midiKeySignatureToString(meta.key, meta.scale);
+          }
+        }
+      }
+
+      // Also check keySignatures array if present (Tone.js format)
+      if (track.keySignatures && track.keySignatures.length > 0) {
+        const ks = track.keySignatures[0];
+        if (ks.ticks < earliestTime) {
+          earliestTime = ks.ticks;
+          keySignature = this.midiKeySignatureToString(ks.key, ks.scale);
+        }
+      }
+    }
+
+    return keySignature;
+  }
+
+  /**
+   * Convert MIDI key signature to string representation
+   * @param {number} key - Number of sharps (positive) or flats (negative)
+   * @param {string|number} scale - 'major'/'minor' or 0/1 (0=major, 1=minor)
+   * @returns {string} Key signature like "C", "G", "Dm"
+   */
+  midiKeySignatureToString(key, scale) {
+    // Normalize scale to boolean (true = minor)
+    const isMinor = scale === 'minor' || scale === 1 || scale === true;
+
+    // Map for major keys
+    const majorKeys = ['C', 'G', 'D', 'A', 'E', 'B', 'F#', 'C#',  // Sharps
+                       'C', 'F', 'Bb', 'Eb', 'Ab', 'Db', 'Gb', 'Cb']; // Flats
+
+    // Map for minor keys (relative minors)
+    const minorKeys = ['A', 'E', 'B', 'F#', 'C#', 'G#', 'D#', 'A#',  // Sharps
+                       'A', 'D', 'G', 'C', 'F', 'Bb', 'Eb', 'Ab'];   // Flats
+
+    let keyName;
+
+    if (key >= 0) {
+      // Sharps (positive numbers)
+      const index = Math.min(key, 7);
+      keyName = isMinor ? minorKeys[index] : majorKeys[index];
+    } else {
+      // Flats (negative numbers)
+      const index = Math.min(Math.abs(key), 7);
+      keyName = isMinor ? minorKeys[8 + index] : majorKeys[8 + index];
+    }
+
+    // Add 'm' suffix for minor keys
+    return isMinor ? `${keyName}m` : keyName;
   }
 
   /**

@@ -7,6 +7,51 @@ import { Voice } from './Voice.js';
  */
 export class Ornament {
     /**
+     * Parse duration value to numeric (in quarter notes)
+     * Supports both numeric values and Tone.js notation (e.g., '4n', '8n', '2n')
+     * @param {number|string} duration - Duration value
+     * @returns {number} Duration in quarter notes
+     */
+    static parseDuration(duration) {
+        // If already numeric, return as-is
+        if (typeof duration === 'number') {
+            return duration;
+        }
+
+        // Parse Tone.js notation
+        if (typeof duration === 'string') {
+            // Common note values in Tone.js: '1n' = whole, '2n' = half, '4n' = quarter, etc.
+            // Also supports '4n.' for dotted notes and '8t' for triplets
+            const match = duration.match(/^(\d+)(n|t)(\.)?$/);
+            if (match) {
+                const value = parseInt(match[1], 10);
+                const noteType = match[2];
+                const isDotted = match[3] === '.';
+
+                // Base duration in quarter notes
+                let quarterNotes = 4 / value;
+
+                // Apply modifiers
+                if (noteType === 't') {
+                    // Triplet - 2/3 of the normal duration
+                    quarterNotes *= 2/3;
+                }
+
+                if (isDotted) {
+                    // Dotted - 1.5x the normal duration
+                    quarterNotes *= 1.5;
+                }
+
+                return quarterNotes;
+            }
+        }
+
+        // Default to quarter note if unable to parse
+        console.warn(`Unable to parse duration: ${duration}, defaulting to 1 quarter note`);
+        return 1;
+    }
+
+    /**
      * Validate ornament parameters and compatibility
      * @param {Object} note - The note to apply the ornament to
      * @param {string} type - The type of ornament
@@ -39,8 +84,16 @@ export class Ornament {
 
         // 3. Check minimum duration if specified
         if (ornamentDef.minDuration) {
-            // TODO: Add duration check logic
-            result.warnings.push(`Duration check not implemented for ${type}`);
+            const noteDuration = Ornament.parseDuration(note.duration);
+            const minDuration = Ornament.parseDuration(ornamentDef.minDuration);
+
+            if (noteDuration < minDuration) {
+                result.errors.push(
+                    `Note duration (${note.duration}) is too short for ${type}. ` +
+                    `Minimum duration required: ${ornamentDef.minDuration}`
+                );
+                return result;
+            }
         }
 
         // 4. Check conflicts with existing ornaments
