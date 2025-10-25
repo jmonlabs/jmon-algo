@@ -19,6 +19,11 @@ import { MinimalismProcess, Tintinnabuli } from './generative/minimalism/index.j
 // Analysis imports
 import * as analysisModule from './analysis/index.js';
 
+// Visualization imports
+import { CAVisualizer } from './visualization/cellular-automata/CAVisualizer.js';
+import { FractalVisualizer } from './visualization/fractals/FractalVisualizer.js';
+import { PlotRenderer } from './visualization/plots/PlotRenderer.js';
+
 // Utils imports
 import * as Utils from './utils.js';
 import audioNS from './audio/index.js';
@@ -70,6 +75,12 @@ export const analysis = {
     ...analysisModule
 };
 
+export const visualization = {
+    CAVisualizer,
+    FractalVisualizer,
+    PlotRenderer
+};
+
 export const utils = {
     ...Utils
 };
@@ -81,6 +92,7 @@ export default {
     constants,
     generative,
     analysis,
+    visualization,
     audio,
     utils
 };
