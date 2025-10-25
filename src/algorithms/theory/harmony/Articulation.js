@@ -246,6 +246,75 @@ export class Articulation {
       optionalParams: def.optionalParams || [],
     }));
   }
+
+  /**
+   * Apply articulation to a note (modifies note in-place)
+   * This is a simpler API that directly modifies note properties
+   * @param {Object} note - The note object to modify
+   * @param {string} articulationType - Type of articulation
+   * @param {Object} params - Parameters for complex articulations
+   * @returns {Object} Result with success status
+   */
+  static apply(note, articulationType, params = {}) {
+    const result = { success: false, warnings: [], errors: [] };
+
+    if (!note || typeof note !== "object") {
+      result.errors.push("Invalid note");
+      return result;
+    }
+
+    const articulationDef = ARTICULATION_TYPES[articulationType];
+    if (!articulationDef) {
+      result.errors.push(`Unknown articulation type: ${articulationType}`);
+      return result;
+    }
+
+    // Modify note properties based on articulation type
+    switch (articulationType) {
+      case 'staccato':
+        // Shorten duration to 50% of original
+        note.duration = note.duration * 0.5;
+        break;
+
+      case 'staccatissimo':
+        // Very short - 25% of original
+        note.duration = note.duration * 0.25;
+        break;
+
+      case 'accent':
+        // Increase velocity by 20%
+        if (note.velocity === undefined) note.velocity = 0.8;
+        note.velocity = Math.min(1.0, note.velocity * 1.2);
+        break;
+
+      case 'marcato':
+        // Strong accent - increase velocity by 30%
+        if (note.velocity === undefined) note.velocity = 0.8;
+        note.velocity = Math.min(1.0, note.velocity * 1.3);
+        break;
+
+      case 'tenuto':
+        // Hold full duration - ensure duration is not shortened
+        // This is more of a marking, no modification needed
+        break;
+
+      case 'legato':
+        // Extend duration slightly to connect with next note
+        note.duration = note.duration * 1.05;
+        break;
+    }
+
+    // Add to articulations array
+    const arr = Array.isArray(note.articulations) ? note.articulations : [];
+    if (articulationDef.complex && Object.keys(params).length > 0) {
+      note.articulations = [...arr, { type: articulationType, ...params }];
+    } else {
+      note.articulations = [...arr, articulationType];
+    }
+
+    result.success = true;
+    return result;
+  }
 }
 
 // Export for use in sequences

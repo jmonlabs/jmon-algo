@@ -1,5 +1,8 @@
 import { Matrix, choleskyDecomposition, ensure2D } from '../../utils/matrix.js';
 import { Kernel } from './kernels/base.js';
+import { RBF } from './kernels/rbf.js';
+import { Periodic } from './kernels/periodic.js';
+import { RationalQuadratic } from './kernels/rational-quadratic.js';
 // (Type import removed: GaussianProcessOptions, PredictionResult)
 
 export class GaussianProcessRegressor {
@@ -9,10 +12,62 @@ export class GaussianProcessRegressor {
   yTrain;
   L;
   alphaVector;
+  isFitted;
 
-  constructor(kernel, options = {}) {
-    this.kernel = kernel;
-    this.alpha = options.alpha || 1e-10;
+  constructor(kernelOrOptions, options = {}) {
+    // Support both patterns:
+    // 1. new GaussianProcessRegressor(kernelInstance, options)
+    // 2. new GaussianProcessRegressor({ kernel: 'rbf', lengthScale: 1.0, ... })
+
+    this.isFitted = false;
+
+    if (kernelOrOptions instanceof Kernel) {
+      // Pattern 1: Direct kernel instance
+      this.kernel = kernelOrOptions;
+      this.alpha = options.alpha || 1e-10;
+    } else if (typeof kernelOrOptions === 'object' && kernelOrOptions.kernel) {
+      // Pattern 2: Options object with kernel type
+      const opts = kernelOrOptions;
+      this.alpha = opts.alpha || 1e-10;
+
+      // Create kernel based on type
+      const kernelType = opts.kernel.toLowerCase();
+
+      switch (kernelType) {
+        case 'rbf':
+          this.kernel = new RBF(
+            opts.lengthScale || 1.0,
+            opts.variance || 1.0
+          );
+          break;
+
+        case 'periodic':
+          this.kernel = new Periodic(
+            opts.lengthScale || 1.0,
+            opts.periodLength || 1.0,
+            opts.variance || 1.0
+          );
+          break;
+
+        case 'rational_quadratic':
+        case 'rationalquadratic':
+          this.kernel = new RationalQuadratic(
+            opts.lengthScale || 1.0,
+            opts.alpha || 1.0,
+            opts.variance || 1.0
+          );
+          break;
+
+        default:
+          throw new Error(`Unknown kernel type: ${opts.kernel}. Supported: 'rbf', 'periodic', 'rational_quadratic'`);
+      }
+    } else if (kernelOrOptions instanceof Kernel) {
+      // Just in case - already handled above
+      this.kernel = kernelOrOptions;
+      this.alpha = options.alpha || 1e-10;
+    } else {
+      throw new Error('First argument must be a Kernel instance or options object with kernel type');
+    }
   }
 
   fit(X, y) {
@@ -34,6 +89,9 @@ export class GaussianProcessRegressor {
 
     // Solve L * L^T * alpha = y using forward and back substitution
     this.alphaVector = this.solveCholesky(this.L, this.yTrain);
+
+    // Mark as fitted
+    this.isFitted = true;
   }
 
   predict(X, returnStd = false) {
@@ -43,7 +101,7 @@ export class GaussianProcessRegressor {
 
     const XTest = ensure2D(X);
     const KStar = this.kernel.call(this.XTrain, XTest);
-    
+
     // Compute mean prediction
     const mean = new Array(XTest.rows);
     for (let i = 0; i < XTest.rows; i++) {
@@ -53,14 +111,49 @@ export class GaussianProcessRegressor {
       }
     }
 
-    const result = { mean };
-
+    // For backward compatibility: if returnStd is false, just return mean array
     if (returnStd) {
       const std = this.computeStd(XTest, KStar);
-      result.std = std;
+      return { mean, std };
     }
 
-    return result;
+    return mean;
+  }
+
+  /**
+   * Predict with uncertainty quantification
+   * @param {Array} X - Test points
+   * @returns {Object} Object with mean and std arrays
+   */
+  predictWithUncertainty(X) {
+    if (!this.XTrain || !this.yTrain || !this.L || !this.alphaVector) {
+      throw new Error('Model must be fitted before prediction');
+    }
+
+    const XTest = ensure2D(X);
+    const KStar = this.kernel.call(this.XTrain, XTest);
+
+    // Compute mean prediction
+    const mean = new Array(XTest.rows);
+    for (let i = 0; i < XTest.rows; i++) {
+      mean[i] = 0;
+      for (let j = 0; j < this.XTrain.rows; j++) {
+        mean[i] += KStar.get(j, i) * this.alphaVector[j];
+      }
+    }
+
+    const std = this.computeStd(XTest, KStar);
+    return { mean, std };
+  }
+
+  /**
+   * Generate random samples from the posterior distribution
+   * @param {Array} X - Test points
+   * @param {number} nSamples - Number of samples to generate
+   * @returns {Array} Array of sample arrays
+   */
+  sample(X, nSamples = 1) {
+    return this.sampleY(X, nSamples);
   }
 
   sampleY(X, nSamples = 1) {
