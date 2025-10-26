@@ -113,6 +113,13 @@ export class PhasorSystem {
   }
 
   /**
+   * Alias for addPhasor (for compatibility)
+   */
+  addPlanet(phasor) {
+    return this.addPhasor(phasor);
+  }
+
+  /**
    * Simulate all phasors and sub-phasors in the system
    */
   simulate(timeArray) {

@@ -20,7 +20,7 @@ console.log('=== JMON-ALGO TUTORIAL 02: HARMONY ===\n');
 console.log('1. Scales\n');
 
 // Generate C major scale
-const cMajor = new jm.theory.Scale('C', 'major');
+const cMajor = new jm.theory.harmony.Scale('C', 'major');
 const cMajorNotes = cMajor.generate({ octave: 4 });
 
 console.log('C Major scale (octave 4):');
@@ -30,13 +30,13 @@ console.log('  Contains G4 (67):', cMajorNotes.includes(67));
 console.log('');
 
 // Different modes
-const dDorian = new jm.theory.Scale('D', 'dorian');
+const dDorian = new jm.theory.harmony.Scale('D', 'dorian');
 const dDorianNotes = dDorian.generate({ octave: 4 });
 console.log('D Dorian scale:', dDorianNotes.slice(0, 7));
 console.log('');
 
 // Pentatonic
-const cPentatonic = new jm.theory.Scale('C', 'pentatonic_major');
+const cPentatonic = new jm.theory.harmony.Scale('C', 'major pentatonic');
 const cPentatonicNotes = cPentatonic.generate({ octave: 4 });
 console.log('C Pentatonic (5 notes):', cPentatonicNotes.slice(0, 5));
 console.log('');
@@ -84,7 +84,7 @@ const testNotes = [
 
 // 3.1 Grace Note (Acciaccatura)
 console.log('3.1 Grace Note (Acciaccatura)');
-const graceNoteOrnament = new jm.theory.Ornament({
+const graceNoteOrnament = new jm.theory.harmony.Ornament({
   type: 'grace_note',
   parameters: {
     graceNoteType: 'acciaccatura',
@@ -98,7 +98,7 @@ console.log('');
 
 // 3.2 Trill
 console.log('3.2 Trill');
-const trillOrnament = new jm.theory.Ornament({
+const trillOrnament = new jm.theory.harmony.Ornament({
   type: 'trill',
   parameters: {
     by: 2,           // Trill to note 2 steps up
@@ -115,7 +115,7 @@ console.log('');
 
 // 3.3 Mordent
 console.log('3.3 Mordent');
-const mordentOrnament = new jm.theory.Ornament({
+const mordentOrnament = new jm.theory.harmony.Ornament({
   type: 'mordent',
   parameters: {
     by: -1  // Mordent down one step
@@ -131,7 +131,7 @@ console.log('');
 
 // 3.4 Turn
 console.log('3.4 Turn');
-const turnOrnament = new jm.theory.Ornament({
+const turnOrnament = new jm.theory.harmony.Ornament({
   type: 'turn',
   tonic: 'C',
   mode: 'major'
@@ -144,7 +144,7 @@ console.log('');
 
 // 3.5 Arpeggio
 console.log('3.5 Arpeggio');
-const arpeggioOrnament = new jm.theory.Ornament({
+const arpeggioOrnament = new jm.theory.harmony.Ornament({
   type: 'arpeggio',
   parameters: {
     arpeggioDegrees: [0, 2, 4, 2],  // Triad up and down
@@ -165,7 +165,7 @@ console.log('');
 console.log('4. Voice Leading\n');
 
 // Voice creates chords from a melody
-const voice = new jm.theory.Voice('major', 'C', [0, 2, 4]); // Triads
+const voice = new jm.theory.harmony.Voice('major', 'C', [0, 2, 4]); // Triads
 
 // Convert melody to chords
 const melody = [
@@ -194,7 +194,7 @@ console.log('');
 console.log('5. Chord Progressions\n');
 
 // Generate random progression using circle of fifths
-const progression = new jm.theory.Progression('C4', 'P5', 'chords', [3, 3, 1]);
+const progression = new jm.theory.harmony.Progression('C4', 'P5', 'chords', [3, 3, 1]);
 const chords = progression.generate(8, 5); // 8 chords, seed 5
 
 console.log('Random progression (circle of fifths):');
@@ -222,7 +222,7 @@ console.log('6. Rhythm\n');
 console.log('6.1 Isorhythm');
 const pitches = [60, 62, 64, 65, 67];
 const durations = [1, 0.5, 0.5, 1];
-const isoNotes = jm.theory.isorhythm(pitches, durations);
+const isoNotes = jm.theory.rhythm.isorhythm(pitches, durations);
 console.log('  Pitches:', pitches.length);
 console.log('  Durations:', durations.length);
 console.log('  Result:', isoNotes.length, 'notes (LCM of 5*4=20)');
@@ -233,14 +233,14 @@ console.log('');
 console.log('6.2 Beatcycle');
 const beatPitches = [60, 62, 64, 65, 67, 69, 71, 72];
 const beatDurations = [1, 0.5, 0.5, 1];
-const beatNotes = jm.theory.beatcycle(beatPitches, beatDurations);
+const beatNotes = jm.theory.rhythm.beatcycle(beatPitches, beatDurations);
 console.log('  Result:', beatNotes.length, 'notes (matches pitch count)');
 console.log('  Durations assigned:', beatNotes.slice(0, 4).map(n => n.duration));
 console.log('');
 
 // 6.3 Random Rhythm
 console.log('6.3 Random Rhythm');
-const rhythm = new jm.theory.Rhythm({
+const rhythm = new jm.theory.rhythm.Rhythm({
   measureLength: 4,
   durations: [0.25, 0.5, 1, 2]
 });
@@ -274,7 +274,7 @@ const twinkle = [
 ];
 
 // Add harmonization to specific notes
-const twinkleVoice = new jm.theory.Voice('major', 'C', [0, 2, 4]);
+const twinkleVoice = new jm.theory.harmony.Voice('major', 'C', [0, 2, 4]);
 const twinkleChords = [
   twinkleVoice.pitchToChord(twinkle[0].pitch),  // First chord
   twinkleVoice.pitchToChord(twinkle[7].pitch)   // Chord at "How"
@@ -291,7 +291,7 @@ console.log('  First chord:', chordTrack[0].pitch);
 console.log('');
 
 // Add ornaments to make it more interesting
-const ornamentedTwinkle = new jm.theory.Ornament({
+const ornamentedTwinkle = new jm.theory.harmony.Ornament({
   type: 'trill',
   parameters: { by: 1, trillRate: 0.25 },
   tonic: 'C',

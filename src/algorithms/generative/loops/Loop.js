@@ -148,6 +148,57 @@ export class Loop {
   }
 
   /**
+   * Create a loop from simple pitch/duration arrays
+   * @param {Array} pitches - Array of MIDI pitches (or null for rests)
+   * @param {Array} durations - Array of durations in beats
+   * @param {Object} options - Optional configuration (iterations, transpose, offset, label)
+   * @returns {Loop} A new Loop instance
+   */
+  static fromPattern(pitches, durations, options = {}) {
+    if (!Array.isArray(pitches) || !Array.isArray(durations)) {
+      throw new Error('pitches and durations must be arrays');
+    }
+
+    if (pitches.length === 0 || durations.length === 0) {
+      throw new Error('pitches and durations arrays cannot be empty');
+    }
+
+    // Calculate total duration of one pattern iteration
+    const totalDuration = durations.reduce((sum, d) => sum + d, 0);
+    const iterations = options.iterations || 1;
+    const transpose = options.transpose || 0;
+    const offset = options.offset || 0;
+    const label = options.label || 'Pattern';
+
+    // Generate notes for all iterations
+    const notes = [];
+    let currentTime = offset;
+
+    for (let iter = 0; iter < iterations; iter++) {
+      const transposition = transpose * iter;
+
+      for (let i = 0; i < pitches.length; i++) {
+        const pitch = pitches[i];
+        const duration = durations[i % durations.length];
+
+        notes.push({
+          pitch: pitch === null ? null : pitch + transposition,
+          duration,
+          time: currentTime,
+          velocity: 0.8
+        });
+
+        currentTime += duration;
+      }
+    }
+
+    // Create the loop with proper JMON format
+    return new Loop({
+      [label]: { notes }
+    }, options.measureLength || 4);
+  }
+
+  /**
    * Create loop from Euclidean rhythm (JMON format)
    */
   static euclidean(beats, pulses, pitches = [60], label = null) {

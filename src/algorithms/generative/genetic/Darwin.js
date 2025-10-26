@@ -179,7 +179,7 @@ export class Darwin {
     
     // Fill remaining slots
     while (population.length < this.populationSize) {
-      const randomPhrase = this.randomState.choice(this.initialPhrases);
+      const randomPhrase = this.initialPhrases[Math.floor(Math.random() * this.initialPhrases.length)];
       population.push(this.mutate(randomPhrase, 0));
     }
     
@@ -410,8 +410,8 @@ export class Darwin {
     
     while (newPopulation.length < this.populationSize) {
       // Select two random parents
-      const parent1 = this.randomState.choice(selectedParents);
-      const parent2 = this.randomState.choice(selectedParents);
+      const parent1 = selectedParents[Math.floor(Math.random() * selectedParents.length)];
+      const parent2 = selectedParents[Math.floor(Math.random() * selectedParents.length)];
       
       // Create child through crossover
       const child = this.crossover([...parent1], [...parent2]);

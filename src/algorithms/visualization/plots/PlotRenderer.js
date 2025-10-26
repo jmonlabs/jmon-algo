@@ -95,28 +95,33 @@ export class PlotRenderer {
    * Create a scatter plot
    */
   static async scatter(data, options = {}, elementId = 'plot') {
-    const { 
-      title, 
-      width = 640, 
-      height = 400, 
+    const plotly = await getPlotly();
+    if (!plotly) {
+      return { data: data, options, type: 'scatter', message: 'Plotly.js not available' };
+    }
+
+    const {
+      title,
+      width = 640,
+      height = 400,
       color = 'steelblue',
       xTitle = 'X',
       yTitle = 'Y'
     } = options;
-    
-  const trace = {
+
+    const trace = {
       x: data.x,
       y: data.y,
       type: 'scatter',
       mode: 'markers',
-      marker: { 
+      marker: {
         color: data.color || color,
         size: data.size || 8
       },
       name: 'Scatter'
     };
 
-  const layout = {
+    const layout = {
       title: title ? { text: title } : undefined,
       width,
       height,
