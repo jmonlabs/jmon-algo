@@ -11,7 +11,7 @@
 
 import jm from '../../src/index.js';
 
-const { GaussianProcessRegressor } = jm.generative.gaussian.Regressor;
+const GaussianProcessRegressor = jm.generative.gaussian.Regressor;
 
 console.log('=== JMON-ALGO TUTORIAL 08: GAUSSIAN PROCESSES ===\n');
 

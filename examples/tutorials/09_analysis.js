@@ -117,8 +117,8 @@ const goldenRatio = [8, 13];  // 13/8 ≈ 1.625 ≈ φ
 const notGolden = [10, 10];   // 1.0
 
 console.log('Fibonacci index examples:');
-console.log('  Golden ratio [8, 13]:', MusicalAnalysis.fibonacci(goldenRatio).toFixed(3));
-console.log('  Equal [10, 10]:', MusicalAnalysis.fibonacci(notGolden).toFixed(3));
+console.log('  Golden ratio [8, 13]:', MusicalAnalysis.fibonacciIndex(goldenRatio).toFixed(3));
+console.log('  Equal [10, 10]:', MusicalAnalysis.fibonacciIndex(notGolden).toFixed(3));
 console.log('');
 console.log('Higher values indicate closer to golden ratio proportions');
 console.log('');
@@ -260,7 +260,7 @@ Detects recurring patterns (motifs) in a sequence.
 
 const sequence = [60, 62, 64, 60, 62, 64, 65, 67, 60, 62, 64];
 
-const motifs = MusicalAnalysis.motifDetection(sequence, {
+const motifs = MusicalAnalysis.motif(sequence, {
   minLength: 3,
   maxLength: 5,
   minOccurrences: 2
@@ -376,7 +376,7 @@ console.log('  Syncopation:', MusicalAnalysis.syncopation(onsets).toFixed(3));
 console.log('  Gini (durations):', MusicalAnalysis.gini(durations).toFixed(3));
 console.log('');
 console.log('Structural metrics:');
-const motifResults = MusicalAnalysis.motifDetection(pitches, { minLength: 2, minOccurrences: 2 });
+const motifResults = MusicalAnalysis.motif(pitches, { minLength: 2, minOccurrences: 2 });
 console.log('  Motifs found:', motifResults.length);
 console.log('  Autocorrelation (lag 1):', MusicalAnalysis.autocorrelation(pitches)[1].toFixed(3));
 console.log('');

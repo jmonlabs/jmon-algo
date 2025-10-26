@@ -179,7 +179,7 @@ export class Darwin {
     
     // Fill remaining slots
     while (population.length < this.populationSize) {
-      const randomPhrase = this.randomState.choice(this.initialPhrases);
+      const randomPhrase = this.initialPhrases[Math.floor(Math.random() * this.initialPhrases.length)];
       population.push(this.mutate(randomPhrase, 0));
     }
     
