@@ -256,22 +256,26 @@ console.log('10. Motif Detection\n');
 
 /*
 Detects recurring patterns (motifs) in a sequence.
+The motif() function returns a score representing the strength
+of motif repetition (0-1), where higher values indicate more repetition.
 */
 
 const sequence = [60, 62, 64, 60, 62, 64, 65, 67, 60, 62, 64];
 
-const motifs = MusicalAnalysis.motif(sequence, {
-  minLength: 3,
-  maxLength: 5,
-  minOccurrences: 2
-});
+// Analyze motifs of length 3
+const motifScore3 = MusicalAnalysis.motif(sequence, 3);
+const motifScore4 = MusicalAnalysis.motif(sequence, 4);
+const motifScore2 = MusicalAnalysis.motif(sequence, 2);
 
 console.log('Motif detection:');
 console.log('  Sequence:', sequence);
-console.log('  Found motifs:', motifs.length);
-motifs.forEach((motif, i) => {
-  console.log(`    Motif ${i + 1}:`, motif.pattern, `(occurs ${motif.count} times)`);
-});
+console.log('  Motif score (length 2):', motifScore2.toFixed(3));
+console.log('  Motif score (length 3):', motifScore3.toFixed(3));
+console.log('  Motif score (length 4):', motifScore4.toFixed(3));
+console.log('');
+console.log('Interpretation:');
+console.log('  Higher scores indicate more repeated patterns');
+console.log('  This sequence has repeating [60, 62, 64] pattern');
 console.log('');
 
 // =====================================================
@@ -307,9 +311,9 @@ const offGrid = [0.1, 1.2, 2.3, 3.1, 4.2];
 
 console.log('Rhythmic fit examples:');
 console.log('  On grid:', onGrid);
-console.log('    Fit:', MusicalAnalysis.rhythmicFit(onGrid, 1).toFixed(3));
+console.log('    Fit:', MusicalAnalysis.rhythmic(onGrid, 1).toFixed(3));
 console.log('  Off grid:', offGrid);
-console.log('    Fit:', MusicalAnalysis.rhythmicFit(offGrid, 1).toFixed(3));
+console.log('    Fit:', MusicalAnalysis.rhythmic(offGrid, 1).toFixed(3));
 console.log('');
 
 // =====================================================
@@ -376,8 +380,8 @@ console.log('  Syncopation:', MusicalAnalysis.syncopation(onsets).toFixed(3));
 console.log('  Gini (durations):', MusicalAnalysis.gini(durations).toFixed(3));
 console.log('');
 console.log('Structural metrics:');
-const motifResults = MusicalAnalysis.motif(pitches, { minLength: 2, minOccurrences: 2 });
-console.log('  Motifs found:', motifResults.length);
+const motifScore = MusicalAnalysis.motif(pitches, 3);
+console.log('  Motif score:', motifScore.toFixed(3));
 console.log('  Autocorrelation (lag 1):', MusicalAnalysis.autocorrelation(pitches)[1].toFixed(3));
 console.log('');
 

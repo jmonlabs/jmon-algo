@@ -410,8 +410,8 @@ export class Darwin {
     
     while (newPopulation.length < this.populationSize) {
       // Select two random parents
-      const parent1 = this.randomState.choice(selectedParents);
-      const parent2 = this.randomState.choice(selectedParents);
+      const parent1 = selectedParents[Math.floor(Math.random() * selectedParents.length)];
+      const parent2 = selectedParents[Math.floor(Math.random() * selectedParents.length)];
       
       // Create child through crossover
       const child = this.crossover([...parent1], [...parent2]);
