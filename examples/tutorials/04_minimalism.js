@@ -24,11 +24,11 @@ the lengths of pitch and duration sequences coincide (their LCM).
 */
 
 // Simple isorhythm: C major scale
-const cMajorScale = new jm.theory.Scale('C', 'major');
+const cMajorScale = new jm.theory.harmony.Scale('C', 'major');
 const pitches = cMajorScale.generate({ octave: 4 }).slice(0, 8);
 const durations = Array(8).fill(1);  // All quarter notes
 
-const solfege = jm.theory.isorhythm(pitches, durations);
+const solfege = jm.theory.rhythm.isorhythm(pitches, durations);
 console.log('Solfege (simple):');
 console.log('  Pitches:', pitches.length);
 console.log('  Durations:', durations.length);
@@ -38,7 +38,7 @@ console.log('');
 // Interesting pattern with non-matching lengths
 const complexDurations = [2, 1, 1, 2, 1, 1, 2, 1];  // 8 items
 const complexPitches = [60, 62, 64, 65, 67];         // 5 items
-const complexIso = jm.theory.isorhythm(complexPitches, complexDurations);
+const complexIso = jm.theory.rhythm.isorhythm(complexPitches, complexDurations);
 
 console.log('Complex isorhythm:');
 console.log('  Pitches:', complexPitches.length);
@@ -69,7 +69,7 @@ C, D, E
 C, D, E, F
 */
 console.log('2.1 Additive Forward Process');
-const additiveForward = new jm.generative.MinimalismProcess({
+const additiveForward = new jm.generative.minimalism.Process({
   operation: 'additive',
   direction: 'forward',
   repetition: 1
@@ -90,7 +90,7 @@ D, E, F
 C, D, E, F
 */
 console.log('2.2 Additive Backward Process');
-const additiveBackward = new jm.generative.MinimalismProcess({
+const additiveBackward = new jm.generative.minimalism.Process({
   operation: 'additive',
   direction: 'backward',
   repetition: 1
@@ -110,7 +110,7 @@ C, E, F
 C, D, E, F
 */
 console.log('2.3 Additive Inward Process');
-const additiveInward = new jm.generative.MinimalismProcess({
+const additiveInward = new jm.generative.minimalism.Process({
   operation: 'additive',
   direction: 'inward',
   repetition: 0
@@ -130,7 +130,7 @@ C, D, E, F
 ... (pattern continues)
 */
 console.log('2.4 Additive Outward Process');
-const additiveOutward = new jm.generative.MinimalismProcess({
+const additiveOutward = new jm.generative.minimalism.Process({
   operation: 'additive',
   direction: 'outward',
   repetition: 0
@@ -166,7 +166,7 @@ E, F, G, A
 ...
 */
 console.log('3.1 Subtractive Forward Process');
-const subtractiveForward = new jm.generative.MinimalismProcess({
+const subtractiveForward = new jm.generative.minimalism.Process({
   operation: 'subtractive',
   direction: 'forward',
   repetition: 0
@@ -187,7 +187,7 @@ C, D, E, F
 ...
 */
 console.log('3.2 Subtractive Backward Process');
-const subtractiveBackward = new jm.generative.MinimalismProcess({
+const subtractiveBackward = new jm.generative.minimalism.Process({
   operation: 'subtractive',
   direction: 'backward',
   repetition: 0
@@ -207,7 +207,7 @@ D, E, F, G
 E, F
 */
 console.log('3.3 Subtractive Inward Process');
-const subtractiveInward = new jm.generative.MinimalismProcess({
+const subtractiveInward = new jm.generative.minimalism.Process({
   operation: 'subtractive',
   direction: 'inward',
   repetition: 0
@@ -229,12 +229,12 @@ The repetition parameter controls how many times each stage repeats
 before moving to the next. This slows down the process.
 */
 
-const withoutRepetition = new jm.generative.MinimalismProcess({
+const withoutRepetition = new jm.generative.minimalism.Process({
   operation: 'additive',
   direction: 'forward',
   repetition: 0  // No repetition
 });
-const withRepetition = new jm.generative.MinimalismProcess({
+const withRepetition = new jm.generative.minimalism.Process({
   operation: 'additive',
   direction: 'forward',
   repetition: 2  // Each stage repeats twice
@@ -271,7 +271,7 @@ const mVoice = [
 ];
 
 // Generate T-voice using 'down' direction and position 0
-const tintinnabuli = new jm.generative.Tintinnabuli(tChord, 'down', 0);
+const tintinnabuli = new jm.generative.minimalism.Tintinnabuli(tChord, 'down', 0);
 const tVoice = tintinnabuli.generate(mVoice);
 
 console.log('Tintinnabuli:');
@@ -283,12 +283,12 @@ console.log('  All T-voice pitches in chord:',
 console.log('');
 
 // Different positions
-const tDown1 = new jm.generative.Tintinnabuli(tChord, 'down', 1);
+const tDown1 = new jm.generative.minimalism.Tintinnabuli(tChord, 'down', 1);
 const tVoice1 = tDown1.generate(mVoice);
 console.log('  T-voice (position 1):', tVoice1.map(n => n.pitch));
 console.log('');
 
-const tUp = new jm.generative.Tintinnabuli(tChord, 'up', 0);
+const tUp = new jm.generative.minimalism.Tintinnabuli(tChord, 'up', 0);
 const tVoiceUp = tUp.generate(mVoice);
 console.log('  T-voice (up):', tVoiceUp.map(n => n.pitch));
 console.log('');
@@ -307,14 +307,14 @@ const motif = [
 ];
 
 // Apply additive forward with repetition
-const mainTrack = new jm.generative.MinimalismProcess({
+const mainTrack = new jm.generative.minimalism.Process({
   operation: 'additive',
   direction: 'forward',
   repetition: 1
 }).generate(motif);
 
 // Add tintinnabuli harmony
-const harmonyTrack = new jm.generative.Tintinnabuli([60, 64, 67], 'down', 0)
+const harmonyTrack = new jm.generative.minimalism.Tintinnabuli([60, 64, 67], 'down', 0)
   .generate(mainTrack);
 
 // Create composition
