@@ -11,7 +11,10 @@
 
 import jm from '../../src/index.js';
 
-const { RandomWalk, Chain, Phasor, PhasorSystem } = jm.generative.walks;
+const RandomWalk = jm.generative.walks.Random;
+const Chain = jm.generative.walks.Chain;
+const Phasor = jm.generative.walks.Phasor.Vector;
+const PhasorSystem = jm.generative.walks.Phasor.System;
 
 console.log('=== JMON-ALGO TUTORIAL 05: WALKS ===\n');
 
@@ -21,103 +24,84 @@ console.log('=== JMON-ALGO TUTORIAL 05: WALKS ===\n');
 console.log('1. Random Walk Basics\n');
 
 /*
-A Random Walk is a path that consists of successive
-random steps. In music, this creates melodies that
-wander up and down unpredictably.
-
-Parameters:
-- start: Starting pitch
-- steps: Number of steps to take
-- stepSize: Maximum interval for each step
-- bounds: Optional [min, max] pitch range
+Random walks create melodies by taking steps in random directions.
+In jmon-algo:
+- Create RandomWalk with options (length, dimensions, stepSize, bounds)
+- Call generate([startPosition]) to create walk
+- Use mapToScale() to convert to musical pitches
 */
 
 // Simple random walk starting at C4 (MIDI 60)
 const walk1 = new RandomWalk({
-  start: 60,
-  stepSize: 2,  // Move up or down by 0-2 semitones
-  bounds: [55, 72]  // Keep within E3-C5 range
+  length: 20,
+  dimensions: 1,
+  stepSize: 2,
+  bounds: [55, 72]
 });
 
-const melody1 = walk1.generate(20);  // Generate 20 notes
+walk1.generate([60]);
+const pitches1 = walk1.mapToScale(0, [0, 2, 4, 5, 7, 9, 11], 2);  // C major scale, octave 2
 console.log('Random walk:');
-console.log('  Start:', 60, '(C4)');
-console.log('  Steps:', 20);
-console.log('  Range:', 55, '-', 72);
-console.log('  Generated:', melody1.length, 'pitches');
-console.log('  Melody:', melody1.slice(0, 10), '...');
-console.log('  Min pitch:', Math.min(...melody1));
-console.log('  Max pitch:', Math.max(...melody1));
+console.log('  Start: 60 (C4)');
+console.log('  Steps: 20');
+console.log('  Range: 55-72');
+console.log('  Generated:', pitches1.length, 'pitches');
+console.log('  Melody:', pitches1.slice(0, 10));
+console.log('  Min pitch:', Math.min(...pitches1));
+console.log('  Max pitch:', Math.max(...pitches1));
 console.log('');
 
 // =====================================================
-// 2. Biased Random Walk
+// 2. Constrained Random Walk
 // =====================================================
-console.log('2. Biased Random Walk\n');
+console.log('2. Constrained Random Walk\n');
 
 /*
-Biased walks have a tendency to move in one direction.
-This creates melodies with an overall ascending or
-descending contour.
+Using bounds to keep walks within a specific range
 */
 
-// Walk with upward bias
-const walkUp = new RandomWalk({
-  start: 60,
+const walk2 = new RandomWalk({
+  length: 30,
+  dimensions: 1,
   stepSize: 3,
-  bias: 0.6,  // 60% chance of moving up
-  bounds: [60, 84]
+  bounds: [48, 84]  // Constrained to C3-C6
 });
 
-const melodyUp = walkUp.generate(30);
-console.log('Biased walk (upward):');
-console.log('  Bias: 0.6 (60% up)');
-console.log('  Start:', melodyUp[0]);
-console.log('  End:', melodyUp[melodyUp.length - 1]);
-console.log('  Net change:', melodyUp[melodyUp.length - 1] - melodyUp[0], 'semitones');
-console.log('');
-
-// Walk with downward bias
-const walkDown = new RandomWalk({
-  start: 72,
-  stepSize: 3,
-  bias: 0.3,  // 30% chance of moving up = 70% down
-  bounds: [48, 72]
-});
-
-const melodyDown = walkDown.generate(30);
-console.log('Biased walk (downward):');
-console.log('  Bias: 0.3 (30% up, 70% down)');
-console.log('  Start:', melodyDown[0]);
-console.log('  End:', melodyDown[melodyDown.length - 1]);
-console.log('  Net change:', melodyDown[melodyDown.length - 1] - melodyDown[0], 'semitones');
+walk2.generate([60]);
+const pitches2 = walk2.mapToScale(0, [0, 2, 4, 5, 7, 9, 11], 3);
+console.log('Constrained walk:');
+console.log('  Bounds: 48-84 (C3-C6)');
+console.log('  Generated:', pitches2.length, 'pitches');
+console.log('  Sample:', pitches2.slice(0, 10));
+console.log('  Stayed in bounds:', Math.min(...pitches2) >= 48 && Math.max(...pitches2) <= 84);
 console.log('');
 
 // =====================================================
-// 3. Constrained Random Walk (Scale)
+// 3. Attractor-Based Walk
 // =====================================================
-console.log('3. Constrained Random Walk (Scale)\n');
+console.log('3. Attractor-Based Walk\n');
 
 /*
-Walks can be constrained to specific scales,
-creating tonally coherent melodies.
+Attractors pull the walk toward a center point
 */
 
-// C major scale
-const cMajorScale = [60, 62, 64, 65, 67, 69, 71, 72];
-
-const scaleWalk = new RandomWalk({
-  start: 64,  // E (3rd of scale)
-  stepSize: 2,  // Move 0-2 scale degrees
-  constrainToSet: cMajorScale,
-  bounds: [60, 72]
+const walk3 = new RandomWalk({
+  length: 40,
+  dimensions: 1,
+  stepSize: 4,
+  bounds: [40, 100],
+  attractorStrength: 0.1,
+  attractorPosition: [60]  // Pull toward C4
 });
 
-const scalarMelody = scaleWalk.generate(20);
-console.log('Scale-constrained walk:');
-console.log('  Scale:', cMajorScale);
-console.log('  Melody:', scalarMelody.slice(0, 10), '...');
-console.log('  All notes in scale:', scalarMelody.every(p => cMajorScale.includes(p)));
+walk3.generate([50]);
+const pitches3 = walk3.mapToScale(0, [0, 2, 4, 5, 7, 9, 11], 3);
+console.log('Attractor walk:');
+console.log('  Attractor at: 60');
+console.log('  Start: 50');
+console.log('  Generated:', pitches3.length, 'pitches');
+console.log('  Sample:', pitches3.slice(0, 10));
+console.log('  Average pitch:', Math.round(pitches3.reduce((a, b) => a + b) / pitches3.length));
 console.log('');
 
 // =====================================================
@@ -126,40 +110,28 @@ console.log('');
 console.log('4. Markov Chains - First Order\n');
 
 /*
-Markov chains use transition probabilities to determine
-the next state based on the current state. In music,
-this creates patterns based on learned probabilities.
+Markov chains generate sequences based on transition probabilities.
+First-order chains consider only the current state.
 */
 
-// Define transition probabilities
-// State 0 (C): 50% to D, 30% to E, 20% to G
-// State 1 (D): 40% to C, 40% to E, 20% to F
-// State 2 (E): 30% to D, 40% to F, 30% to G
-// etc.
-const transitionMatrix = [
-  [0.1, 0.5, 0.3, 0.0, 0.2, 0.0, 0.0],  // From C
-  [0.4, 0.1, 0.4, 0.2, 0.0, 0.0, 0.0],  // From D
-  [0.0, 0.3, 0.1, 0.4, 0.0, 0.3, 0.0],  // From E
-  [0.0, 0.0, 0.3, 0.1, 0.5, 0.0, 0.1],  // From F
-  [0.2, 0.0, 0.0, 0.3, 0.1, 0.3, 0.2],  // From G
-  [0.0, 0.0, 0.3, 0.0, 0.4, 0.1, 0.2],  // From A
-  [0.1, 0.0, 0.0, 0.1, 0.3, 0.2, 0.3]   // From B
-];
-
-const states = [60, 62, 64, 65, 67, 69, 71];  // C D E F G A B
-
+// Create a chain with transition probabilities
 const chain = new Chain({
-  states: states,
-  transitions: transitionMatrix,
-  order: 1  // First-order Markov chain
+  order: 1,
+  states: [60, 62, 64, 65, 67],  // C major pentatonic
+  transitionMatrix: [
+    [0.2, 0.3, 0.2, 0.2, 0.1],  // From C
+    [0.3, 0.2, 0.2, 0.2, 0.1],  // From D
+    [0.2, 0.2, 0.2, 0.3, 0.1],  // From E
+    [0.2, 0.2, 0.3, 0.2, 0.1],  // From F
+    [0.1, 0.1, 0.1, 0.2, 0.5]   // From G
+  ]
 });
 
-const markovMelody = chain.generate(20, { start: 0 });  // Start from C
+const markovSequence = chain.generate(20);
 console.log('First-order Markov chain:');
-console.log('  States:', states.length, '(C major scale)');
-console.log('  Start state: C (60)');
-console.log('  Generated melody:', markovMelody.length, 'notes');
-console.log('  Melody:', markovMelody.slice(0, 10), '...');
+console.log('  States: [C, D, E, F, G]');
+console.log('  Generated:', markovSequence.length, 'notes');
+console.log('  Sequence:', markovSequence);
 console.log('');
 
 // =====================================================
@@ -168,248 +140,152 @@ console.log('');
 console.log('5. Markov Chains - Second Order\n');
 
 /*
-Second-order chains consider the previous TWO states,
-creating more contextual and musical patterns.
+Second-order chains consider the last two states,
+creating more complex, contextual patterns.
 */
 
-// Simplified: Learn from a training sequence
+// Learn from a training sequence
 const trainingSequence = [60, 62, 64, 65, 67, 65, 64, 62, 60, 62, 64, 62, 60];
-
-// Create chain from training data
 const chain2 = Chain.fromSequence(trainingSequence, { order: 2 });
-const learned Melody = chain2.generate(20);
+const learnedSequence = chain2.generate(20);
 
 console.log('Second-order Markov chain:');
 console.log('  Training sequence:', trainingSequence);
 console.log('  Order: 2 (considers last 2 notes)');
-console.log('  Generated:', learnedMelody.length, 'notes');
-console.log('  Melody:', learnedMelody.slice(0, 12), '...');
+console.log('  Generated:', learnedSequence.length, 'notes');
+console.log('  Sequence:', learnedSequence);
 console.log('');
 
 // =====================================================
-// 6. Phasors - Rotating Vectors
+// 6. Phasor Systems
 // =====================================================
-console.log('6. Phasors - Rotating Vectors\n');
+console.log('6. Phasor Systems\n');
 
 /*
-Phasors are rotating vectors in 2D space. Their
-distance and angle from the origin can be mapped
-to musical parameters.
-
-Great for creating smooth, cyclical variations.
+Phasors are rotating vectors that create cyclical patterns.
+Think of them like clock hands moving at different speeds.
 */
 
-// Single phasor
-const phasor1 = new Phasor(
-  10,    // distance (radius)
-  1.0,   // frequency (rotations per time unit)
-  0      // phase offset
-);
+// Create individual phasors
+const phasor1 = new Phasor({
+  frequency: 1,     // One rotation per unit time
+  amplitude: 7,     // Range: ±7 semitones
+  phase: 0          // Starting angle
+});
 
-// Simulate over time
-const timePoints = Array.from({ length: 20 }, (_, i) => i * 0.1);
-const phasorData = phasor1.simulate(timePoints);
+const phasor2 = new Phasor({
+  frequency: 0.5,   // Half rotation per unit time
+  amplitude: 4,
+  phase: Math.PI / 2  // 90° offset
+});
 
-console.log('Single phasor:');
-console.log('  Distance:', 10);
-console.log('  Frequency:', 1.0);
-console.log('  Time points:', timePoints.length);
-console.log('  First few distances:',
-  phasorData.slice(0, 5).map(d => d.distance.toFixed(2))
-);
-console.log('  First few angles:',
-  phasorData.slice(0, 5).map(d => d.angle.toFixed(1) + '°')
-);
-console.log('');
-
-// =====================================================
-// 7. Phasor System - Multiple Phasors
-// =====================================================
-console.log('7. Phasor System - Multiple Phasors\n');
-
-/*
-Multiple phasors rotating at different frequencies
-create complex, evolving patterns - like epicycles
-or Lissajous curves in music.
-*/
-
+// Combine into a system
 const system = new PhasorSystem();
+system.addPlanet(phasor1);
+system.addPlanet(phasor2);
 
-// Add phasors with different frequencies
-system.addPhasor(new Phasor(10, 1.0, 0));           // Fundamental
-system.addPhasor(new Phasor(5, 2.0, Math.PI/4));    // First harmonic
-system.addPhasor(new Phasor(2, 3.0, Math.PI/2));    // Second harmonic
-
-const systemData = system.simulate(Array.from({ length: 50 }, (_, i) => i * 0.1));
+// Simulate the system over time
+const steps = 32;
+const phasorValues = [];
+for (let t = 0; t < steps; t++) {
+  const state = system.simulate(t / 4);  // Time in quarter notes
+  const combinedValue = state.reduce((sum, val) => sum + val, 0);
+  phasorValues.push(Math.round(60 + combinedValue));  // Center at C4
+}
 
 console.log('Phasor system:');
-console.log('  Number of phasors:', 3);
-console.log('  Frequencies: 1.0, 2.0, 3.0 (harmonic series)');
-console.log('  Creates complex periodic pattern');
-console.log('  Data points per phasor:', systemData[0].length);
+console.log('  Phasors: 2 (freq 1.0 & 0.5)');
+console.log('  Steps:', steps);
+console.log('  Generated:', phasorValues.length, 'pitches');
+console.log('  Sample:', phasorValues.slice(0, 12));
+console.log('  Min:', Math.min(...phasorValues));
+console.log('  Max:', Math.max(...phasorValues));
 console.log('');
 
 // =====================================================
-// 8. Mapping Phasors to Music
+// 7. Combining Walks and Chains
 // =====================================================
-console.log('8. Mapping Phasors to Music\n');
+console.log('7. Combining Walks and Chains\n');
 
 /*
-Map phasor properties to musical parameters:
-- Distance → Pitch
-- Angle → Duration or velocity
-- Multiple phasors → Polyphonic voices
+Hybrid approach: Use random walk for contour,
+Markov chain for rhythmic/pitch relationships
 */
 
-// Create phasor for pitch modulation
-const pitchPhasor = new Phasor(10, 0.5, 0);
-const pitchData = pitchPhasor.simulate(
-  Array.from({ length: 30 }, (_, i) => i * 0.2)
-);
-
-// Map distance to pitch (oscillates around middle C)
-const phasorMelody = pitchData.map(d => {
-  const basePitch = 60;  // Middle C
-  const modulation = d.distance;  // 0-10 range
-  return Math.round(basePitch + modulation);
-});
-
-console.log('Phasor-based melody:');
-console.log('  Base pitch: 60 (C4)');
-console.log('  Modulation range: ±10 semitones');
-console.log('  Generated:', phasorMelody.length, 'pitches');
-console.log('  Melody:', phasorMelody.slice(0, 10), '...');
-console.log('  Creates smooth, wave-like contour');
-console.log('');
-
-// =====================================================
-// 9. Combining Walk Types
-// =====================================================
-console.log('9. Combining Walk Types\n');
-
-/*
-Combine different walk types for rich, varied music.
-*/
-
-// Use random walk for overall contour
+// Random walk for overall contour
 const contourWalk = new RandomWalk({
-  start: 60,
+  length: 24,
+  dimensions: 1,
   stepSize: 3,
-  bias: 0.55,  // Slight upward tendency
-  bounds: [55, 75]
+  bounds: [48, 72],
+  attractorStrength: 0.05,
+  attractorPosition: [60]
 });
 
-const contour = contourWalk.generate(40);
+contourWalk.generate([60]);
+const contourPitches = contourWalk.mapToScale(0, [0, 2, 3, 5, 7, 8, 10], 3);  // Minor scale
 
-// Use Markov chain for local pitch decisions
-const localChain = Chain.fromSequence([0, 2, 4, 5, 7, 5, 4, 2], { order: 1 });
+// Markov chain for local variations
+const localChain = Chain.fromSequence([0, 1, -1, 0, 2, -2, 0], { order: 1 });
+const variations = localChain.generate(24);
 
-// Combine: contour provides overall shape, chain provides details
-const hybridMelody = contour.map(basePitch => {
-  const offset = localChain.generate(1)[0];
-  return basePitch + offset;
+// Combine: contour + local variations
+const hybridMelody = contourPitches.map((pitch, i) => {
+  const variation = variations[i] || 0;
+  return pitch + variation;
 });
 
-console.log('Hybrid walk (Random + Markov):');
-console.log('  Random walk provides: overall contour');
-console.log('  Markov chain provides: local intervals');
-console.log('  Result:', hybridMelody.length, 'pitches');
-console.log('  Melody:', hybridMelody.slice(0, 10), '...');
+console.log('Hybrid (Walk + Chain):');
+console.log('  Contour (walk):', contourPitches.slice(0, 8));
+console.log('  Variations (chain):', variations.slice(0, 8));
+console.log('  Combined:', hybridMelody.slice(0, 8));
+console.log('  Total notes:', hybridMelody.length);
 console.log('');
 
 // =====================================================
-// 10. Practical Example: Generative Composition
+// 8. Multi-Voice Generation
 // =====================================================
-console.log('10. Practical Example: Generative Composition\n');
+console.log('8. Multi-Voice Generation\n');
 
-// Create multiple voices using different walk types
+/*
+Generate multiple voices using different techniques
+*/
+
+// Voice 1: Random walk
 const voice1Walk = new RandomWalk({
-  start: 72,
+  length: 16,
+  dimensions: 1,
   stepSize: 2,
-  constrainToSet: cMajorScale,
-  bounds: [67, 84]
+  bounds: [60, 84]
 });
+voice1Walk.generate([72]);
+const voice1 = voice1Walk.mapToScale(0, [0, 2, 4, 5, 7, 9, 11], 4);
 
-const voice2Chain = new Chain({
-  states: [60, 62, 64, 65, 67],
-  transitions: [
-    [0.2, 0.4, 0.2, 0.1, 0.1],
-    [0.3, 0.2, 0.3, 0.2, 0.0],
-    [0.1, 0.3, 0.2, 0.3, 0.1],
-    [0.0, 0.2, 0.4, 0.2, 0.2],
-    [0.2, 0.0, 0.2, 0.3, 0.3]
-  ]
-});
+// Voice 2: Markov chain
+const voice2Chain = Chain.fromSequence([48, 50, 52, 53, 55, 53, 52, 50], { order: 1 });
+const voice2 = voice2Chain.generate(16);
 
-const voice3Phasor = new Phasor(5, 0.3, 0);
+// Voice 3: Phasor
+const voice3Phasor = new Phasor({ frequency: 0.75, amplitude: 5, phase: 0 });
+const voice3 = [];
+for (let t = 0; t < 16; t++) {
+  const val = voice3Phasor.getPosition(t / 4);
+  voice3.push(Math.round(64 + val));
+}
 
-// Generate voices
-const voice1Pitches = voice1Walk.generate(32);
-const voice2Pitches = voice2Chain.generate(32, { start: 0 });
-const voice3Data = voice3Phasor.simulate(
-  Array.from({ length: 32 }, (_, i) => i * 0.25)
-);
-const voice3Pitches = voice3Data.map(d => 48 + Math.round(d.distance));
-
-// Create tracks with different rhythms
-const voice1 = voice1Pitches.map((pitch, i) => ({
-  pitch,
-  duration: 0.5,
-  time: i * 0.5,
-  velocity: 0.7
-}));
-
-const voice2 = voice2Pitches.map((pitch, i) => ({
-  pitch,
-  duration: 1,
-  time: i * 1,
-  velocity: 0.8
-}));
-
-const voice3 = voice3Pitches.map((pitch, i) => ({
-  pitch,
-  duration: 2,
-  time: i * 2,
-  velocity: 0.6
-}));
-
-const composition = {
-  format: 'jmon',
-  version: '1.0',
-  tempo: 120,
-  tracks: [
-    { label: 'Voice 1 (Random Walk)', notes: voice1 },
-    { label: 'Voice 2 (Markov Chain)', notes: voice2 },
-    { label: 'Voice 3 (Phasor)', notes: voice3 }
-  ]
-};
-
-console.log('Generative composition:');
-console.log('  Voice 1: Random walk (fast, scalar)');
-console.log('  Voice 2: Markov chain (medium, probabilistic)');
-console.log('  Voice 3: Phasor (slow, cyclical)');
-console.log('  ✓ Created 3-voice composition');
+console.log('Multi-voice composition:');
+console.log('  Voice 1 (random walk):', voice1.slice(0, 8));
+console.log('  Voice 2 (Markov chain):', voice2.slice(0, 8));
+console.log('  Voice 3 (phasor):', voice3.slice(0, 8));
+console.log('  Each voice:', 16, 'notes');
 console.log('');
 
-// =====================================================
-// 11. Summary
-// =====================================================
-console.log('11. Summary\n');
-
-console.log('Key concepts covered:');
-console.log('  ✓ Random walks (Brownian motion)');
-console.log('  ✓ Biased walks (directional tendency)');
-console.log('  ✓ Scale-constrained walks');
-console.log('  ✓ First-order Markov chains');
-console.log('  ✓ Second-order Markov chains');
-console.log('  ✓ Learning chains from sequences');
-console.log('  ✓ Phasors (rotating vectors)');
-console.log('  ✓ Phasor systems (multiple frequencies)');
-console.log('  ✓ Mapping phasors to pitch/rhythm');
-console.log('  ✓ Hybrid approaches (combining walks)');
-console.log('');
-
-console.log('=== TUTORIAL COMPLETE ===');
-
-// Export for use in other examples
-export { walk1, chain, phasor1, composition };
+console.log('=== TUTORIAL 05 COMPLETE ===\n');
+console.log('Key Concepts Covered:');
+console.log('• Random walks for organic melodic motion');
+console.log('• Constraints (bounds, attractors) for control');
+console.log('• First and second-order Markov chains');
+console.log('• Learning patterns from existing sequences');
+console.log('• Phasor systems for cyclical patterns');
+console.log('• Hybrid approaches combining techniques');
+console.log('• Multi-voice generation with different methods');

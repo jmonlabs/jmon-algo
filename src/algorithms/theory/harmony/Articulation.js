@@ -48,6 +48,27 @@ export class Articulation {
 
     // Handle simple articulations
     if (!articulationDef.complex) {
+      // Modify note properties based on articulation type
+      switch (articulationType) {
+        case 'staccato':
+          note.duration = note.duration * 0.5;
+          break;
+        case 'staccatissimo':
+          note.duration = note.duration * 0.25;
+          break;
+        case 'accent':
+          if (note.velocity === undefined) note.velocity = 0.8;
+          note.velocity = Math.min(1.0, note.velocity * 1.2);
+          break;
+        case 'marcato':
+          if (note.velocity === undefined) note.velocity = 0.8;
+          note.velocity = Math.min(1.0, note.velocity * 1.3);
+          break;
+        case 'legato':
+          note.duration = note.duration * 1.05;
+          break;
+      }
+
       const arr = Array.isArray(note.articulations) ? note.articulations : [];
       note.articulations = [...arr, articulationType];
       result.success = true;

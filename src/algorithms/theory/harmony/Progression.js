@@ -54,7 +54,7 @@ export class Progression extends MusicTheoryConstants {
      * @returns {Object} Object containing major, minor, and diminished chord roots
      */
     computeCircle() {
-        const nSemitones = this.intervals[this.circleOf];
+        const nSemitones = MusicTheoryConstants.intervals[this.circleOf];
         const circleNotes = [this.tonicMidi];
         
         for (let i = 0; i < Math.max(...this.radius); i++) {
