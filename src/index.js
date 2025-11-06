@@ -8,7 +8,6 @@
 
 import { JmonValidator } from "./utils/jmon-validator.browser.js";
 import algorithms from "./algorithms/index.js";
-import { createPlayer } from "./browser/music-player.js";
 import {
   convertToVexFlow,
   midi,
@@ -18,6 +17,16 @@ import {
   wav,
 } from "./converters/index.js";
 import * as jmonUtils from "./utils/jmon-utils.js";
+
+// Lazy-load browser player to avoid JSR analyzing CDN imports
+let createPlayer;
+async function __loadPlayer() {
+  if (!createPlayer) {
+    const playerModule = await import("./browser/music-player.js");
+    createPlayer = playerModule.createPlayer;
+  }
+  return createPlayer;
+}
 
 // GM instruments helpers (optional); load lazily when needed to avoid top-level await in UMD
 let GM_INSTRUMENTS, createGMInstrumentNode, findGMProgramByName, generateSamplerUrls, getPopularInstruments;
@@ -54,19 +63,21 @@ function validateJmon(obj) {
 /**
  * Render a player UI (browser environments)
  */
-function render(jmonObj, options = {}) {
+async function render(jmonObj, options = {}) {
   if (!jmonObj || typeof jmonObj !== "object") {
     throw new Error("render() requires a valid JMON object");
   }
-  return createPlayer(jmonObj, options);
+  const player = await __loadPlayer();
+  return player(jmonObj, options);
 }
 
 /**
  * Play without auto-start (browser environments)
  */
-function play(jmonObj, options = {}) {
+async function play(jmonObj, options = {}) {
   const playOptions = { autoplay: false, ...options };
-  return createPlayer(jmonObj, playOptions);
+  const player = await __loadPlayer();
+  return player(jmonObj, playOptions);
 }
 
 /**
