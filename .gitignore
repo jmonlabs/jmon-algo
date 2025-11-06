@@ -150,4 +150,4 @@ node_modules/
 .zed
 .results.json
 deno.lock
-deno.json
+# deno.json - REMOVED: now tracked for package registry publishing

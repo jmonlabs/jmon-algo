@@ -1,0 +1,66 @@
+{
+  "name": "jmon-algo",
+  "version": "1.0.0",
+  "description": "Algorithmic music composition library with generative algorithms, music theory, and format conversion",
+  "type": "module",
+  "main": "dist/jmon.esm.js",
+  "module": "dist/jmon.esm.js",
+  "unpkg": "dist/jmon.umd.js",
+  "jsdelivr": "dist/jmon.umd.js",
+  "exports": {
+    ".": {
+      "import": "./dist/jmon.esm.js",
+      "require": "./dist/jmon.umd.js",
+      "default": "./dist/jmon.esm.js"
+    }
+  },
+  "files": [
+    "dist/",
+    "src/",
+    "LICENSE",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "deno run --allow-read --allow-write --allow-run --allow-env build.ts",
+    "test": "deno test -A",
+    "prepublishOnly": "deno run --allow-read --allow-write --allow-run --allow-env build.ts"
+  },
+  "keywords": [
+    "music",
+    "algorithmic-composition",
+    "generative-music",
+    "music-theory",
+    "cellular-automata",
+    "fractals",
+    "genetic-algorithms",
+    "gaussian-processes",
+    "minimalism",
+    "jmon",
+    "midi",
+    "audio",
+    "tone.js",
+    "vexflow",
+    "observable"
+  ],
+  "author": "JMON Labs",
+  "license": "GPL-3.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jmonlabs/jmon-algo.git"
+  },
+  "bugs": {
+    "url": "https://github.com/jmonlabs/jmon-algo/issues"
+  },
+  "homepage": "https://github.com/jmonlabs/jmon-algo#readme",
+  "peerDependencies": {
+    "tone": "^14.8.49"
+  },
+  "peerDependenciesMeta": {
+    "tone": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "esbuild": "^0.20.2"
+  }
+}
