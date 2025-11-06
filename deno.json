@@ -1,6 +1,7 @@
 {
-  "name": "@jmonlabs/jmon-algo",
+  "name": "@jmon/jmon-algo",
   "version": "1.0.0",
+  "license": "GPL-3.0",
   "exports": "./src/index.js",
   "tasks": {
     "build": "deno run --allow-read --allow-write --allow-run --allow-env build.ts",
@@ -21,20 +22,16 @@
     "lib": ["deno.window", "dom", "dom.iterable", "dom.asynciterable"]
   },
   "lint": {
-    "files": {
-      "include": ["src/"],
-      "exclude": ["dist/", "node_modules/", "examples/", "tests/"]
-    },
+    "include": ["src/"],
+    "exclude": ["dist/", "node_modules/", "examples/", "tests/", "src/browser/"],
     "rules": {
       "tags": ["recommended"],
       "exclude": ["no-unused-vars"]
     }
   },
   "fmt": {
-    "files": {
-      "include": ["src/", "examples/", "tests/"],
-      "exclude": ["dist/", "node_modules/"]
-    },
+    "include": ["src/", "examples/", "tests/"],
+    "exclude": ["dist/", "node_modules/"],
     "options": {
       "useTabs": false,
       "lineWidth": 100,
@@ -45,9 +42,7 @@
     }
   },
   "test": {
-    "files": {
-      "include": ["tests/", "src/**/__tests__/"]
-    }
+    "include": ["tests/", "src/**/__tests__/"]
   },
   "publish": {
     "include": [

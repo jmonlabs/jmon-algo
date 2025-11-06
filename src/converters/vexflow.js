@@ -581,7 +581,9 @@ class VexFlowConverter {
                   context.fillText(tempoText, left + 200, y - 8);
                   context.restore();
                 }
-              } catch {}
+              } catch {
+                // Ignore optional rendering errors
+              }
             }
 
             // Build tickables for the system (insert barlines between measures)
@@ -685,7 +687,9 @@ class VexFlowConverter {
                     ggroup.setContext(context);
                     ggroup.attachToNote(note);
                   }
-                } catch {}
+                } catch {
+                // Ignore optional rendering errors
+              }
               }
 
               // Handle JMON ornaments (like grace notes from ornaments array)
@@ -905,7 +909,9 @@ class VexFlowConverter {
             allBeams.forEach((b) => {
               try {
                 b.draw();
-              } catch (_) {}
+              } catch (_) {
+                // Ignore optional errors
+              }
             });
           }
           // Rendering complete - styling handled by main score function
@@ -922,7 +928,9 @@ class VexFlowConverter {
             pre.textContent = JSON.stringify(vexFlowData, null, 2);
             details.appendChild(pre);
             // VexFlow source details are appended in index.js. Do not duplicate here.
-          } catch (_) {}
+          } catch (_) {
+                // Ignore optional errors
+              }
           // Draw simple ties when requested (tie to next note)
           if (createdNotes.length && Flow.StaveTie) {
             for (let i = 0; i < createdNotes.length - 1; i++) {
@@ -1291,7 +1299,9 @@ class VexFlowConverter {
                   context.fillText(tempoText, left + 200, y - 8);
                   context.restore();
                 }
-              } catch {}
+              } catch {
+                // Ignore optional rendering errors
+              }
             }
 
             const tickables = [];
@@ -1391,7 +1401,9 @@ class VexFlowConverter {
                     ggroup.setContext(context);
                     ggroup.attachToNote(note);
                   }
-                } catch {}
+                } catch {
+                // Ignore optional rendering errors
+              }
               }
 
               // Handle JMON ornaments (like grace notes from ornaments array)
@@ -1589,7 +1601,9 @@ class VexFlowConverter {
             allBeams.forEach((b) => {
               try {
                 b.draw();
-              } catch (_) {}
+              } catch (_) {
+                // Ignore optional errors
+              }
             });
           }
 

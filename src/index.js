@@ -103,19 +103,19 @@ function score(jmonObj, renderingEngine = {}, options = {}) {
       engineType = "vexflow";
       engineInstance = renderingEngine;
     }
-  } else if (typeof window !== "undefined") {
+  } else if (typeof globalThis.window !== "undefined") {
     if (
-      window.VF ||
-      window.VexFlow ||
-      (window.Vex && (window.Vex.Flow || window.Vex)) ||
-      (window.Flow && window.Flow.Factory) // some builds expose Flow.Factory globally
+      globalThis.VF ||
+      globalThis.VexFlow ||
+      (globalThis.Vex && (globalThis.Vex.Flow || globalThis.Vex)) ||
+      (globalThis.Flow && globalThis.Flow.Factory) // some builds expose Flow.Factory globally
     ) {
       engineType = "vexflow";
       engineInstance =
-        window.VF ||
-        window.VexFlow ||
-        (window.Vex && (window.Vex.Flow || window.Vex)) ||
-        window; // allow { Flow: { Factory } } pattern
+        globalThis.VF ||
+        globalThis.VexFlow ||
+        (globalThis.Vex && (globalThis.Vex.Flow || globalThis.Vex)) ||
+        globalThis; // allow { Flow: { Factory } } pattern
     }
   }
 
@@ -182,10 +182,10 @@ function score(jmonObj, renderingEngine = {}, options = {}) {
         }
         // Simple direct VexFlow rendering - bypass complex converter
         const VF = engineInstance ||
-          (typeof window !== "undefined" && (
-            window.VF ||
-            window.VexFlow ||
-            (window.Vex && (window.Vex.Flow || window.Vex))
+          (typeof globalThis.window !== "undefined" && (
+            globalThis.VF ||
+            globalThis.VexFlow ||
+            (globalThis.Vex && (globalThis.Vex.Flow || globalThis.Vex))
           ));
 
         if (!VF || !VF.Renderer) {

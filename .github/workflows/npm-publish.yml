@@ -68,9 +68,8 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-      - name: Publish to JSR
+      - name: Publish to JSR (Deno registry)
         run: deno publish --allow-dirty
-        continue-on-error: true
 
   create-release:
     needs: build-and-publish
@@ -100,7 +99,7 @@ jobs:
             npm install jmon-algo@${{ steps.get_version.outputs.VERSION }}
 
             # Deno/JSR
-            import * as jm from "jsr:@jmonlabs/jmon-algo@${{ steps.get_version.outputs.VERSION }}"
+            import * as jm from "jsr:@jmon/jmon-algo@${{ steps.get_version.outputs.VERSION }}"
 
             # CDN (ESM)
             import jm from "https://esm.sh/jmon-algo@${{ steps.get_version.outputs.VERSION }}"
