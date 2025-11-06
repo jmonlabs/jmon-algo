@@ -180,24 +180,25 @@ export class LoopVisualizer {
     const colors = [];
     
     switch (scheme) {
-      case 'colorblind':
+      case 'colorblind': {
         // Wong's colorblind-friendly palette
         const cbPalette = [
           'rgba(230, 159, 0, 0.65)',    // Orange
-          'rgba(86, 180, 233, 0.65)',   // Sky blue  
+          'rgba(86, 180, 233, 0.65)',   // Sky blue
           'rgba(0, 158, 115, 0.65)',    // Bluish green
           'rgba(240, 228, 66, 0.65)',   // Yellow
           'rgba(0, 114, 178, 0.65)',    // Blue
           'rgba(213, 94, 0, 0.65)',     // Vermillion
           'rgba(204, 121, 167, 0.65)'   // Reddish purple
         ];
-        
+
         for (let i = 0; i < count; i++) {
           colors.push(cbPalette[i % cbPalette.length]);
         }
         break;
-        
-      case 'viridis':
+      }
+
+      case 'viridis': {
         // Viridis-inspired colorblind-friendly gradient
         const viridisColors = [
           'rgba(68, 1, 84, 0.65)',      // Purple
@@ -206,7 +207,7 @@ export class LoopVisualizer {
           'rgba(94, 201, 98, 0.65)',    // Green
           'rgba(253, 231, 37, 0.65)'    // Yellow
         ];
-        
+
         for (let i = 0; i < count; i++) {
           if (count <= viridisColors.length) {
             colors.push(viridisColors[i]);
@@ -220,7 +221,8 @@ export class LoopVisualizer {
           }
         }
         break;
-        
+      }
+
       case 'classic':
       default:
         // Original HSV-based generation (less accessible)

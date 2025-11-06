@@ -76,9 +76,9 @@ export class MidiToJmon {
   async initializeTone() {
     const externalTone = this.options.Tone;
 
-    if (typeof window !== "undefined") {
+    if (typeof globalThis.window !== "undefined") {
       // Browser environment - check multiple sources
-      const existingTone = externalTone || window.Tone ||
+      const existingTone = externalTone || globalThis.window.Tone ||
         (typeof Tone !== "undefined" ? Tone : null);
 
       if (existingTone) {
