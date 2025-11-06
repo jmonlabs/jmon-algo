@@ -7,12 +7,12 @@ async function getPlotly() {
   plotlyLoadAttempted = true;
   
   try {
-    if (typeof window !== 'undefined' && window.Plotly) {
-      Plotly = window.Plotly;
+    if (typeof globalThis.window !== 'undefined' && globalThis.window.Plotly) {
+      Plotly = globalThis.window.Plotly;
       return Plotly;
     }
-    
-    if (typeof window === 'undefined') {
+
+    if (typeof globalThis.window === 'undefined') {
       const plotlyPackage = 'plot' + 'ly.js'; // Avoid rollup detection
       const plotlyModule = await import(plotlyPackage);
       Plotly = plotlyModule.default || plotlyModule;

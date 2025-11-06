@@ -174,7 +174,7 @@ export class Progression extends MusicTheoryConstants {
             const rootMidi = this.tonicMidi + rootOffset;
 
             // Determine chord quality
-            let chordType = quality || chordQualities[degree - 1];
+            const chordType = quality || chordQualities[degree - 1];
 
             const chord = this.generateChord(rootMidi, chordType);
             progression.push(chord);

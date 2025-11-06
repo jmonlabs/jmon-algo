@@ -27,6 +27,6 @@ describe('GaussianProcessRegressor', () => {
     
     expect(result.mean).toHaveLength(1);
     expect(result.std).toHaveLength(1);
-    expect(typeof result.std![0]).toBe('number');
+    expect(typeof result.std[0]).toBe('number');
   });
 });
