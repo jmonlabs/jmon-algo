@@ -161,12 +161,12 @@ export class Chain {
    */
   generateNormal(mean, std, randomFunc = Math.random) {
     // Box-Muller transformation with edge case handling
-    let u1, u2;
+    let u1;
     do {
       u1 = randomFunc();
     } while (u1 === 0); // Avoid log(0)
-    
-    u2 = randomFunc();
+
+    const u2 = randomFunc();
     const z = Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
     const result = mean + std * z;
     

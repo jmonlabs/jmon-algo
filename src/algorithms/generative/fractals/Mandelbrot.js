@@ -91,13 +91,13 @@ export class Mandelbrot {
    * @returns {number} Number of iterations before escape
    */
   mandelbrotIterations(c) {
-    let z = { real: 0, imaginary: 0 };
-    
+    const z = { real: 0, imaginary: 0 };
+
     for (let i = 0; i < this.maxIterations; i++) {
       // z = z^2 + c
       const zReal = z.real * z.real - z.imaginary * z.imaginary + c.real;
       const zImaginary = 2 * z.real * z.imaginary + c.imaginary;
-      
+
       z.real = zReal;
       z.imaginary = zImaginary;
       

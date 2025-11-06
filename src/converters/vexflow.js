@@ -282,10 +282,10 @@ class VexFlowConverter {
           const candidates = [
             VF,
             VF && VF.default,
-            typeof window !== "undefined" && (window.VF || window.VexFlow),
-            typeof window !== "undefined" &&
-            window.Vex &&
-            (window.Vex.Flow || window.Vex),
+            typeof globalThis.window !== "undefined" && (globalThis.window.VF || globalThis.window.VexFlow),
+            typeof globalThis.window !== "undefined" &&
+            globalThis.window.Vex &&
+            (globalThis.window.Vex.Flow || globalThis.window.Vex),
           ];
           for (const c of candidates) {
             if (c) return c;
