@@ -1,6 +1,7 @@
 {
-  "name": "@jmonlabs/jmon-algo",
+  "name": "@jmon/jmon-algo",
   "version": "1.0.0",
+  "license": "GPL-3.0",
   "exports": "./src/index.js",
   "tasks": {
     "build": "deno run --allow-read --allow-write --allow-run --allow-env build.ts",

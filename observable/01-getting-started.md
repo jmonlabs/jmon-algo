@@ -18,11 +18,11 @@ If you prefer working locally, install [Deno](https://deno.com/) and import jmon
 
 ```bash
 # In your Deno project
-deno add jsr:@jmonlabs/jmon-algo
+deno add jsr:@jmon/jmon-algo
 ```
 
 ```js
-import * as jm from "jsr:@jmonlabs/jmon-algo";
+import * as jm from "jsr:@jmon/jmon-algo";
 ```
 
 You can also use Jupyter notebooks with the Deno kernel.

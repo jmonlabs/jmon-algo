@@ -194,7 +194,7 @@ Found an issue or have improvements?
 
 - **jmon-algo GitHub**: https://github.com/jmonlabs/jmon-algo
 - **jmon-algo npm**: https://www.npmjs.com/package/jmon-algo
-- **jmon-algo JSR**: https://jsr.io/@jmonlabs/jmon-algo
+- **jmon-algo JSR**: https://jsr.io/@jmon/jmon-algo
 - **Djalgo (original)**: https://gitlab.com/essicolo/djalgo
 - **Observable**: https://observablehq.com
 
