@@ -21,20 +21,16 @@
     "lib": ["deno.window", "dom", "dom.iterable", "dom.asynciterable"]
   },
   "lint": {
-    "files": {
-      "include": ["src/"],
-      "exclude": ["dist/", "node_modules/", "examples/", "tests/"]
-    },
+    "include": ["src/"],
+    "exclude": ["dist/", "node_modules/", "examples/", "tests/", "src/browser/"],
     "rules": {
       "tags": ["recommended"],
       "exclude": ["no-unused-vars"]
     }
   },
   "fmt": {
-    "files": {
-      "include": ["src/", "examples/", "tests/"],
-      "exclude": ["dist/", "node_modules/"]
-    },
+    "include": ["src/", "examples/", "tests/"],
+    "exclude": ["dist/", "node_modules/"],
     "options": {
       "useTabs": false,
       "lineWidth": 100,
@@ -45,9 +41,7 @@
     }
   },
   "test": {
-    "files": {
-      "include": ["tests/", "src/**/__tests__/"]
-    }
+    "include": ["tests/", "src/**/__tests__/"]
   },
   "publish": {
     "include": [

@@ -62,7 +62,11 @@ import { normalizeSamplerUrlsToNoteNames } from '../utils/normalize.js';
 
 export function tonejs(composition, options = {}) {
     // Normalize audioGraph Sampler keys to scientific note names (best compatibility)
-    try { normalizeSamplerUrlsToNoteNames(composition); } catch (_) {}
+    try {
+        normalizeSamplerUrlsToNoteNames(composition);
+    } catch (_) {
+        // Ignore normalization errors - composition may not have audioGraph
+    }
 
     const converter = new Tonejs(options);
     const originalTracks = converter.convert(composition);
