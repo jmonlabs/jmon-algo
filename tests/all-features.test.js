@@ -427,8 +427,8 @@ console.log('==========================================================\n');
 
 if (failedTests === 0) {
   console.log('✅ ALL TESTS PASSED!\n');
-  process.exit(0);
+  Deno.exit(0);
 } else {
   console.log(`❌ ${failedTests} test(s) failed\n`);
-  process.exit(1);
+  Deno.exit(1);
 }
