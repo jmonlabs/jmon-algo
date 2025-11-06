@@ -56,7 +56,8 @@
       "**/*.test.js",
       "dist/",
       "examples/",
-      "tests/"
+      "tests/",
+      "src/browser/"
     ]
   }
 }

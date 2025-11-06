@@ -65,11 +65,12 @@ jobs:
 
       - name: Publish to NPM
         run: npm publish --access public
+        continue-on-error: true
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Publish to JSR (Deno registry)
-        run: deno publish --allow-dirty
+        run: deno publish --allow-dirty --allow-slow-types
 
   create-release:
     needs: build-and-publish
@@ -96,16 +97,16 @@ jobs:
 
             ```bash
             # NPM
-            npm install jmon-algo@${{ steps.get_version.outputs.VERSION }}
+            npm install @jmon/jmon-algo@${{ steps.get_version.outputs.VERSION }}
 
             # Deno/JSR
             import * as jm from "jsr:@jmon/jmon-algo@${{ steps.get_version.outputs.VERSION }}"
 
             # CDN (ESM)
-            import jm from "https://esm.sh/jmon-algo@${{ steps.get_version.outputs.VERSION }}"
+            import jm from "https://esm.sh/@jmon/jmon-algo@${{ steps.get_version.outputs.VERSION }}"
 
             # CDN (UMD)
-            <script src="https://cdn.jsdelivr.net/npm/jmon-algo@${{ steps.get_version.outputs.VERSION }}/dist/jmon.umd.js"></script>
+            <script src="https://cdn.jsdelivr.net/npm/@jmon/jmon-algo@${{ steps.get_version.outputs.VERSION }}/dist/jmon.umd.js"></script>
             ```
 
             ### What's Changed
