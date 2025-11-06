@@ -1,5 +1,5 @@
 {
-  "name": "jmon-algo",
+  "name": "@jmon/jmon-algo",
   "version": "1.0.0",
   "description": "Algorithmic music composition library with generative algorithms, music theory, and format conversion",
   "type": "module",
