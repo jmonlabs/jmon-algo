@@ -77,7 +77,7 @@ describe('JMON Integration', () => {
 
   test('should detect invalid JMON composition', () => {
     const invalidComposition = {
-      format: 'invalid' as any,
+      format: 'invalid',
       version: '1.0',
       bpm: 500, // Invalid BPM
       audioGraph: [],

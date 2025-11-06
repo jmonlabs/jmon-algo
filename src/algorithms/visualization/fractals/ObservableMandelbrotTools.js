@@ -211,28 +211,31 @@ export class ObservableMandelbrotTools {
     const width = matrix[0].length;
     
     switch (method) {
-      case 'diagonal':
+      case 'diagonal': {
         const diagonal = [];
         const minDim = Math.min(height, width);
         for (let i = 0; i < minDim; i++) {
           diagonal.push(matrix[i][i]);
         }
         return diagonal;
-        
+      }
+
       case 'spiral':
         return this.extractSpiral(matrix);
-        
+
       case 'border':
         return this.extractBorder(matrix);
-        
-      case 'column':
+
+      case 'column': {
         const colIndex = Math.floor((offset % 4) * width / 4);
         return matrix.map(row => row[colIndex]);
-        
-      case 'row':
+      }
+
+      case 'row': {
         const rowIndex = Math.floor((offset % 4) * height / 4);
         return matrix[rowIndex] ? [...matrix[rowIndex]] : [];
-        
+      }
+
       default:
         return this.extractSequenceFromMatrix(matrix, 'diagonal');
     }
@@ -414,33 +417,36 @@ export class ObservableMandelbrotTools {
     ctx.beginPath();
     
     switch (type) {
-      case 'diagonal':
+      case 'diagonal': {
         const minDim = Math.min(matrix.length, matrix[0].length);
         ctx.moveTo(0, 0);
         ctx.lineTo(minDim * cellWidth, minDim * cellHeight);
         break;
-        
+      }
+
       case 'border':
         this.drawBorderPath(ctx, matrix, cellWidth, cellHeight);
         break;
-        
+
       case 'spiral':
         this.drawSpiralPath(ctx, matrix, cellWidth, cellHeight);
         break;
-        
-      case 'column':
+
+      case 'column': {
         const colIndex = Math.floor((path.id % 4) * matrix[0].length / 4);
         const colX = (colIndex + 0.5) * cellWidth;
         ctx.moveTo(colX, 0);
         ctx.lineTo(colX, matrix.length * cellHeight);
         break;
-        
-      case 'row':
+      }
+
+      case 'row': {
         const rowIndex = Math.floor((path.id % 4) * matrix.length / 4);
         const rowY = (rowIndex + 0.5) * cellHeight;
         ctx.moveTo(0, rowY);
         ctx.lineTo(matrix[0].length * cellWidth, rowY);
         break;
+      }
     }
     
     ctx.stroke();

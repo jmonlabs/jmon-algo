@@ -61,10 +61,6 @@ export class GaussianProcessRegressor {
         default:
           throw new Error(`Unknown kernel type: ${opts.kernel}. Supported: 'rbf', 'periodic', 'rational_quadratic'`);
       }
-    } else if (kernelOrOptions instanceof Kernel) {
-      // Just in case - already handled above
-      this.kernel = kernelOrOptions;
-      this.alpha = options.alpha || 1e-10;
     } else {
       throw new Error('First argument must be a Kernel instance or options object with kernel type');
     }
