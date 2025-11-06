@@ -2,7 +2,7 @@
   "name": "@jmon/jmon-algo",
   "version": "1.0.0",
   "license": "GPL-3.0",
-  "exports": "./src/index.js",
+  "exports": "./src/index.jsr.js",
   "tasks": {
     "build": "deno run --allow-read --allow-write --allow-run --allow-env build.ts",
     "test": "deno test -A",
@@ -12,8 +12,6 @@
   },
   "imports": {
     "plotly.js": "npm:plotly.js@2.26.0",
-    "tone": "npm:tone@14.8.49",
-    "vexflow": "npm:vexflow@4.2.2",
     "esbuild": "npm:esbuild@0.20.2"
   },
   "compilerOptions": {
