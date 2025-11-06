@@ -1,0 +1,67 @@
+{
+  "name": "@jmonlabs/jmon-algo",
+  "version": "1.0.0",
+  "exports": "./src/index.js",
+  "tasks": {
+    "build": "deno run --allow-read --allow-write --allow-run --allow-env build.ts",
+    "test": "deno test -A",
+    "lint": "deno lint",
+    "fmt": "deno fmt",
+    "doc": "deno run --allow-read --allow-write scripts/build-docs.js"
+  },
+  "imports": {
+    "plotly.js": "npm:plotly.js@2.26.0",
+    "tone": "npm:tone@14.8.49",
+    "vexflow": "npm:vexflow@4.2.2",
+    "esbuild": "npm:esbuild@0.20.2"
+  },
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": false,
+    "lib": ["deno.window", "dom", "dom.iterable", "dom.asynciterable"]
+  },
+  "lint": {
+    "files": {
+      "include": ["src/"],
+      "exclude": ["dist/", "node_modules/", "examples/", "tests/"]
+    },
+    "rules": {
+      "tags": ["recommended"],
+      "exclude": ["no-unused-vars"]
+    }
+  },
+  "fmt": {
+    "files": {
+      "include": ["src/", "examples/", "tests/"],
+      "exclude": ["dist/", "node_modules/"]
+    },
+    "options": {
+      "useTabs": false,
+      "lineWidth": 100,
+      "indentWidth": 2,
+      "semiColons": true,
+      "singleQuote": false,
+      "proseWrap": "preserve"
+    }
+  },
+  "test": {
+    "files": {
+      "include": ["tests/", "src/**/__tests__/"]
+    }
+  },
+  "publish": {
+    "include": [
+      "src/",
+      "LICENSE",
+      "README.md",
+      "deno.json"
+    ],
+    "exclude": [
+      "**/__tests__/",
+      "**/*.test.js",
+      "dist/",
+      "examples/",
+      "tests/"
+    ]
+  }
+}
