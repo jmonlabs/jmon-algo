@@ -180,6 +180,73 @@ jm = require("@jmon/jmon-algo@1.0.0")
 jm.play(composition)  // Built-in player with Tone.js
 ```
 
+### Tangent Notebooks
+
+[Tangent Notebooks](https://tangent.to) work similarly to Observable. Import from JSR via esm.sh:
+
+```javascript
+// Cell 1: Import library
+import jm from "https://esm.sh/jsr/@jmon/jmon-algo";
+
+// Cell 2: Generate music theory data
+const scale = jm.theory.scale.generate('E', 'minor');
+const chords = jm.theory.chord.progression('E', ['i', 'VI', 'III', 'VII']);
+
+console.log('Scale:', scale);
+console.log('Progression:', chords);
+```
+
+**Generative Algorithms:**
+```javascript
+import jm from "https://esm.sh/jsr/@jmon/jmon-algo";
+
+// Random walk melody
+const walk = jm.generative.walk.random({
+  start: 60,
+  steps: 16,
+  stepSize: 3,
+  bounds: [48, 84]
+});
+
+// Mandelbrot fractal melody
+const fractal = jm.generative.fractal.mandelbrotMelody({
+  length: 32,
+  minPitch: 48,
+  maxPitch: 84
+});
+
+// Return for visualization
+{walk, fractal}
+```
+
+**Sheet Music with VexFlow:**
+```javascript
+import jm from "https://esm.sh/jsr/@jmon/jmon-algo";
+import * as VF from "https://esm.sh/vexflow@4.2.2";
+
+// Generate a melodic pattern
+const melody = jm.generative.melody.simple({
+  length: 8,
+  scale: 'C major',
+  octave: 4
+});
+
+// Convert to JMON format
+const composition = {
+  notes: melody.map((note, i) => ({
+    pitch: note.pitch,
+    duration: 1,
+    time: i
+  }))
+};
+
+// Render notation
+const notation = jm.score(composition, VF, {width: 700, height: 180});
+notation; // Tangent will display the SVG
+```
+
+**Tip for Tangent:** Use `console.log()` to debug and return DOM elements or data objects at the end of cells for visualization.
+
 ### Browser (HTML + Script Tags)
 
 ```html
