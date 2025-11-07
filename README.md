@@ -62,24 +62,40 @@ Now change the numbers and see what happens! 🎵
 
 ---
 
-**For cloud-based coding:** You can also use [Observable](https://observablehq.com/) - paste `jm = require("jmon-algo@latest")` in a notebook. Check out the [interactive guide](https://observablehq.com/collection/@essi/jmon-algo).
+**For cloud-based coding:** You can also use [Observable](https://observablehq.com/) or [Tangent Notebooks](https://tangent.to) - see usage examples below. Check out the [interactive guide](https://observablehq.com/collection/@essi/jmon-algo).
 
 ## Installation
 
-### For Deno (recommended)
+jmon-algo is published on both **JSR** (Deno registry) and **npm**. Choose based on your environment:
 
-```bash
-# Import directly in your code
-import * as jm from "jsr:@jmonlabs/jmon-algo";
+### JSR Package (Recommended for Deno, Observable, Browsers)
+
+```typescript
+// Deno
+import jm from "jsr:@jmon/jmon-algo";
+
+// Observable / Tangent Notebooks
+jm = await import("https://esm.sh/jsr/@jmon/jmon-algo")
+
+// Browser (via CDN)
+import jm from "https://esm.sh/jsr/@jmon/jmon-algo";
 ```
 
-Or use in Jupyter notebooks with Deno kernel.
+**Features:** Theory, generative algorithms, analysis, converters, sheet music notation (via `score()`)
+**Note:** Audio playback (`play()`, `render()`) not available - use npm package for that
 
-### For npm/Node.js
+### npm Package (For Full Browser Support with Audio)
 
 ```bash
-npm install jmon-algo
+npm install @jmon/jmon-algo
 ```
+
+```javascript
+// Node.js / Browser bundlers
+import jm from '@jmon/jmon-algo';
+```
+
+**Features:** Everything from JSR + audio playback with built-in Tone.js player
 
 ## Features
 
@@ -117,9 +133,208 @@ deno task build    # Build ESM and UMD bundles
 4. Launch: `jupyter-lab`
 5. Create a notebook with the Deno kernel
 
-## Examples
+## Usage Examples by Environment
 
-To be developped...
+### Observable Notebooks
+
+**Basic Theory & Generative:**
+```javascript
+// Import
+jm = await import("https://esm.sh/jsr/@jmon/jmon-algo")
+
+// Generate a scale
+jm.default.theory.scale.generate('C', 'major')
+// => ['C4', 'D4', 'E4', 'F4', 'G4', 'A4', 'B4', 'C5']
+
+// Create a melody
+jm.default.generative.melody.simple({
+  length: 8,
+  scale: 'C major',
+  octave: 4
+})
+```
+
+**Sheet Music Notation:**
+```javascript
+// Import VexFlow separately
+VF = await import("https://esm.sh/vexflow@4.2.2")
+jm = await import("https://esm.sh/jsr/@jmon/jmon-algo")
+
+// Create composition
+composition = {
+  notes: [
+    {pitch: 60, duration: 1},  // C
+    {pitch: 64, duration: 1},  // E
+    {pitch: 67, duration: 2}   // G
+  ]
+}
+
+// Render score (pass VexFlow as parameter)
+jm.default.score(composition, VF, {width: 600, height: 150})
+```
+
+**Audio Playback** (requires npm package):
+```javascript
+// Use npm instead of JSR for audio playback
+jm = require("@jmon/jmon-algo@1.0.0")
+jm.play(composition)  // Built-in player with Tone.js
+```
+
+### Browser (HTML + Script Tags)
+
+```html
+<!DOCTYPE html>
+<html>
+<head>
+  <title>JMON Music</title>
+</head>
+<body>
+  <div id="notation"></div>
+
+  <script type="module">
+    // Import packages
+    import jm from "https://esm.sh/jsr/@jmon/jmon-algo";
+    import * as VF from "https://esm.sh/vexflow@4.2.2";
+
+    // Generate a chord progression
+    const progression = jm.theory.chord.progression('C', ['I', 'IV', 'V', 'I']);
+    console.log(progression);
+
+    // Create composition from progression
+    const composition = {
+      notes: progression.flatMap((chord, i) =>
+        chord.notes.map(note => ({
+          pitch: note,
+          duration: 1,
+          time: i
+        }))
+      )
+    };
+
+    // Render notation
+    const notation = jm.score(composition, VF, {width: 800});
+    document.getElementById('notation').appendChild(notation);
+  </script>
+</body>
+</html>
+```
+
+### Deno
+
+**Basic Usage:**
+```typescript
+import jm from "jsr:@jmon/jmon-algo";
+
+// Generate a scale
+const scale = jm.theory.scale.generate('D', 'minor');
+console.log(scale);
+
+// Create a random walk melody
+const melody = jm.generative.walk.random({
+  start: 60,
+  steps: 16,
+  stepSize: 2
+});
+
+// Convert to MIDI
+const midiData = jm.converters.midi.fromJmon({
+  tracks: [{ notes: melody.map((pitch, i) => ({
+    pitch,
+    duration: 0.5,
+    time: i * 0.5
+  }))}]
+});
+
+// Save to file
+await Deno.writeFile("melody.mid", midiData);
+```
+
+**Jupyter Notebook with Deno Kernel:**
+```typescript
+import jm from "jsr:@jmon/jmon-algo";
+
+// Generate data for visualization
+const fractal = jm.generative.fractal.mandelbrot({
+  width: 100,
+  height: 100,
+  maxIterations: 50
+});
+
+// Extract melody from fractal
+const melody = jm.generative.fractal.mandelbrotMelody(fractal, {
+  length: 32
+});
+
+melody
+```
+
+### Node.js
+
+**With npm Package:**
+```javascript
+import jm from '@jmon/jmon-algo';
+
+// Generate harmonic progression
+const progression = jm.theory.chord.progression('G', ['I', 'vi', 'IV', 'V']);
+
+// Create composition
+const composition = {
+  bpm: 120,
+  tracks: progression.map(chord => ({
+    notes: chord.notes.map((pitch, i) => ({
+      pitch,
+      duration: 1,
+      time: i * 0.25
+    }))
+  }))
+};
+
+// Convert to SuperCollider
+const scCode = jm.converters.supercollider(composition);
+console.log(scCode);
+```
+
+**With JSR via npm: specifier (experimental):**
+```javascript
+// Requires Node.js with --experimental-network-imports flag
+import jm from 'npm:@jmon/jmon-algo';
+
+const scale = jm.theory.scale.generate('A', 'minor');
+console.log(scale);
+```
+
+## API Overview
+
+### Core Functions
+
+| Function | JSR | npm | Description |
+|----------|-----|-----|-------------|
+| `jm.theory.*` | ✅ | ✅ | Scales, chords, progressions, intervals |
+| `jm.generative.*` | ✅ | ✅ | Melodies, walks, fractals, cellular automata |
+| `jm.analysis.*` | ✅ | ✅ | Pitch, rhythm, harmony analysis |
+| `jm.converters.*` | ✅ | ✅ | MIDI, ToneJS, WAV, SuperCollider, VexFlow |
+| `jm.audio.*` | ✅ | ✅ | DSP, synthesis, audio processing |
+| `jm.score(comp, VF, opts)` | ✅ | ✅ | Sheet music (requires VexFlow param) |
+| `jm.play(comp, opts)` | ❌ | ✅ | Audio playback (npm only) |
+| `jm.render(comp, opts)` | ❌ | ✅ | Full UI player (npm only) |
+
+### Parameter-Based Dependencies
+
+jmon-algo has **zero dependencies** in the JSR package. Libraries are passed as parameters:
+
+```javascript
+// VexFlow for notation (both JSR and npm)
+const notation = jm.score(composition, vexflowInstance, options);
+
+// Tone.js for audio (npm package only)
+const player = jm.play(composition, {Tone: toneInstance});
+```
+
+This design allows you to:
+- ✅ Use any version of VexFlow or Tone.js
+- ✅ Load libraries from CDN in browsers
+- ✅ Avoid dependency bloat in Deno/Node
+- ✅ Pass mocked libraries for testing
 
 ## License
 
