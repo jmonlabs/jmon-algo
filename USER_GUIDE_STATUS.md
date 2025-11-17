@@ -55,7 +55,7 @@ node examples/tutorials/08_gaussian-processes.js
 - JMON format structure (pitch, duration, time, velocity)
 - Creating single notes, tracks, and compositions
 - Format conversion to MIDI
-- Overview of jmon-algo features
+- Overview of algo features
 
 ### Tutorial 02: Harmony
 - Scales: 14+ modes (major, minor, dorian, lydian, pentatonic, etc.)
@@ -212,7 +212,7 @@ Failed:       0
 
 ## Conclusion
 
-The jmon-algo user guide successfully translates all major concepts from Djalgo's Python documentation to JavaScript. **7 out of 9 tutorials (78%) are fully functional**, demonstrating:
+The algo user guide successfully translates all major concepts from Djalgo's Python documentation to JavaScript. **7 out of 9 tutorials (78%) are fully functional**, demonstrating:
 
 ✅ Complete algorithmic feature parity
 ✅ Correct API usage patterns
@@ -222,4 +222,4 @@ The jmon-algo user guide successfully translates all major concepts from Djalgo'
 
 The remaining 2 tutorials require minor corrections to match the actual API, estimated at ~45 minutes total effort.
 
-**The user guide is ready for use, with excellent coverage of all jmon-algo capabilities.**
+**The user guide is ready for use, with excellent coverage of all algo capabilities.**

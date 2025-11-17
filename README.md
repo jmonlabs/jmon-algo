@@ -1,6 +1,6 @@
-# jmon-algo
+# algo
 
-jmon-algo (jam on studio) is the JavaScript version of the JMON (JSON Music Object Notation) studio for algorithmic music composition (djalgojs), format conversion (jmon-format) and music visualization (viz). This version has been converted from TypeScript to pure JavaScript for easier management and broader compatibility.
+algo (jam on studio) is the JavaScript version of the JMON (JSON Music Object Notation) studio for algorithmic music composition (djalgojs), format conversion (jmon-format) and music visualization (viz). This version has been converted from TypeScript to pure JavaScript for easier management and broader compatibility.
 
 ## Getting started
 
@@ -8,11 +8,11 @@ Start jamming in 3 steps.
 
 ### 1. Get the tools ready
 
-First, install [Deno](https://deno.com/), which runs the JavaScript code. Then download jmon-algo:
+First, install [Deno](https://deno.com/), which runs the JavaScript code. Then download algo:
 
 ```bash
-git clone https://github.com/jmonlabs/jmon-algo.git
-cd jmon-algo
+git clone https://github.com/jmonlabs/algo.git
+cd algo
 deno task build
 ```
 
@@ -62,7 +62,7 @@ Now change the numbers and see what happens! 🎵
 
 ---
 
-**For cloud-based coding:** You can also use [Observable](https://observablehq.com/) - paste `jm = require("jmon-algo@latest")` in a notebook. Check out the [interactive guide](https://observablehq.com/collection/@essi/jmon-algo).
+**For cloud-based coding:** You can also use [Observable](https://observablehq.com/) - paste `jm = require("algo@latest")` in a notebook. Check out the [interactive guide](https://observablehq.com/collection/@essi/algo).
 
 ## Installation
 
@@ -70,7 +70,7 @@ Now change the numbers and see what happens! 🎵
 
 ```bash
 # Import directly in your code
-import * as jm from "jsr:@jmonlabs/jmon-algo";
+import * as jm from "jsr:@jmonlabs/algo";
 ```
 
 Or use in Jupyter notebooks with Deno kernel.
@@ -78,7 +78,7 @@ Or use in Jupyter notebooks with Deno kernel.
 ### For npm/Node.js
 
 ```bash
-npm install jmon-algo
+npm install algo
 ```
 
 ## Features
@@ -127,5 +127,5 @@ GPL-3
 
 ## Links
 
-- [GitHub Repository](https://github.com/jmonlabs/jmon-algo)
-- [Issues](https://github.com/jmonlabs/jmon-algo/issues)
+- [GitHub Repository](https://github.com/jmonlabs/algo)
+- [Issues](https://github.com/jmonlabs/algo/issues)

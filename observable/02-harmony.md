@@ -1,16 +1,16 @@
 # 2. Harmonies
 
 ```js
-jm = require("jmon-algo@latest")
+jm = require("algo@latest")
 ```
 
-In this chapter, we'll explore how to create harmonies using jmon-algo's music theory tools. We'll start with basic scales and work our way up to complete compositions with chords, ornaments, and progressions.
+In this chapter, we'll explore how to create harmonies using algo's music theory tools. We'll start with basic scales and work our way up to complete compositions with chords, ornaments, and progressions.
 
 ---
 
 ## 2.1 Quick JavaScript refresher
 
-Before we dive in, a quick note on data structures. In jmon-algo:
+Before we dive in, a quick note on data structures. In algo:
 
 - **Arrays** hold lists of items: `[60, 62, 64]`
 - **Objects** group related data: `{ pitch: 60, duration: 1, time: 0 }`
@@ -49,15 +49,15 @@ piece = {
 }
 ```
 
-But typing MIDI numbers gets tedious. Let's use jmon-algo's tools instead.
+But typing MIDI numbers gets tedious. Let's use algo's tools instead.
 
 ---
 
-## 2.2 Leverage jmon-algo for harmony
+## 2.2 Leverage algo for harmony
 
 ### Scales
 
-Need a scale? jmon-algo has you covered.
+Need a scale? algo has you covered.
 
 ```js
 scale = new jm.theory.harmony.Scale("C", "major")
@@ -87,7 +87,7 @@ chord = {
 
 ### Ornaments
 
-Ornaments add expressiveness to your melodies. jmon-algo provides six types:
+Ornaments add expressiveness to your melodies. algo provides six types:
 
 **Grace note** - adds a quick note before:
 

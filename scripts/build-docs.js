@@ -1,6 +1,6 @@
 #!/usr/bin/env -S deno run --allow-read --allow-write
 /**
- * Dynamic Documentation Builder for jmon-algo
+ * Dynamic Documentation Builder for algo
  *
  * Automatically generates API documentation from source code JSDoc comments
  * and creates comprehensive markdown files.
@@ -125,7 +125,7 @@ async function scanSourceCode() {
  * Generate API documentation markdown
  */
 function generateAPIDoc(classes, functions) {
-  let md = `# jmon-algo API Documentation
+  let md = `# algo API Documentation
 
 *Auto-generated on ${new Date().toISOString().split('T')[0]}*
 
@@ -196,13 +196,13 @@ function generateAPIDoc(classes, functions) {
  * Generate feature documentation
  */
 function generateFeaturesDoc(classes) {
-  let md = `# jmon-algo Features
+  let md = `# algo Features
 
 *Auto-generated on ${new Date().toISOString().split('T')[0]}*
 
 ## Overview
 
-jmon-algo is a comprehensive JavaScript library for algorithmic music composition. This document provides an overview of all available features organized by category.
+algo is a comprehensive JavaScript library for algorithmic music composition. This document provides an overview of all available features organized by category.
 
 ---
 

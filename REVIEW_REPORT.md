@@ -1,14 +1,14 @@
-# jmon-algo Comprehensive Review Report
+# algo Comprehensive Review Report
 
 **Date:** November 6, 2025
 **Reviewer:** Claude Code
-**Session:** review-jmon-algo-test-011CUrxLMeYSfnDAX3QUzofD
+**Session:** review-algo-test-011CUrxLMeYSfnDAX3QUzofD
 
 ---
 
 ## Executive Summary
 
-jmon-algo is a **production-ready**, feature-complete algorithmic music composition library for JavaScript/TypeScript. After comprehensive review and testing, the project demonstrates:
+algo is a **production-ready**, feature-complete algorithmic music composition library for JavaScript/TypeScript. After comprehensive review and testing, the project demonstrates:
 
 - ✅ **100% feature parity** with Djalgo (Python) for non-AI features
 - ✅ **Excellent code quality** with comprehensive JSDoc documentation
@@ -403,7 +403,7 @@ Both ObservableMandelbrotTools and ObservableCATools:
 
 ### Overall Assessment: **EXCELLENT** ⭐⭐⭐⭐⭐ (9.5/10)
 
-jmon-algo is a **production-ready, feature-complete** algorithmic music composition library that successfully achieves:
+algo is a **production-ready, feature-complete** algorithmic music composition library that successfully achieves:
 
 1. ✅ **All required visualization tools present and working**
    - Fractal zone selection: Complete and functional
@@ -463,16 +463,16 @@ jmon-algo is a **production-ready, feature-complete** algorithmic music composit
 
 ```bash
 # npm
-npm install jmon-algo
+npm install algo
 
 # Deno/JSR
-import * as jm from "jsr:@jmonlabs/jmon-algo"
+import * as jm from "jsr:@jmonlabs/algo"
 
 # Observable
-jm = require("jmon-algo@latest")
+jm = require("algo@latest")
 
 # CDN (ESM)
-import jm from "https://esm.sh/jmon-algo"
+import jm from "https://esm.sh/algo"
 ```
 
 ### Publishing a New Version

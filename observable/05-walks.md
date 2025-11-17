@@ -1,7 +1,7 @@
 # 5. Walks
 
 ```js
-jm = require("jmon-algo@latest")
+jm = require("algo@latest")
 ```
 
 In this chapter, we explore **stochastic processes** - musical paths guided by probability. Think of it like taking a random walk through a garden: at each step, you choose a direction based on certain rules, but there's still an element of chance.
@@ -157,7 +157,7 @@ The Fibonacci sequence creates natural-sounding melodic contours.
 
 ## Gaussian processes
 
-**Note**: Gaussian processes in jmon-algo integrate with an external GP package. The basic idea: create smooth variations based on existing patterns.
+**Note**: Gaussian processes in algo integrate with an external GP package. The basic idea: create smooth variations based on existing patterns.
 
 For now, we can use simple interpolation to create Gaussian-like smooth walks:
 

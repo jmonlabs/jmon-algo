@@ -2,7 +2,7 @@
  * JMON-ALGO TUTORIAL 01: GETTING STARTED
  * JavaScript translation of Djalgo's getting-started tutorial
  *
- * This tutorial introduces the basics of jmon-algo:
+ * This tutorial introduces the basics of algo:
  * - JMON format (JavaScript Music Object Notation)
  * - Note structure: {pitch, duration, time, velocity}
  * - Tracks and compositions
@@ -19,7 +19,7 @@ console.log('=== JMON-ALGO TUTORIAL 01: GETTING STARTED ===\n');
 console.log('1. JMON Format Basics\n');
 
 /*
-In jmon-algo, music is represented in JMON format:
+In algo, music is represented in JMON format:
 - A note is an object: {pitch, duration, time, velocity}
 - A track is an array of notes
 - A composition is an object with tracks array
@@ -80,9 +80,9 @@ console.log('Composition:', composition.tracks.length, 'tracks');
 console.log('');
 
 // =====================================================
-// 2. Creating Music with jmon-algo
+// 2. Creating Music with algo
 // =====================================================
-console.log('2. Creating Music with jmon-algo\n');
+console.log('2. Creating Music with algo\n');
 
 // Let's create "Twinkle Twinkle Little Star" in C major
 const twinkle1 = [
@@ -116,7 +116,7 @@ console.log('');
 console.log('3. Format Conversion\n');
 
 /*
-jmon-algo can convert to various formats:
+algo can convert to various formats:
 - MIDI files
 - VexFlow (music notation)
 - Tone.js (for playback)
@@ -142,12 +142,12 @@ try {
 console.log('');
 
 // =====================================================
-// 4. Key jmon-algo Features
+// 4. Key algo Features
 // =====================================================
-console.log('4. Key jmon-algo Features\n');
+console.log('4. Key algo Features\n');
 
 /*
-jmon-algo offers a comprehensive toolkit:
+algo offers a comprehensive toolkit:
 
 - **Music Theory** (jm.theory.*)
   - Scales, chord progressions, voice leading
@@ -174,7 +174,7 @@ jmon-algo offers a comprehensive toolkit:
   - Algorithm visualizations
 */
 
-console.log('jmon-algo modules loaded:');
+console.log('algo modules loaded:');
 console.log('  ✓ Theory:', Object.keys(jm.theory).join(', '));
 console.log('  ✓ Generative:', Object.keys(jm.generative).join(', '));
 console.log('  ✓ Analysis:', 'MusicalAnalysis');

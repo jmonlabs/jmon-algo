@@ -1,19 +1,19 @@
-# Djalgo vs jmon-algo Feature Comparison Summary
+# Djalgo vs algo Feature Comparison Summary
 
 **Date:** October 25, 2025
-**Task:** Compare jmon-algo (JavaScript) with Djalgo (Python) to ensure feature parity
+**Task:** Compare algo (JavaScript) with Djalgo (Python) to ensure feature parity
 
 ## Executive Summary
 
-✅ **jmon-algo is feature-complete** compared to Djalgo (excluding AI functions as requested)
+✅ **algo is feature-complete** compared to Djalgo (excluding AI functions as requested)
 
-The jmon-algo codebase has **all major features** from Djalgo implemented and functional. Only 2 TODOs were found and have been completed.
+The algo codebase has **all major features** from Djalgo implemented and functional. Only 2 TODOs were found and have been completed.
 
 ---
 
 ## Feature Comparison Matrix
 
-| Feature Category | Djalgo (Python) | jmon-algo (JavaScript) | Status |
+| Feature Category | Djalgo (Python) | algo (JavaScript) | Status |
 |-----------------|-----------------|------------------------|--------|
 | **Music Theory** |
 | Scales (14 modes) | ✓ | ✓ | ✅ Complete |
@@ -36,7 +36,7 @@ The jmon-algo codebase has **all major features** from Djalgo implemented and fu
 | Minimalism (Process) | ✓ | ✓ | ✅ Complete |
 | Tintinnabuli | ✓ | ✓ | ✅ Complete |
 | Loop Composition | ✓ | ✓ | ✅ Complete |
-| Phasor Systems | - | ✓ | ✅ jmon-algo extra |
+| Phasor Systems | - | ✓ | ✅ algo extra |
 | **Analysis Metrics** |
 | Gini Coefficient | ✓ | ✓ | ✅ Complete |
 | Balance Index | ✓ | ✓ | ✅ Complete |
@@ -54,10 +54,10 @@ The jmon-algo codebase has **all major features** from Djalgo implemented and fu
 | MIDI Generation | ✓ | ✓ | ✅ Complete |
 | MIDI to JMON | ✓ | ✓ | ✅ Complete |
 | Music21 | ✓ | - | N/A (Python only) |
-| Tone.js | - | ✓ | ✅ jmon-algo specific |
-| VexFlow Notation | - | ✓ | ✅ jmon-algo specific |
-| WAV Generation | - | ✓ | ✅ jmon-algo specific |
-| SuperCollider | - | ✓ | ✅ jmon-algo specific |
+| Tone.js | - | ✓ | ✅ algo specific |
+| VexFlow Notation | - | ✓ | ✅ algo specific |
+| WAV Generation | - | ✓ | ✅ algo specific |
+| SuperCollider | - | ✓ | ✅ algo specific |
 | ABC Notation | ✓ | ✓ | ✅ Complete |
 | **Visualization** |
 | Plotly Integration | ✓ | ✓ | ✅ Complete |
@@ -143,7 +143,7 @@ if (ornamentDef.minDuration) {
 - **Environment:** Jupyter/Marimo notebooks
 - **Strength:** Machine learning integration
 
-### jmon-algo (JavaScript)
+### algo (JavaScript)
 - **Size:** 18,544 lines across 88 modules
 - **Format:** JMON (JSON-based music notation)
 - **Dependencies:** Tone.js, VexFlow, Plotly.js
@@ -160,7 +160,7 @@ if (ornamentDef.minDuration) {
    - MidiTok tokenization
    - TensorFlow integration
 
-### jmon-algo-only:
+### algo-only:
 1. **Phasor Systems** - Vector-based harmonic exploration
 2. **SuperCollider** - Code generation for live coding
 3. **VexFlow** - Professional music notation rendering
@@ -172,7 +172,7 @@ if (ornamentDef.minDuration) {
 
 ## Code Quality Assessment
 
-### jmon-algo Strengths:
+### algo Strengths:
 ✅ Comprehensive error handling
 ✅ Extensive browser compatibility
 ✅ Multiple CDN fallbacks
@@ -199,7 +199,7 @@ if (ornamentDef.minDuration) {
 
 ## Performance Considerations
 
-### jmon-algo Optimizations:
+### algo Optimizations:
 - Lazy loading for GM instruments
 - Cholesky decomposition for Gaussian Processes
 - Pre-generated cellular automata rule lookups
@@ -210,7 +210,7 @@ if (ornamentDef.minDuration) {
 
 ## Summary Statistics
 
-| Metric | Djalgo | jmon-algo |
+| Metric | Djalgo | algo |
 |--------|--------|-----------|
 | Total Lines | 4,641 | 18,544 |
 | Modules | 14 | 88 |
@@ -246,7 +246,7 @@ if (ornamentDef.minDuration) {
 
 ## Conclusion
 
-**jmon-algo is feature-complete** and provides excellent parity with Djalgo for all non-AI features. The two TODOs have been successfully implemented:
+**algo is feature-complete** and provides excellent parity with Djalgo for all non-AI features. The two TODOs have been successfully implemented:
 
 1. ✅ MIDI key signature detection
 2. ✅ Ornament duration validation

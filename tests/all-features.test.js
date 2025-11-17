@@ -1,10 +1,10 @@
 /**
- * Comprehensive test suite for jmon-algo
+ * Comprehensive test suite for algo
  * Tests all major features to ensure everything works
  */
 
 console.log('==========================================================');
-console.log('  JMON-ALGO COMPREHENSIVE TEST SUITE');
+console.log('  ALGO COMPREHENSIVE TEST SUITE');
 console.log('==========================================================\n');
 
 let totalTests = 0;

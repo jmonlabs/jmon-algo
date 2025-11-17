@@ -21,7 +21,7 @@ console.log('=== JMON-ALGO TUTORIAL 09: MUSICAL ANALYSIS ===\n');
 console.log('1. Analysis Basics\n');
 
 /*
-jmon-algo provides 11+ metrics for analyzing music:
+algo provides 11+ metrics for analyzing music:
 1. Gini coefficient - inequality/variety
 2. Balance - distribution balance
 3. Fibonacci index - golden ratio proportions

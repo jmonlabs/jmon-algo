@@ -4,7 +4,7 @@ Complete JavaScript translation of the Djalgo Python user guide.
 
 ## Overview
 
-This directory contains 9 comprehensive tutorials that cover all major features of jmon-algo, translated from the Djalgo Python documentation. Each tutorial demonstrates key concepts with working code examples.
+This directory contains 9 comprehensive tutorials that cover all major features of algo, translated from the Djalgo Python documentation. Each tutorial demonstrates key concepts with working code examples.
 
 ## Tutorial List
 
@@ -44,7 +44,7 @@ node examples/tutorials/06_fractals.js
 ```javascript
 import jm from './src/index.js';
 
-// Use jmon-algo features
+// Use algo features
 const scale = new jm.theory.harmony.Scale('C', 'major');
 const notes = scale.generate({ octave: 4 });
 ```
@@ -57,7 +57,7 @@ For a complete overview of all features and comparisons with Djalgo, see:
 
 This comprehensive guide includes:
 - Detailed explanations of each tutorial
-- Feature comparison table (Djalgo vs jmon-algo)
+- Feature comparison table (Djalgo vs algo)
 - Complete API examples
 - Integration strategies
 - Advanced techniques
@@ -110,7 +110,7 @@ All Djalgo features (except AI/ML) are covered:
 
 ## Notes
 
-1. **Conceptual Tutorials**: Some tutorials (03, 05, 07-09) demonstrate the conceptual approach but may need minor API adjustments to run. They serve as excellent documentation for understanding how to use jmon-algo features.
+1. **Conceptual Tutorials**: Some tutorials (03, 05, 07-09) demonstrate the conceptual approach but may need minor API adjustments to run. They serve as excellent documentation for understanding how to use algo features.
 
 2. **Direct Imports**: For production code, import modules directly:
    ```javascript
@@ -134,7 +134,7 @@ If you'd like to help complete the tutorials:
 These tutorials are complete JavaScript translations of the Djalgo Python user guide by Essi Parent.
 
 - **Original Djalgo**: https://gitlab.com/essicolo/djalgo
-- **jmon-algo**: https://github.com/jmonlabs/jmon-algo
+- **algo**: https://github.com/jmonlabs/algo
 
 ---
 

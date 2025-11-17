@@ -1,7 +1,7 @@
 # 7. Genetic algorithms
 
 ```js
-jm = require("jmon-algo@latest")
+jm = require("algo@latest")
 ```
 
 Genetic algorithms use natural selection to evolve musical ideas. Think of it like breeding plants - you start with seeds, let them grow, keep the best ones, cross-pollinate, add some mutations, and repeat.
@@ -25,7 +25,7 @@ Think of it as survival of the fittest, but for melodies.
 
 ## The Darwin class
 
-jmon-algo's `Darwin` class handles the evolution:
+algo's `Darwin` class handles the evolution:
 
 ```js
 darwin = new jm.generative.genetic.Darwin({
@@ -41,7 +41,7 @@ darwin = new jm.generative.genetic.Darwin({
 
 ## Fitness functions
 
-Fitness functions measure how "good" a phrase is. jmon-algo provides 11+ metrics via `MusicalAnalysis`:
+Fitness functions measure how "good" a phrase is. algo provides 11+ metrics via `MusicalAnalysis`:
 
 **Diversity metrics:**
 - `gini` - inequality in note attributes (0 = equal, 1 = very unequal)
@@ -327,7 +327,7 @@ The answer: fitness functions are **tools**, not rules. They help explore musica
 
 ```js
 // Load library
-jm = require("jmon-algo@latest")
+jm = require("algo@latest")
 
 // Define seed
 seed = [
@@ -375,7 +375,7 @@ jm.render(composition)
 
 ## What you've learned
 
-You've now explored all major algorithmic composition techniques in jmon-algo:
+You've now explored all major algorithmic composition techniques in algo:
 
 1. **[Getting started](./01-getting-started)** - JMON format basics
 2. **[Harmonies](./02-harmony)** - Scales, chords, ornaments

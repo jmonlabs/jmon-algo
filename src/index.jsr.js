@@ -1,5 +1,5 @@
 /**
- * JSR (Deno) entry point for jmon-algo
+ * JSR (Deno) entry point for algo
  * Excludes browser-specific functionality (render/play) that requires CDN imports
  *
  * JSR users can access:

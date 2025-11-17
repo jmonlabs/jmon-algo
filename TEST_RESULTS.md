@@ -175,7 +175,7 @@
 
 ## Comparison with Djalgo
 
-| Feature | Djalgo (Python) | jmon-algo (JS) | Test Status |
+| Feature | Djalgo (Python) | algo (JS) | Test Status |
 |---------|-----------------|----------------|-------------|
 | Generative Algorithms | ✓ | ✓ | ✅ 100% |
 | Music Theory | ✓ | ✓ | ✅ 73% |
@@ -205,7 +205,7 @@
 
 ## Conclusion
 
-**jmon-algo is production-ready** with 82.8% test pass rate. All major features are functional:
+**algo is production-ready** with 82.8% test pass rate. All major features are functional:
 
 ✅ Generative algorithms (100% tested)
 ✅ Music theory (73% tested, core features working)
