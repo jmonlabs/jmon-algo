@@ -1,10 +1,10 @@
 # 3. Loops
 
 ```js
-jm = require("jmon-algo@latest")
+jm = require("algo@latest")
 ```
 
-In this chapter, we'll explore **loops** - repeating rhythmic and melodic patterns that form the backbone of many musical styles. We'll use jmon-algo's Loop system to create layered patterns with different time signatures and phase relationships.
+In this chapter, we'll explore **loops** - repeating rhythmic and melodic patterns that form the backbone of many musical styles. We'll use algo's Loop system to create layered patterns with different time signatures and phase relationships.
 
 ---
 
@@ -12,7 +12,7 @@ In this chapter, we'll explore **loops** - repeating rhythmic and melodic patter
 
 A loop is a repeating sequence of notes. Think of it like a circular pattern - when you reach the end, you start over at the beginning.
 
-In jmon-algo, loops are created using the `Loop` class. The simplest way:
+In algo, loops are created using the `Loop` class. The simplest way:
 
 ```js
 // Create a loop from pitches and durations

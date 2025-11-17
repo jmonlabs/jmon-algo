@@ -21,7 +21,7 @@ console.log('=== JMON-ALGO TUTORIAL 03: LOOPS ===\n');
 console.log('1. Basic Loop\n');
 
 /*
-A Loop in jmon-algo creates repeating musical patterns.
+A Loop in algo creates repeating musical patterns.
 The easiest way is to use Loop.fromPattern() which converts
 simple pitch/duration arrays to JMON format automatically.
 */
@@ -83,7 +83,7 @@ console.log('3. Polyloops (Multiple Independent Loops)\n');
 
 /*
 Polyloops are multiple independent loops playing simultaneously.
-In jmon-algo, you create separate Loop instances for each voice.
+In algo, you create separate Loop instances for each voice.
 */
 
 const loop1 = Loop.fromPattern(

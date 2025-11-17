@@ -1,7 +1,7 @@
 # 6. Fractals
 
 ```js
-jm = require("jmon-algo@latest")
+jm = require("algo@latest")
 ```
 
 Fractals are patterns that repeat at different scales - zoom in and you see the same structure. In music, fractals create sequences that feel both ordered and unpredictable.
@@ -32,7 +32,7 @@ grid = ca.generate()
 ### Visualizing the evolution
 
 ```js
-// Use jmon-algo's built-in visualizer
+// Use algo's built-in visualizer
 visualizer = new jm.visualization.fractals.CAVisualizer(grid)
 canvas = visualizer.render({ width: 600, height: 400 })
 canvas
@@ -73,10 +73,10 @@ strip.forEach((generation, i) => {
 
 ### Interactive strip selection
 
-jmon-algo provides tools to select strips interactively:
+algo provides tools to select strips interactively:
 
 ```js
-import { ObservableCATools } from "@jmonlabs/jmon-algo/visualization/cellular-automata"
+import { ObservableCATools } from "@jmonlabs/algo/visualization/cellular-automata"
 
 // Create interactive selector
 viewof selectedStrips = ObservableCATools.createStripSelector(grid, {
@@ -185,7 +185,7 @@ grid = mandelbrot.generate()
 ### Interactive zone selection
 
 ```js
-import { ObservableMandelbrotTools } from "@jmonlabs/jmon-algo/visualization/fractals"
+import { ObservableMandelbrotTools } from "@jmonlabs/algo/visualization/fractals"
 
 // Create interactive selector
 viewof mandelbrotPaths = ObservableMandelbrotTools.createSequenceSelector(grid, {

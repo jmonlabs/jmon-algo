@@ -1,7 +1,7 @@
 # 4. Minimalism
 
 ```js
-jm = require("jmon-algo@latest")
+jm = require("algo@latest")
 ```
 
 Minimalist music uses simple materials and processes to create complex, evolving textures. Think Philip Glass, Steve Reich, or Arvo Pärt - repetitive patterns that gradually transform.

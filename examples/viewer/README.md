@@ -48,7 +48,7 @@ In js and ts files, delimit cells with `// %% My cell`, and run cells with `Ctrl
 
 **1. Start the viewer server (from project root):**
 ```bash
-cd /path/to/jmon-algo
+cd /path/to/algo
 deno run --allow-net --allow-read --allow-write examples/viewer/viewer.js
 ```
 
@@ -57,7 +57,7 @@ Navigate to http://localhost:8000
 
 **3. Create a working file anywhere in the project:**
 ```javascript
-// my-work.js (anywhere in jmon-algo/)
+// my-work.js (anywhere in algo/)
 import { show, showScore, showPlayer, clear } from "./examples/viewer/viewer.js";
 
 // %% Execute this cell
@@ -68,12 +68,12 @@ const composition = {
       { pitch: 60, duration: 1, time: 0 },
       { pitch: 62, duration: 1, time: 1 }
     ]
-**4.Click "🔄 Refresh" in browser to see results**##ImportantNotes-**Runfromproject root**: The viewer must be run from `jmon-algo/` directory
+**4.Click "🔄 Refresh" in browser to see results**##ImportantNotes-**Runfromproject root**: The viewer must be run from `algo/` directory
 - **Import path**: Adjust `./examples/viewer/viewer.js` based on your file location
 - Results stored in `.results.json` at project root (gitignored)## Example Workflow
 
 ```bash
-cd jmon-algo/
+cd algo/
 deno run --allow-net --allow-read --allow-write examples/viewer/viewer.js
 # Opens http://localhost:8000
 

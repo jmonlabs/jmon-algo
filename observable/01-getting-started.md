@@ -1,28 +1,28 @@
 # 1. Getting started
 
-## Three ways to try jmon-algo
+## Three ways to try algo
 
 ### Browser (Observable)
 
 The easiest way to start is right here in Observable. Just import the library:
 
 ```js
-jm = require("jmon-algo@latest")
+jm = require("algo@latest")
 ```
 
 That's it! You can now compose music directly in your browser.
 
 ### Local with Deno (recommended)
 
-If you prefer working locally, install [Deno](https://deno.com/) and import jmon-algo:
+If you prefer working locally, install [Deno](https://deno.com/) and import algo:
 
 ```bash
 # In your Deno project
-deno add jsr:@jmon/jmon-algo
+deno add jsr:@jmon/algo
 ```
 
 ```js
-import * as jm from "jsr:@jmon/jmon-algo";
+import * as jm from "jsr:@jmon/algo";
 ```
 
 You can also use Jupyter notebooks with the Deno kernel.
@@ -30,18 +30,18 @@ You can also use Jupyter notebooks with the Deno kernel.
 ### Node.js / npm
 
 ```bash
-npm install jmon-algo
+npm install algo
 ```
 
 ```js
-import * as jm from "jmon-algo";
+import * as jm from "algo";
 ```
 
 ---
 
 ## The JMON format
 
-jmon-algo uses **JMON** (JSON Music Object Notation) - a simple, human-readable format for representing music as JavaScript objects.
+algo uses **JMON** (JSON Music Object Notation) - a simple, human-readable format for representing music as JavaScript objects.
 
 ### Notes
 
@@ -188,9 +188,9 @@ Try changing the tempo, switching instruments, or modifying the notes!
 
 ---
 
-## What jmon-algo can do
+## What algo can do
 
-jmon-algo provides everything you need for algorithmic composition:
+algo provides everything you need for algorithmic composition:
 
 **Music Theory**
 - Scales (14+ modes: major, minor, dorian, phrygian, etc.)

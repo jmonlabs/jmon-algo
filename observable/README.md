@@ -1,6 +1,6 @@
-# Observable Notebooks for jmon-algo
+# Observable Notebooks for algo
 
-This directory contains **Observable-ready markdown** for creating interactive music composition notebooks. These are JavaScript translations of the original Djalgo (Python) marimo notebooks, adapted for jmon-algo.
+This directory contains **Observable-ready markdown** for creating interactive music composition notebooks. These are JavaScript translations of the original Djalgo (Python) marimo notebooks, adapted for algo.
 
 ## What's included
 
@@ -32,7 +32,7 @@ Once these files are published:
 
 ```js
 // Import a specific tutorial
-import {content} from "@jmonlabs/jmon-algo-tutorials/01-getting-started"
+import {content} from "@jmonlabs/algo-tutorials/01-getting-started"
 ```
 
 ### Option 3: Create a collection
@@ -46,7 +46,7 @@ import {content} from "@jmonlabs/jmon-algo-tutorials/01-getting-started"
 Each markdown file contains:
 
 - **Narrative text** - Explanations and concepts (preserved from original tone)
-- **Code blocks** - Working JavaScript examples using jmon-algo
+- **Code blocks** - Working JavaScript examples using algo
 - **Inline code** - Quick examples and syntax references
 - **Links** - Navigate between tutorials
 
@@ -120,7 +120,7 @@ These tutorials are **JavaScript translations** of the original Python Djalgo tu
 
 ### Adapted for JavaScript
 - Python → JavaScript syntax
-- Djalgo API → jmon-algo API
+- Djalgo API → algo API
 - Tuple syntax → Object syntax
 - List comprehensions → Array methods
 
@@ -131,7 +131,7 @@ These tutorials are **JavaScript translations** of the original Python Djalgo tu
 - Browser-based playback
 
 ### Excluded
-- AI/ML chapter (Chapter 8) - not in jmon-algo
+- AI/ML chapter (Chapter 8) - not in algo
 - Gaussian Processes use external package (noted in text)
 
 ## Tips for Observable
@@ -180,21 +180,21 @@ viewof tempo = Inputs.range([60, 240], {
 
 Found an issue or have improvements?
 
-1. Open an issue on [GitHub](https://github.com/jmonlabs/jmon-algo/issues)
+1. Open an issue on [GitHub](https://github.com/jmonlabs/algo/issues)
 2. Submit a pull request
 3. Share your Observable notebooks!
 
 ## Credits
 
 - **Original Djalgo tutorials**: Essi Parent (Python/marimo)
-- **jmon-algo translation**: JMON Labs (JavaScript/Observable)
-- **Library**: jmon-algo - algorithmic music composition for JavaScript
+- **algo translation**: JMON Labs (JavaScript/Observable)
+- **Library**: algo - algorithmic music composition for JavaScript
 
 ## Links
 
-- **jmon-algo GitHub**: https://github.com/jmonlabs/jmon-algo
-- **jmon-algo npm**: https://www.npmjs.com/package/jmon-algo
-- **jmon-algo JSR**: https://jsr.io/@jmon/jmon-algo
+- **algo GitHub**: https://github.com/jmonlabs/algo
+- **algo npm**: https://www.npmjs.com/package/algo
+- **algo JSR**: https://jsr.io/@jmon/algo
 - **Djalgo (original)**: https://gitlab.com/essicolo/djalgo
 - **Observable**: https://observablehq.com
 

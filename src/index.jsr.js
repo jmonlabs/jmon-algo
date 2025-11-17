@@ -1,60 +1,12 @@
 /**
- * @module jmon-algo
+ * JSR (Deno) entry point for algo
+ * Excludes browser-specific functionality (render/play) that requires CDN imports
  *
- * JMON (JSON Music Object Notation) - A comprehensive music composition and analysis library.
- *
- * This is the JSR/Deno entry point optimized for use in Observable notebooks, Tangent notebooks,
- * Deno, and browser environments via esm.sh.
- *
- * ## Features
- * - Music theory (scales, chords, progressions)
- * - Generative algorithms (melodies, walks, fractals)
- * - Music analysis and audio processing
- * - Format converters (MIDI, ToneJS, WAV, SuperCollider, VexFlow)
- * - Sheet music notation with score() (requires VexFlow parameter)
- *
- * ## Note on Dependencies
- * This package has NO dependencies - VexFlow and Tone.js must be passed as parameters if needed:
- * - score() requires VexFlow as 2nd parameter
- * - Audio playback requires npm package (not available in JSR)
- *
- * @example Basic Usage
- * ```ts
- * import jm from "jsr:@jmon/jmon-algo";
- *
- * // Generate a C major scale
- * const scale = jm.theory.scale.generate('C', 'major');
- * // => ['C4', 'D4', 'E4', 'F4', 'G4', 'A4', 'B4', 'C5']
- *
- * // Create a chord progression
- * const progression = jm.theory.chord.progression('C', ['I', 'IV', 'V', 'I']);
- *
- * // Generate a melody
- * const melody = jm.generative.melody.simple({
- *   length: 8,
- *   scale: 'C major',
- *   octave: 4
- * });
- * ```
- *
- * @example Sheet Music Notation (Observable/Browser)
- * ```ts
- * // Import both packages
- * jm = await import("https://esm.sh/jsr/@jmon/jmon-algo")
- * VF = await import("https://esm.sh/vexflow@4.2.2")
- *
- * // Create composition
- * composition = {
- *   notes: [
- *     {pitch: 60, duration: 1},
- *     {pitch: 64, duration: 1},
- *     {pitch: 67, duration: 2}
- *   ]
- * }
- *
- * // Render to DOM
- * jm.default.score(composition, VF, {width: 600, height: 150})
- * ```
+ * JSR users can access:
+ * - algorithms (theory, generative, analysis, audio)
+ * - converters (midi, tonejs, wav, supercollider, vexflow)
+ * - utils and constants
+ * - validation
  */
 
 import { JmonValidator } from "./utils/jmon-validator.browser.js";

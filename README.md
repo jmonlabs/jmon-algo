@@ -1,6 +1,6 @@
-# jmon-algo
+# algo
 
-jmon-algo (jam on studio) is the JavaScript version of the JMON (JSON Music Object Notation) studio for algorithmic music composition (djalgojs), format conversion (jmon-format) and music visualization (viz). This version has been converted from TypeScript to pure JavaScript for easier management and broader compatibility.
+jmon/algo (jam on studio - algorithms) a JavaScript music composition toolkit for the JMON (JSON Music Object Notation) format. 
 
 ## Getting started
 
@@ -8,11 +8,11 @@ Start jamming in 3 steps.
 
 ### 1. Get the tools ready
 
-First, install [Deno](https://deno.com/), which runs the JavaScript code. Then download jmon-algo:
+First, install [Deno](https://deno.com/), which runs the JavaScript code. Then download algo:
 
 ```bash
-git clone https://github.com/jmonlabs/jmon-algo.git
-cd jmon-algo
+git clone https://github.com/jmonlabs/algo.git
+cd algo
 deno task build
 ```
 
@@ -62,23 +62,15 @@ Now change the numbers and see what happens! 🎵
 
 ---
 
-**For cloud-based coding:** You can also use [Observable](https://observablehq.com/) or [Tangent Notebooks](https://tangent.to) - see usage examples below. Check out the [interactive guide](https://observablehq.com/collection/@essi/jmon-algo).
+**For cloud-based coding:** You can also use [Observable](https://observablehq.com/) - paste `jm = require("jmon/algo@latest")` in a notebook. Check out the [interactive guide](https://observablehq.com/collection/@essi/jmon-algo).
 
 ## Installation
 
-jmon-algo is published on both **JSR** (Deno registry) and **npm**. Choose based on your environment:
+jmon/algo is published on both **JSR** (Deno registry) and **npm**. Choose based on your environment:
 
-### JSR Package (Recommended for Deno, Observable, Browsers)
-
-```typescript
-// Deno
-import jm from "jsr:@jmon/jmon-algo";
-
-// Observable / Tangent Notebooks
-jm = await import("https://esm.sh/jsr/@jmon/jmon-algo")
-
-// Browser (via CDN)
-import jm from "https://esm.sh/jsr/@jmon/jmon-algo";
+```bash
+# Import directly in your code
+import * as jm from "jsr:@jmonlabs/algo";
 ```
 
 **Features:** Theory, generative algorithms, analysis, converters, sheet music notation (via `score()`)
@@ -87,12 +79,12 @@ import jm from "https://esm.sh/jsr/@jmon/jmon-algo";
 ### npm Package (For Full Browser Support with Audio)
 
 ```bash
-npm install @jmon/jmon-algo
+npm install @jmon/algo
 ```
 
 ```javascript
 // Node.js / Browser bundlers
-import jm from '@jmon/jmon-algo';
+import jm from '@jmon/algo';
 ```
 
 **Features:** Everything from JSR + audio playback with built-in Tone.js player
@@ -140,7 +132,7 @@ deno task build    # Build ESM and UMD bundles
 **Basic Theory & Generative:**
 ```javascript
 // Import
-jm = await import("https://esm.sh/jsr/@jmon/jmon-algo")
+jm = await import("https://esm.sh/jsr/@jmon/algo")
 
 // Generate a scale
 jm.default.theory.scale.generate('C', 'major')
@@ -158,7 +150,7 @@ jm.default.generative.melody.simple({
 ```javascript
 // Import VexFlow separately
 VF = await import("https://esm.sh/vexflow@4.2.2")
-jm = await import("https://esm.sh/jsr/@jmon/jmon-algo")
+jm = await import("https://esm.sh/jsr/@jmon/algo")
 
 // Create composition
 composition = {
@@ -186,7 +178,7 @@ jm.play(composition)  // Built-in player with Tone.js
 
 ```javascript
 // Cell 1: Import library
-import jm from "https://esm.sh/jsr/@jmon/jmon-algo";
+import jm from "https://esm.sh/jsr/@jmon/algo";
 
 // Cell 2: Generate music theory data
 const scale = jm.theory.scale.generate('E', 'minor');
@@ -198,7 +190,7 @@ console.log('Progression:', chords);
 
 **Generative Algorithms:**
 ```javascript
-import jm from "https://esm.sh/jsr/@jmon/jmon-algo";
+import jm from "https://esm.sh/jsr/@jmon/algo";
 
 // Random walk melody
 const walk = jm.generative.walk.random({
@@ -221,7 +213,7 @@ const fractal = jm.generative.fractal.mandelbrotMelody({
 
 **Sheet Music with VexFlow:**
 ```javascript
-import jm from "https://esm.sh/jsr/@jmon/jmon-algo";
+import jm from "https://esm.sh/jsr/@jmon/algo";
 import * as VF from "https://esm.sh/vexflow@4.2.2";
 
 // Generate a melodic pattern
@@ -260,7 +252,7 @@ notation; // Tangent will display the SVG
 
   <script type="module">
     // Import packages
-    import jm from "https://esm.sh/jsr/@jmon/jmon-algo";
+    import jm from "https://esm.sh/jsr/@jmon/algo";
     import * as VF from "https://esm.sh/vexflow@4.2.2";
 
     // Generate a chord progression
@@ -290,7 +282,7 @@ notation; // Tangent will display the SVG
 
 **Basic Usage:**
 ```typescript
-import jm from "jsr:@jmon/jmon-algo";
+import jm from "jsr:@jmon/algo";
 
 // Generate a scale
 const scale = jm.theory.scale.generate('D', 'minor');
@@ -318,7 +310,7 @@ await Deno.writeFile("melody.mid", midiData);
 
 **Jupyter Notebook with Deno Kernel:**
 ```typescript
-import jm from "jsr:@jmon/jmon-algo";
+import jm from "jsr:@jmon/algo";
 
 // Generate data for visualization
 const fractal = jm.generative.fractal.mandelbrot({
@@ -339,7 +331,7 @@ melody
 
 **With npm Package:**
 ```javascript
-import jm from '@jmon/jmon-algo';
+import jm from '@jmon/algo';
 
 // Generate harmonic progression
 const progression = jm.theory.chord.progression('G', ['I', 'vi', 'IV', 'V']);
@@ -364,7 +356,7 @@ console.log(scCode);
 **With JSR via npm: specifier (experimental):**
 ```javascript
 // Requires Node.js with --experimental-network-imports flag
-import jm from 'npm:@jmon/jmon-algo';
+import jm from 'npm:@jmon/algo';
 
 const scale = jm.theory.scale.generate('A', 'minor');
 console.log(scale);
@@ -398,10 +390,10 @@ const player = jm.play(composition, {Tone: toneInstance});
 ```
 
 This design allows you to:
-- ✅ Use any version of VexFlow or Tone.js
-- ✅ Load libraries from CDN in browsers
-- ✅ Avoid dependency bloat in Deno/Node
-- ✅ Pass mocked libraries for testing
+- Use any version of VexFlow or Tone.js
+- Load libraries from CDN in browsers
+- Avoid dependency bloat in Deno/Node
+- Pass mocked libraries for testing
 
 ## License
 
@@ -409,5 +401,5 @@ GPL-3
 
 ## Links
 
-- [GitHub Repository](https://github.com/jmonlabs/jmon-algo)
-- [Issues](https://github.com/jmonlabs/jmon-algo/issues)
+- [GitHub Repository](https://github.com/jmonlabs/algo)
+- [Issues](https://github.com/jmonlabs/algo/issues)

@@ -1,7 +1,7 @@
 # JMON-ALGO User Guide
 **Complete JavaScript Translation of Djalgo Python Library**
 
-This user guide provides a complete introduction to jmon-algo, the JavaScript counterpart to Djalgo. All examples from the Djalgo Python documentation have been translated to JavaScript with the JMON (JSON Music Object Notation) format.
+This user guide provides a complete introduction to algo, the JavaScript counterpart to Djalgo. All examples from the Djalgo Python documentation have been translated to JavaScript with the JMON (JSON Music Object Notation) format.
 
 ---
 
@@ -40,7 +40,7 @@ This user guide provides a complete introduction to jmon-algo, the JavaScript co
 **File:** `01_getting-started.js`
 
 ### What You'll Learn
-- JMON format basics (jmon-algo's music representation)
+- JMON format basics (algo's music representation)
 - Note structure: `{pitch, duration, time, velocity}`
 - Creating tracks and compositions
 - Format conversion (MIDI, VexFlow, Tone.js, WAV)
@@ -77,7 +77,7 @@ const composition = {
 
 ### Djalgo Comparison
 - **Djalgo:** Uses Python tuples `(pitch, duration, offset)`
-- **jmon-algo:** Uses JavaScript objects with named properties
+- **algo:** Uses JavaScript objects with named properties
 - **Advantage:** More readable, extensible, JSON-compatible
 
 ---
@@ -421,9 +421,9 @@ MusicalAnalysis.gapVariance(notes);           // Rest patterns
 
 ---
 
-## Feature Comparison: Djalgo vs jmon-algo
+## Feature Comparison: Djalgo vs algo
 
-| Feature | Djalgo (Python) | jmon-algo (JavaScript) |
+| Feature | Djalgo (Python) | algo (JavaScript) |
 |---------|----------------|------------------------|
 | **Format** | Tuples `(p,d,o)` | Objects `{pitch, duration, time}` |
 | **Scales** | 14 modes | 14+ modes ✓ |
@@ -462,11 +462,11 @@ done
 
 ### Browser
 ```html
-<!-- Include jmon-algo -->
+<!-- Include algo -->
 <script type="module">
   import jm from './src/index.js';
 
-  // Use jmon-algo
+  // Use algo
   const scale = new jm.theory.harmony.Scale('C', 'major');
   const notes = scale.generate({ octave: 4 });
   console.log(notes);
@@ -606,7 +606,7 @@ setInterval(() => {
 
 ## Resources
 
-- **jmon-algo GitHub:** [github.com/jmonlabs/jmon-algo](https://github.com/jmonlabs/jmon-algo)
+- **algo GitHub:** [github.com/jmonlabs/algo](https://github.com/jmonlabs/algo)
 - **Djalgo (Python):** [gitlab.com/essicolo/djalgo](https://gitlab.com/essicolo/djalgo)
 - **Test Suite:** `/tests` directory
 - **Examples:** `/examples` directory
@@ -616,10 +616,10 @@ setInterval(() => {
 
 ## Credits
 
-**jmon-algo** is a JavaScript translation and extension of **Djalgo** by Essi Parent.
+**algo** is a JavaScript translation and extension of **Djalgo** by Essi Parent.
 
 - **Original Djalgo:** Python library for algorithmic music composition
-- **jmon-algo:** JavaScript/TypeScript port with web integration
+- **algo:** JavaScript/TypeScript port with web integration
 - **JMON Format:** JSON-based music notation for web applications
 
 All tutorials in this guide are complete JavaScript translations of the Djalgo Python user guide, adapted for the JMON format and JavaScript ecosystem.

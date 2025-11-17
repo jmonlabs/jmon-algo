@@ -55,5 +55,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 For detailed development history and comparisons with Djalgo, see:
 - [FINAL_SUMMARY.md](./FINAL_SUMMARY.md) - Complete project overview
 - [TEST_RESULTS.md](./TEST_RESULTS.md) - Comprehensive test report
-- [COMPARISON_SUMMARY.md](./COMPARISON_SUMMARY.md) - Djalgo vs jmon-algo comparison
+- [COMPARISON_SUMMARY.md](./COMPARISON_SUMMARY.md) - Djalgo vs algo comparison
 - [TUTORIAL_STATUS.md](./TUTORIAL_STATUS.md) - Tutorial completion status

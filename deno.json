@@ -1,6 +1,6 @@
 {
-  "name": "@jmon/jmon-algo",
-  "version": "1.0.2",
+  "name": "@jmon/algo",
+  "version": "1.0.0",
   "license": "GPL-3.0",
   "exports": "./src/index.jsr.js",
   "tasks": {
