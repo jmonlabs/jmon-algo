@@ -54,155 +54,137 @@ export async function downloadWav(composition, Tone, filename = "composition.wav
 		const graphInstruments = await buildAudioGraphInstruments(composition, Tone);
 
 		// Compile modulations for all tracks
-		const compiledModulations = [];
 		const tracks = composition.tracks || [];
-		tracks.forEach((track, index) => {
+		const compiledTracks = tracks.map((track) => {
 			try {
-				const compiled = compileEvents(track);
-				compiledModulations[index] = compiled.modulations || [];
+				return compileEvents(track);
 			} catch (e) {
-				console.warn(`[WAV] Failed to compile modulations for track ${index}:`, e);
-				compiledModulations[index] = [];
+				console.warn(`[WAV] Failed to compile track:`, e);
+				return { notes: track.notes || [], modulations: [] };
 			}
 		});
 
-		// Create synths for each track
+		// Create synths and schedule notes for each track
 		tracks.forEach((track, trackIndex) => {
 			const notes = track.notes || [];
+			const { modulations = [] } = compiledTracks[trackIndex] || {};
 			const synthRef = track.synthRef;
-			const trackModulations = compiledModulations[trackIndex] || [];
 
 			// Determine which synth to use
 			let synth = null;
 			if (synthRef && graphInstruments && graphInstruments[synthRef]) {
-				// Use audioGraph synth
 				synth = graphInstruments[synthRef];
 			} else {
-				// Use default PolySynth
-				synth = new Tone.PolySynth().toDestination();
+				// Use specified synth or default to PolySynth
+				const synthType = track.synth || "PolySynth";
+				try {
+					synth = new Tone[synthType]().toDestination();
+				} catch (e) {
+					synth = new Tone.PolySynth().toDestination();
+				}
 			}
 
-			// Check for vibrato/tremolo modulations
-			const vibratoMods = trackModulations.filter(
-				(m) => m.type === "pitch" && m.subtype === "vibrato"
-			);
-			const tremoloMods = trackModulations.filter(
-				(m) => m.type === "amplitude" && m.subtype === "tremolo"
-			);
+			// Create modulation lookup by note index
+			const modsByNote = {};
+			modulations.forEach((mod) => {
+				if (!modsByNote[mod.index]) modsByNote[mod.index] = [];
+				modsByNote[mod.index].push(mod);
+			});
 
-			// Create effect chain if needed
-			let vibratoEffect = null;
-			let tremoloEffect = null;
-
-			if (vibratoMods.length > 0 || tremoloMods.length > 0) {
-				console.log(
-					`[WAV] Creating effect chain for track ${trackIndex} (${vibratoMods.length} vibrato, ${tremoloMods.length} tremolo)`
-				);
-
-				// Disconnect synth from destination first
-				if (!synthRef || !graphInstruments?.[synthRef]) {
-					synth.disconnect();
-				}
-
-				// Create effects
-				if (vibratoMods.length > 0) {
-					const defaultVibrato = vibratoMods[0];
-					vibratoEffect = new Tone.Vibrato({
-						frequency: defaultVibrato.rate || 5,
-						depth: (defaultVibrato.depth || 50) / 100,
-					});
-					vibratoEffect.wet.value = 0; // Start disabled
-				}
-
-				if (tremoloMods.length > 0) {
-					const defaultTremolo = tremoloMods[0];
-					tremoloEffect = new Tone.Tremolo({
-						frequency: defaultTremolo.rate || 8,
-						depth: defaultTremolo.depth || 0.3,
-					}).start();
-					tremoloEffect.wet.value = 0; // Start disabled
-				}
-
-				// Connect effect chain
-				if (vibratoEffect && tremoloEffect) {
-					synth.connect(vibratoEffect);
-					vibratoEffect.connect(tremoloEffect);
-					tremoloEffect.toDestination();
-				} else if (vibratoEffect) {
-					synth.connect(vibratoEffect);
-					vibratoEffect.toDestination();
-				} else if (tremoloEffect) {
-					synth.connect(tremoloEffect);
-					tremoloEffect.toDestination();
-				}
-
-				// Schedule effect enable/disable based on modulations
-				trackModulations.forEach((mod) => {
-					const startTime = mod.start * secondsPerQuarterNote;
-					const endTime = mod.end * secondsPerQuarterNote;
-
-					if (mod.type === "pitch" && mod.subtype === "vibrato" && vibratoEffect) {
-						const vibratoFreq = mod.rate || 5;
-						const vibratoDepth = (mod.depth || 50) / 100;
-
-						// Schedule enable
-						transport.schedule((time) => {
-							vibratoEffect.frequency.value = vibratoFreq;
-							vibratoEffect.depth.value = vibratoDepth;
-							vibratoEffect.wet.value = 1;
-						}, startTime);
-
-						// Schedule disable
-						transport.schedule((time) => {
-							vibratoEffect.wet.value = 0;
-						}, endTime);
-					}
-
-					if (mod.type === "amplitude" && mod.subtype === "tremolo" && tremoloEffect) {
-						const tremoloFreq = mod.rate || 8;
-						const tremoloDepth = mod.depth || 0.3;
-
-						// Schedule enable
-						transport.schedule((time) => {
-							tremoloEffect.frequency.value = tremoloFreq;
-							tremoloEffect.depth.value = tremoloDepth;
-							tremoloEffect.wet.value = 1;
-						}, startTime);
-
-						// Schedule disable
-						transport.schedule((time) => {
-							tremoloEffect.wet.value = 0;
-						}, endTime);
-					}
-				});
-			}
-
-			// Schedule notes
-			notes.forEach((note) => {
+			// Schedule notes with articulations
+			notes.forEach((note, noteIndex) => {
 				const time = (note.time || 0) * secondsPerQuarterNote;
-				const noteDuration = (note.duration || 1) * secondsPerQuarterNote;
+				const duration = (note.duration || 1) * secondsPerQuarterNote;
+				const velocity = note.velocity || 0.8;
+				const noteMods = modsByNote[noteIndex] || [];
 
+				// Handle chords
 				if (Array.isArray(note.pitch)) {
 					const noteNames = note.pitch.map((p) =>
 						typeof p === "number" ? Tone.Frequency(p, "midi").toNote() : p
 					);
-					synth.triggerAttackRelease(
-						noteNames,
-						noteDuration,
-						time,
-						note.velocity || 0.8
-					);
+					synth.triggerAttackRelease(noteNames, duration, time, velocity);
+					return;
+				}
+
+				// Handle glissando
+				const glissando = noteMods.find(
+					(m) => m.type === "pitch" && (m.subtype === "glissando" || m.subtype === "portamento")
+				);
+				if (glissando && glissando.to !== undefined) {
+					const fromNote = typeof note.pitch === "number"
+						? Tone.Frequency(note.pitch, "midi").toNote()
+						: note.pitch;
+					const toNote = typeof glissando.to === "number"
+						? Tone.Frequency(glissando.to, "midi").toNote()
+						: glissando.to;
+
+					synth.triggerAttack(fromNote, time, velocity);
+
+					// Calculate pitch bend
+					const startFreq = Tone.Frequency(fromNote).toFrequency();
+					const endFreq = Tone.Frequency(toNote).toFrequency();
+					const cents = 1200 * Math.log2(endFreq / startFreq);
+
+					// Apply glissando with detune
+					if (synth.detune) {
+						synth.detune.setValueAtTime(0, time);
+						synth.detune.linearRampToValueAtTime(cents, time + duration);
+					}
+
+					synth.triggerRelease(time + duration);
+					return;
+				}
+
+				// Convert pitch to note name
+				const noteName = typeof note.pitch === "number"
+					? Tone.Frequency(note.pitch, "midi").toNote()
+					: note.pitch;
+
+				// Check for vibrato/tremolo
+				const vibrato = noteMods.find((m) => m.type === "pitch" && m.subtype === "vibrato");
+				const tremolo = noteMods.find((m) => m.type === "amplitude" && m.subtype === "tremolo");
+
+				if (vibrato || tremolo) {
+					// Apply modulations using parameter automation
+					synth.triggerAttack(noteName, time, velocity);
+
+					// Vibrato: modulate frequency
+					if (vibrato && synth.frequency) {
+						const rate = vibrato.rate || 5;
+						const depth = vibrato.depth || 50;
+						const depthRatio = Math.pow(2, depth / 1200);
+						const baseFreq = Tone.Frequency(noteName).toFrequency();
+
+						const numSteps = Math.ceil(duration * rate * 10);
+						const values = [];
+						for (let i = 0; i < numSteps; i++) {
+							const phase = (i / numSteps) * duration * rate * Math.PI * 2;
+							const offset = Math.sin(phase) * (depthRatio - 1);
+							values.push(baseFreq * (1 + offset));
+						}
+						synth.frequency.setValueCurveAtTime(values, time, duration);
+					}
+
+					// Tremolo: modulate volume
+					if (tremolo && synth.volume) {
+						const rate = tremolo.rate || 8;
+						const depth = tremolo.depth || 0.3;
+
+						const numSteps = Math.ceil(duration * rate * 10);
+						const values = [];
+						for (let i = 0; i < numSteps; i++) {
+							const phase = (i / numSteps) * duration * rate * Math.PI * 2;
+							const offset = Math.sin(phase) * depth;
+							values.push(offset * -20); // Convert to dB
+						}
+						synth.volume.setValueCurveAtTime(values, time, duration);
+					}
+
+					synth.triggerRelease(time + duration);
 				} else {
-					const noteName =
-						typeof note.pitch === "number"
-							? Tone.Frequency(note.pitch, "midi").toNote()
-							: note.pitch;
-					synth.triggerAttackRelease(
-						noteName,
-						noteDuration,
-						time,
-						note.velocity || 0.8
-					);
+					// Normal note
+					synth.triggerAttackRelease(noteName, duration, time, velocity);
 				}
 			});
 		});
