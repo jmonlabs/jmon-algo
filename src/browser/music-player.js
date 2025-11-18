@@ -1421,6 +1421,11 @@ export function createPlayer(composition, options = {}) {
           `[PLAYER] Creating effect chain for track ${originalTrackIndex} (${vibratoMods.length} vibrato, ${tremoloMods.length} tremolo)`,
         );
 
+        // Disconnect synth from destination first (unless it's a graph instrument)
+        if (!synthRef || !graphInstruments?.[synthRef]) {
+          synth.disconnect();
+        }
+
         // Create effects (initially with wet=0 so they don't affect notes without articulations)
         if (vibratoMods.length > 0) {
           // Use first modulation's params as default (can be overridden per-note)
@@ -1646,19 +1651,19 @@ export function createPlayer(composition, options = {}) {
             const vibratoFreq = mod.rate || 5;
             const vibratoDepth = (mod.depth || 50) / 100;
 
-            // Schedule enable at note start
+            // Schedule enable at note start with smooth ramp
             Tone.Transport.schedule((time) => {
               vibratoEffect.frequency.value = vibratoFreq;
               vibratoEffect.depth.value = vibratoDepth;
-              vibratoEffect.wet.value = 1; // Enable
+              vibratoEffect.wet.rampTo(1, 0.05, time); // Ramp to full over 50ms
               console.log(
                 `[PLAYER] Vibrato enabled at ${startTime}s (rate: ${vibratoFreq}Hz, depth: ${vibratoDepth})`,
               );
             }, startTime);
 
-            // Schedule disable at note end
+            // Schedule disable at note end with smooth ramp
             Tone.Transport.schedule((time) => {
-              vibratoEffect.wet.value = 0; // Disable
+              vibratoEffect.wet.rampTo(0, 0.05, time); // Ramp to zero over 50ms
               console.log(`[PLAYER] Vibrato disabled at ${endTime}s`);
             }, endTime);
           }
@@ -1671,19 +1676,19 @@ export function createPlayer(composition, options = {}) {
             const tremoloFreq = mod.rate || 8;
             const tremoloDepth = mod.depth || 0.3;
 
-            // Schedule enable at note start
+            // Schedule enable at note start with smooth ramp
             Tone.Transport.schedule((time) => {
               tremoloEffect.frequency.value = tremoloFreq;
               tremoloEffect.depth.value = tremoloDepth;
-              tremoloEffect.wet.value = 1; // Enable
+              tremoloEffect.wet.rampTo(1, 0.05, time); // Ramp to full over 50ms
               console.log(
                 `[PLAYER] Tremolo enabled at ${startTime}s (rate: ${tremoloFreq}Hz, depth: ${tremoloDepth})`,
               );
             }, startTime);
 
-            // Schedule disable at note end
+            // Schedule disable at note end with smooth ramp
             Tone.Transport.schedule((time) => {
-              tremoloEffect.wet.value = 0; // Disable
+              tremoloEffect.wet.rampTo(0, 0.05, time); // Ramp to zero over 50ms
               console.log(`[PLAYER] Tremolo disabled at ${endTime}s`);
             }, endTime);
           }
@@ -2067,6 +2072,21 @@ export function createPlayer(composition, options = {}) {
       const buffer = await ToneLib.Offline(async ({ transport }) => {
         transport.bpm.value = metadata.tempo;
 
+        // Compile modulations for all tracks
+        const compiledModulations = [];
+        originalTracksSource.forEach((track, index) => {
+          try {
+            const compiled = compileEvents(track);
+            compiledModulations[index] = compiled.modulations || [];
+          } catch (e) {
+            console.warn(
+              `[WAV] Failed to compile modulations for track ${index}:`,
+              e,
+            );
+            compiledModulations[index] = [];
+          }
+        });
+
         // Recreate synths for offline rendering
         const offlineSynths = [];
 
@@ -2095,6 +2115,103 @@ export function createPlayer(composition, options = {}) {
           }
 
           offlineSynths.push(synth);
+
+          // Compile modulations for this track
+          const trackModulations = compiledModulations[originalTrackIndex] || [];
+          const vibratoMods = trackModulations.filter(
+            (m) => m.type === "pitch" && m.subtype === "vibrato"
+          );
+          const tremoloMods = trackModulations.filter(
+            (m) => m.type === "amplitude" && m.subtype === "tremolo"
+          );
+
+          // Create effect chain if needed
+          let vibratoEffect = null;
+          let tremoloEffect = null;
+
+          if (vibratoMods.length > 0 || tremoloMods.length > 0) {
+            console.log(
+              `[WAV] Creating effect chain for track ${originalTrackIndex} (${vibratoMods.length} vibrato, ${tremoloMods.length} tremolo)`
+            );
+
+            // Disconnect synth from destination first
+            if (!synthRef || !graphInstruments?.[synthRef]) {
+              synth.disconnect();
+            }
+
+            // Create effects
+            if (vibratoMods.length > 0) {
+              const defaultVibrato = vibratoMods[0];
+              vibratoEffect = new ToneLib.Vibrato({
+                frequency: defaultVibrato.rate || 5,
+                depth: (defaultVibrato.depth || 50) / 100,
+              });
+              vibratoEffect.wet.value = 0; // Start disabled
+            }
+
+            if (tremoloMods.length > 0) {
+              const defaultTremolo = tremoloMods[0];
+              tremoloEffect = new ToneLib.Tremolo({
+                frequency: defaultTremolo.rate || 8,
+                depth: defaultTremolo.depth || 0.3,
+              }).start();
+              tremoloEffect.wet.value = 0; // Start disabled
+            }
+
+            // Connect effect chain
+            if (vibratoEffect && tremoloEffect) {
+              synth.connect(vibratoEffect);
+              vibratoEffect.connect(tremoloEffect);
+              tremoloEffect.toDestination();
+            } else if (vibratoEffect) {
+              synth.connect(vibratoEffect);
+              vibratoEffect.toDestination();
+            } else if (tremoloEffect) {
+              synth.connect(tremoloEffect);
+              tremoloEffect.toDestination();
+            }
+
+            // Schedule effect enable/disable based on modulations
+            const secondsPerQuarterNote = 60 / metadata.tempo;
+            trackModulations.forEach((mod) => {
+              const startTime = mod.start * secondsPerQuarterNote;
+              const endTime = mod.end * secondsPerQuarterNote;
+
+              if (mod.type === "pitch" && mod.subtype === "vibrato" && vibratoEffect) {
+                const vibratoFreq = mod.rate || 5;
+                const vibratoDepth = (mod.depth || 50) / 100;
+
+                // Schedule enable with smooth ramp
+                transport.schedule((time) => {
+                  vibratoEffect.frequency.value = vibratoFreq;
+                  vibratoEffect.depth.value = vibratoDepth;
+                  vibratoEffect.wet.rampTo(1, 0.05, time);
+                }, startTime);
+
+                // Schedule disable with smooth ramp
+                transport.schedule((time) => {
+                  vibratoEffect.wet.rampTo(0, 0.05, time);
+                }, endTime);
+              }
+
+              if (mod.type === "amplitude" && mod.subtype === "tremolo" && tremoloEffect) {
+                const tremoloFreq = mod.rate || 8;
+                const tremoloDepth = mod.depth || 0.3;
+
+                // Schedule enable with smooth ramp
+                transport.schedule((time) => {
+                  tremoloEffect.frequency.value = tremoloFreq;
+                  tremoloEffect.depth.value = tremoloDepth;
+                  tremoloEffect.wet.rampTo(1, 0.05, time);
+                }, startTime);
+
+                // Schedule disable with smooth ramp
+                transport.schedule((time) => {
+                  tremoloEffect.wet.rampTo(0, 0.05, time);
+                }, endTime);
+              }
+            });
+          }
 
           // Schedule notes
           partEvents.forEach((note) => {
@@ -2208,6 +2325,7 @@ export function createPlayer(composition, options = {}) {
 
   // Initialize if Tone.js is already available OR if preload is requested
   const initialTone =
+    externalTone ||
     (typeof window !== "undefined" && window.Tone) ||
     (typeof Tone !== "undefined" ? Tone : null);
   if (initialTone || preloadTone) {

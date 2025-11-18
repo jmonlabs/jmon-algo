@@ -2401,15 +2401,97 @@ async function downloadWav(composition, Tone2, filename = "composition.wav", dur
   const buffer = await Tone2.Offline(async ({ transport }) => {
     transport.bpm.value = tempo;
     const graphInstruments = await buildAudioGraphInstruments(composition, Tone2);
+    const compiledModulations = [];
     const tracks = composition.tracks || [];
-    tracks.forEach((track) => {
+    tracks.forEach((track, index) => {
+      try {
+        const compiled = compileEvents(track);
+        compiledModulations[index] = compiled.modulations || [];
+      } catch (e) {
+        console.warn(`[WAV] Failed to compile modulations for track ${index}:`, e);
+        compiledModulations[index] = [];
+      }
+    });
+    tracks.forEach((track, trackIndex) => {
       const notes = track.notes || [];
       const synthRef = track.synthRef;
+      const trackModulations = compiledModulations[trackIndex] || [];
       let synth = null;
       if (synthRef && graphInstruments && graphInstruments[synthRef]) {
         synth = graphInstruments[synthRef];
       } else {
         synth = new Tone2.PolySynth().toDestination();
+      }
+      const vibratoMods = trackModulations.filter(
+        (m) => m.type === "pitch" && m.subtype === "vibrato"
+      );
+      const tremoloMods = trackModulations.filter(
+        (m) => m.type === "amplitude" && m.subtype === "tremolo"
+      );
+      let vibratoEffect = null;
+      let tremoloEffect = null;
+      if (vibratoMods.length > 0 || tremoloMods.length > 0) {
+        console.log(
+          `[WAV] Creating effect chain for track ${trackIndex} (${vibratoMods.length} vibrato, ${tremoloMods.length} tremolo)`
+        );
+        if (!synthRef || !graphInstruments?.[synthRef]) {
+          synth.disconnect();
+        }
+        if (vibratoMods.length > 0) {
+          const defaultVibrato = vibratoMods[0];
+          vibratoEffect = new Tone2.Vibrato({
+            frequency: defaultVibrato.rate || 5,
+            depth: (defaultVibrato.depth || 50) / 100
+          });
+          vibratoEffect.wet.value = 0;
+        }
+        if (tremoloMods.length > 0) {
+          const defaultTremolo = tremoloMods[0];
+          tremoloEffect = new Tone2.Tremolo({
+            frequency: defaultTremolo.rate || 8,
+            depth: defaultTremolo.depth || 0.3
+          }).start();
+          tremoloEffect.wet.value = 0;
+        }
+        if (vibratoEffect && tremoloEffect) {
+          synth.connect(vibratoEffect);
+          vibratoEffect.connect(tremoloEffect);
+          tremoloEffect.toDestination();
+        } else if (vibratoEffect) {
+          synth.connect(vibratoEffect);
+          vibratoEffect.toDestination();
+        } else if (tremoloEffect) {
+          synth.connect(tremoloEffect);
+          tremoloEffect.toDestination();
+        }
+        trackModulations.forEach((mod) => {
+          const startTime = mod.start * secondsPerQuarterNote;
+          const endTime = mod.end * secondsPerQuarterNote;
+          if (mod.type === "pitch" && mod.subtype === "vibrato" && vibratoEffect) {
+            const vibratoFreq = mod.rate || 5;
+            const vibratoDepth = (mod.depth || 50) / 100;
+            transport.schedule((time) => {
+              vibratoEffect.frequency.value = vibratoFreq;
+              vibratoEffect.depth.value = vibratoDepth;
+              vibratoEffect.wet.value = 1;
+            }, startTime);
+            transport.schedule((time) => {
+              vibratoEffect.wet.value = 0;
+            }, endTime);
+          }
+          if (mod.type === "amplitude" && mod.subtype === "tremolo" && tremoloEffect) {
+            const tremoloFreq = mod.rate || 8;
+            const tremoloDepth = mod.depth || 0.3;
+            transport.schedule((time) => {
+              tremoloEffect.frequency.value = tremoloFreq;
+              tremoloEffect.depth.value = tremoloDepth;
+              tremoloEffect.wet.value = 1;
+            }, startTime);
+            transport.schedule((time) => {
+              tremoloEffect.wet.value = 0;
+            }, endTime);
+          }
+        });
       }
       notes.forEach((note) => {
         const time = (note.time || 0) * secondsPerQuarterNote;
@@ -2539,6 +2621,7 @@ async function audioBufferToWav(buffer) {
 }
 var init_wav = __esm({
   "src/converters/wav.js"() {
+    init_audio();
   }
 });
 
@@ -5202,7 +5285,7 @@ function createPlayer(composition, options = {}) {
   mainLayout.appendChild(topContainer);
   mainLayout.appendChild(timelineContainer);
   container.append(mainLayout, buttonContainer);
-  let Tone2, isPlaying = false, synths = [], parts = [];
+  let Tone2, isPlaying = false, synths = [], parts = [], effects = [];
   let samplerLoadPromises = [];
   let graphInstruments = null;
   const originalTracksSource = composition.tracks || [];
@@ -5514,10 +5597,34 @@ function createPlayer(composition, options = {}) {
         }
       }
     });
+    effects.forEach((e, index) => {
+      try {
+        if (e.disconnect && typeof e.disconnect === "function") {
+          e.disconnect();
+        }
+        e.dispose();
+      } catch (err) {
+        console.warn(`[PLAYER] Failed to dispose effect ${index}:`, err);
+      }
+    });
     synths = [];
     parts = [];
+    effects = [];
     console.log("[PLAYER] Audio cleanup completed");
     console.log("[PLAYER] Converted tracks:", convertedTracks.length);
+    const compiledModulations = [];
+    originalTracksSource.forEach((track, index) => {
+      try {
+        const compiled = compileEvents(track);
+        compiledModulations[index] = compiled.modulations || [];
+      } catch (e) {
+        console.warn(
+          `[PLAYER] Failed to compile modulations for track ${index}:`,
+          e
+        );
+        compiledModulations[index] = [];
+      }
+    });
     convertedTracks.forEach((trackConfig) => {
       const {
         originalTrackIndex,
@@ -5617,6 +5724,54 @@ function createPlayer(composition, options = {}) {
             );
             return;
           }
+        }
+      }
+      const trackModulations = compiledModulations[originalTrackIndex] || [];
+      const vibratoMods = trackModulations.filter(
+        (m) => m.type === "pitch" && m.subtype === "vibrato"
+      );
+      const tremoloMods = trackModulations.filter(
+        (m) => m.type === "amplitude" && m.subtype === "tremolo"
+      );
+      let vibratoEffect = null;
+      let tremoloEffect = null;
+      if (vibratoMods.length > 0 || tremoloMods.length > 0) {
+        console.log(
+          `[PLAYER] Creating effect chain for track ${originalTrackIndex} (${vibratoMods.length} vibrato, ${tremoloMods.length} tremolo)`
+        );
+        if (!synthRef || !graphInstruments?.[synthRef]) {
+          synth.disconnect();
+        }
+        if (vibratoMods.length > 0) {
+          const defaultVibrato = vibratoMods[0];
+          vibratoEffect = new Tone2.Vibrato({
+            frequency: defaultVibrato.rate || 5,
+            depth: (defaultVibrato.depth || 50) / 100
+            // Convert cents to 0-1
+          });
+          vibratoEffect.wet.value = 0;
+        }
+        if (tremoloMods.length > 0) {
+          const defaultTremolo = tremoloMods[0];
+          tremoloEffect = new Tone2.Tremolo({
+            frequency: defaultTremolo.rate || 8,
+            depth: defaultTremolo.depth || 0.3
+          }).start();
+          tremoloEffect.wet.value = 0;
+        }
+        if (vibratoEffect && tremoloEffect) {
+          synth.connect(vibratoEffect);
+          vibratoEffect.connect(tremoloEffect);
+          tremoloEffect.toDestination();
+          effects.push(vibratoEffect, tremoloEffect);
+        } else if (vibratoEffect) {
+          synth.connect(vibratoEffect);
+          vibratoEffect.toDestination();
+          effects.push(vibratoEffect);
+        } else if (tremoloEffect) {
+          synth.connect(tremoloEffect);
+          tremoloEffect.toDestination();
+          effects.push(tremoloEffect);
         }
       }
       synths.push(synth);
@@ -5732,6 +5887,48 @@ function createPlayer(composition, options = {}) {
           );
         }
       }, normalizedEvents);
+      if (vibratoEffect || tremoloEffect) {
+        trackModulations.forEach((mod) => {
+          const noteIndex = mod.index;
+          const originalNote = originalTracksSource[originalTrackIndex]?.notes?.[noteIndex];
+          if (!originalNote)
+            return;
+          const startTime = mod.start * secPerBeat;
+          const endTime = mod.end * secPerBeat;
+          if (mod.type === "pitch" && mod.subtype === "vibrato" && vibratoEffect) {
+            const vibratoFreq = mod.rate || 5;
+            const vibratoDepth = (mod.depth || 50) / 100;
+            Tone2.Transport.schedule((time) => {
+              vibratoEffect.frequency.value = vibratoFreq;
+              vibratoEffect.depth.value = vibratoDepth;
+              vibratoEffect.wet.rampTo(1, 0.05, time);
+              console.log(
+                `[PLAYER] Vibrato enabled at ${startTime}s (rate: ${vibratoFreq}Hz, depth: ${vibratoDepth})`
+              );
+            }, startTime);
+            Tone2.Transport.schedule((time) => {
+              vibratoEffect.wet.rampTo(0, 0.05, time);
+              console.log(`[PLAYER] Vibrato disabled at ${endTime}s`);
+            }, endTime);
+          }
+          if (mod.type === "amplitude" && mod.subtype === "tremolo" && tremoloEffect) {
+            const tremoloFreq = mod.rate || 8;
+            const tremoloDepth = mod.depth || 0.3;
+            Tone2.Transport.schedule((time) => {
+              tremoloEffect.frequency.value = tremoloFreq;
+              tremoloEffect.depth.value = tremoloDepth;
+              tremoloEffect.wet.rampTo(1, 0.05, time);
+              console.log(
+                `[PLAYER] Tremolo enabled at ${startTime}s (rate: ${tremoloFreq}Hz, depth: ${tremoloDepth})`
+              );
+            }, startTime);
+            Tone2.Transport.schedule((time) => {
+              tremoloEffect.wet.rampTo(0, 0.05, time);
+              console.log(`[PLAYER] Tremolo disabled at ${endTime}s`);
+            }, endTime);
+          }
+        });
+      }
       parts.push(part);
     });
     Tone2.Transport.loopEnd = totalDuration;
@@ -6008,6 +6205,19 @@ function createPlayer(composition, options = {}) {
       console.log("Rendering WAV offline...");
       const buffer = await ToneLib.Offline(async ({ transport }) => {
         transport.bpm.value = metadata.tempo;
+        const compiledModulations = [];
+        originalTracksSource.forEach((track, index) => {
+          try {
+            const compiled = compileEvents(track);
+            compiledModulations[index] = compiled.modulations || [];
+          } catch (e) {
+            console.warn(
+              `[WAV] Failed to compile modulations for track ${index}:`,
+              e
+            );
+            compiledModulations[index] = [];
+          }
+        });
         const offlineSynths = [];
         convertedTracks.forEach((trackConfig) => {
           const { originalTrackIndex, partEvents } = trackConfig;
@@ -6029,6 +6239,79 @@ function createPlayer(composition, options = {}) {
             }
           }
           offlineSynths.push(synth);
+          const trackModulations = compiledModulations[originalTrackIndex] || [];
+          const vibratoMods = trackModulations.filter(
+            (m) => m.type === "pitch" && m.subtype === "vibrato"
+          );
+          const tremoloMods = trackModulations.filter(
+            (m) => m.type === "amplitude" && m.subtype === "tremolo"
+          );
+          let vibratoEffect = null;
+          let tremoloEffect = null;
+          if (vibratoMods.length > 0 || tremoloMods.length > 0) {
+            console.log(
+              `[WAV] Creating effect chain for track ${originalTrackIndex} (${vibratoMods.length} vibrato, ${tremoloMods.length} tremolo)`
+            );
+            if (!synthRef || !graphInstruments?.[synthRef]) {
+              synth.disconnect();
+            }
+            if (vibratoMods.length > 0) {
+              const defaultVibrato = vibratoMods[0];
+              vibratoEffect = new ToneLib.Vibrato({
+                frequency: defaultVibrato.rate || 5,
+                depth: (defaultVibrato.depth || 50) / 100
+              });
+              vibratoEffect.wet.value = 0;
+            }
+            if (tremoloMods.length > 0) {
+              const defaultTremolo = tremoloMods[0];
+              tremoloEffect = new ToneLib.Tremolo({
+                frequency: defaultTremolo.rate || 8,
+                depth: defaultTremolo.depth || 0.3
+              }).start();
+              tremoloEffect.wet.value = 0;
+            }
+            if (vibratoEffect && tremoloEffect) {
+              synth.connect(vibratoEffect);
+              vibratoEffect.connect(tremoloEffect);
+              tremoloEffect.toDestination();
+            } else if (vibratoEffect) {
+              synth.connect(vibratoEffect);
+              vibratoEffect.toDestination();
+            } else if (tremoloEffect) {
+              synth.connect(tremoloEffect);
+              tremoloEffect.toDestination();
+            }
+            const secondsPerQuarterNote = 60 / metadata.tempo;
+            trackModulations.forEach((mod) => {
+              const startTime = mod.start * secondsPerQuarterNote;
+              const endTime = mod.end * secondsPerQuarterNote;
+              if (mod.type === "pitch" && mod.subtype === "vibrato" && vibratoEffect) {
+                const vibratoFreq = mod.rate || 5;
+                const vibratoDepth = (mod.depth || 50) / 100;
+                transport.schedule((time) => {
+                  vibratoEffect.frequency.value = vibratoFreq;
+                  vibratoEffect.depth.value = vibratoDepth;
+                  vibratoEffect.wet.rampTo(1, 0.05, time);
+                }, startTime);
+                transport.schedule((time) => {
+                  vibratoEffect.wet.rampTo(0, 0.05, time);
+                }, endTime);
+              }
+              if (mod.type === "amplitude" && mod.subtype === "tremolo" && tremoloEffect) {
+                const tremoloFreq = mod.rate || 8;
+                const tremoloDepth = mod.depth || 0.3;
+                transport.schedule((time) => {
+                  tremoloEffect.frequency.value = tremoloFreq;
+                  tremoloEffect.depth.value = tremoloDepth;
+                  tremoloEffect.wet.rampTo(1, 0.05, time);
+                }, startTime);
+                transport.schedule((time) => {
+                  tremoloEffect.wet.rampTo(0, 0.05, time);
+                }, endTime);
+              }
+            });
+          }
           partEvents.forEach((note) => {
             const time = typeof note.time === "number" ? note.time * (60 / metadata.tempo) : note.time;
             const duration = typeof note.duration === "number" ? note.duration * (60 / metadata.tempo) : note.duration;
@@ -6109,7 +6392,7 @@ function createPlayer(composition, options = {}) {
   downloadWavButton.addEventListener("click", handleWavDownload);
   downloadMIDIButtonVertical.addEventListener("click", handleMIDIDownload);
   downloadWavButtonVertical.addEventListener("click", handleWavDownload);
-  const initialTone = typeof window !== "undefined" && window.Tone || (typeof Tone2 !== "undefined" ? Tone2 : null);
+  const initialTone = externalTone || typeof window !== "undefined" && window.Tone || (typeof Tone2 !== "undefined" ? Tone2 : null);
   if (initialTone || preloadTone) {
     initializeTone().then(() => {
       setupAudio();
@@ -6139,6 +6422,7 @@ function createPlayer(composition, options = {}) {
 var init_music_player = __esm({
   "src/browser/music-player.js"() {
     init_tonejs();
+    init_audio();
     init_gm_instruments();
     init_audio_effects();
     init_ui_constants();
