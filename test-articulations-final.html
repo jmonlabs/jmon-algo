@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Articulation Test - Final</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+      background: #1a1a1a;
+      color: #fff;
+    }
+    .test-info {
+      background: #333;
+      padding: 15px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+    }
+    h2 { margin-top: 0; }
+  </style>
+</head>
+<body>
+  <h1>Articulation Playback Test</h1>
+
+  <div class="test-info">
+    <h2>Test Composition</h2>
+    <p>This test plays 4 notes with different articulations:</p>
+    <ul>
+      <li><strong>Note 1 (C4):</strong> Normal note (no articulation)</li>
+      <li><strong>Note 2 (D4):</strong> Vibrato (5 Hz, 50 cents depth)</li>
+      <li><strong>Note 3 (E4):</strong> Tremolo (8 Hz, 0.3 depth)</li>
+      <li><strong>Note 4 (F4):</strong> Both vibrato + tremolo</li>
+    </ul>
+    <p><strong>Expected behavior:</strong> Notes should play and stop cleanly. No infinite notes.</p>
+  </div>
+
+  <div id="player-container"></div>
+
+  <script type="module">
+    import { createPlayer } from './src/browser/music-player.js';
+
+    // Test composition with articulations
+    const composition = {
+      metadata: {
+        title: "Articulation Test"
+      },
+      tempo: 120,
+      tracks: [
+        {
+          events: [
+            // Normal note
+            {
+              time: 0,
+              duration: 1,
+              pitch: 60, // C4
+              velocity: 0.8
+            },
+            // Vibrato
+            {
+              time: 1,
+              duration: 2,
+              pitch: 62, // D4
+              velocity: 0.8,
+              articulations: [
+                {
+                  type: "vibrato",
+                  rate: 5,
+                  depth: 50
+                }
+              ]
+            },
+            // Tremolo
+            {
+              time: 3,
+              duration: 2,
+              pitch: 64, // E4
+              velocity: 0.8,
+              articulations: [
+                {
+                  type: "tremolo",
+                  rate: 8,
+                  depth: 0.3
+                }
+              ]
+            },
+            // Both vibrato + tremolo
+            {
+              time: 5,
+              duration: 3,
+              pitch: 65, // F4
+              velocity: 0.8,
+              articulations: [
+                {
+                  type: "vibrato",
+                  rate: 6,
+                  depth: 40
+                },
+                {
+                  type: "tremolo",
+                  rate: 10,
+                  depth: 0.4
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    };
+
+    // Create and mount player
+    const playerElement = createPlayer(composition, {
+      autoplay: false
+    });
+
+    document.getElementById('player-container').appendChild(playerElement);
+
+    console.log('Test composition loaded. Click Play to test articulations.');
+    console.log('Monitor console for any errors. Notes should stop cleanly after their duration.');
+  </script>
+</body>
+</html>

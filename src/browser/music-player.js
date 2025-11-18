@@ -32,7 +32,8 @@ export function createPlayer(composition, options = {}) {
   let isPlaying = false;
   let currentTime = 0;
   let animationId = null;
-  let scheduledNotes = [];
+  let scheduledEvents = []; // Track all scheduled events for cleanup
+  let activeSynths = []; // Track synths that need disposal
 
   // Create UI container
   const container = document.createElement("div");
@@ -42,42 +43,50 @@ export function createPlayer(composition, options = {}) {
     color: #fff;
     padding: 20px;
     border-radius: 8px;
-    max-width: 600px;
+    max-width: 800px;
     margin: 0 auto;
   `;
 
-  // Title
-  const title = document.createElement("div");
-  title.textContent = composition.metadata?.title || "JMON Composition";
-  title.style.cssText = `
-    font-size: 18px;
-    font-weight: bold;
-    margin-bottom: 15px;
-    text-align: center;
-  `;
-  container.appendChild(title);
-
-  // Timeline container
-  const timelineContainer = document.createElement("div");
-  timelineContainer.style.cssText = `
-    margin: 15px 0;
+  // Controls row: [Play] [Stop] [Current Time] [========Timeline========] [Total Time]
+  const controlsRow = document.createElement("div");
+  controlsRow.style.cssText = `
+    display: flex;
+    align-items: center;
+    gap: 12px;
   `;
 
-  // Time display
-  const timeDisplay = document.createElement("div");
-  timeDisplay.textContent = "0:00 / 0:00";
-  timeDisplay.style.cssText = `
-    text-align: center;
-    margin-bottom: 8px;
+  const buttonStyle = `
+    background: #4CAF50;
+    border: none;
+    color: white;
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    white-space: nowrap;
+  `;
+
+  const playButton = document.createElement("button");
+  playButton.textContent = "▶ Play";
+  playButton.style.cssText = buttonStyle;
+
+  const stopButton = document.createElement("button");
+  stopButton.textContent = "⏹ Stop";
+  stopButton.style.cssText = buttonStyle;
+  stopButton.disabled = true;
+
+  const currentTimeDisplay = document.createElement("div");
+  currentTimeDisplay.textContent = "0:00";
+  currentTimeDisplay.style.cssText = `
     font-size: 14px;
     color: #aaa;
+    min-width: 40px;
   `;
-  timelineContainer.appendChild(timeDisplay);
 
   // Timeline progress bar
   const timeline = document.createElement("div");
   timeline.style.cssText = `
-    width: 100%;
+    flex: 1;
     height: 8px;
     background: #444;
     border-radius: 4px;
@@ -94,40 +103,22 @@ export function createPlayer(composition, options = {}) {
     transition: width 0.1s linear;
   `;
   timeline.appendChild(timelineProgress);
-  timelineContainer.appendChild(timeline);
-  container.appendChild(timelineContainer);
 
-  // Controls
-  const controls = document.createElement("div");
-  controls.style.cssText = `
-    display: flex;
-    justify-content: center;
-    gap: 10px;
-    margin-top: 15px;
-  `;
-
-  const buttonStyle = `
-    background: #4CAF50;
-    border: none;
-    color: white;
-    padding: 10px 20px;
-    border-radius: 4px;
-    cursor: pointer;
+  const totalTimeDisplay = document.createElement("div");
+  totalTimeDisplay.textContent = "0:00";
+  totalTimeDisplay.style.cssText = `
     font-size: 14px;
+    color: #aaa;
+    min-width: 40px;
+    text-align: right;
   `;
 
-  const playButton = document.createElement("button");
-  playButton.textContent = "▶ Play";
-  playButton.style.cssText = buttonStyle;
-
-  const stopButton = document.createElement("button");
-  stopButton.textContent = "⏹ Stop";
-  stopButton.style.cssText = buttonStyle;
-  stopButton.disabled = true;
-
-  controls.appendChild(playButton);
-  controls.appendChild(stopButton);
-  container.appendChild(controls);
+  controlsRow.appendChild(playButton);
+  controlsRow.appendChild(stopButton);
+  controlsRow.appendChild(currentTimeDisplay);
+  controlsRow.appendChild(timeline);
+  controlsRow.appendChild(totalTimeDisplay);
+  container.appendChild(controlsRow);
 
   // Format time helper
   function formatTime(seconds) {
@@ -136,6 +127,9 @@ export function createPlayer(composition, options = {}) {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   }
 
+  // Update display
+  totalTimeDisplay.textContent = formatTime(totalDuration);
+
   // Update timeline display
   function updateTimeline() {
     if (!window.Tone?.Transport) return;
@@ -143,7 +137,7 @@ export function createPlayer(composition, options = {}) {
     currentTime = window.Tone.Transport.seconds;
     const progress = (currentTime / totalDuration) * 100;
     timelineProgress.style.width = `${Math.min(progress, 100)}%`;
-    timeDisplay.textContent = `${formatTime(currentTime)} / ${formatTime(totalDuration)}`;
+    currentTimeDisplay.textContent = formatTime(currentTime);
 
     if (isPlaying && currentTime < totalDuration) {
       animationId = requestAnimationFrame(updateTimeline);
@@ -180,19 +174,31 @@ export function createPlayer(composition, options = {}) {
     await ToneLib.start();
     ToneLib.Transport.bpm.value = tempo;
 
-    // Create synths and schedule notes with articulations
+    // Clean up previous synths
+    activeSynths.forEach(s => {
+      try {
+        s.dispose();
+      } catch (e) {
+        console.warn('Error disposing synth:', e);
+      }
+    });
+    activeSynths = [];
+    scheduledEvents = [];
+
+    // Create synths and schedule notes
     convertedTracks.forEach((trackConfig) => {
       const { originalTrackIndex, partEvents } = trackConfig;
       const originalTrack = originalTracksSource[originalTrackIndex] || {};
 
-      // Use PolySynth by default, or specified synth from track
+      // Use PolySynth by default for normal notes
       const synthType = originalTrack.synth || "PolySynth";
-      let synth;
+      let polySynth;
       try {
-        synth = new ToneLib[synthType]().toDestination();
+        polySynth = new ToneLib[synthType]().toDestination();
       } catch {
-        synth = new ToneLib.PolySynth().toDestination();
+        polySynth = new ToneLib.PolySynth().toDestination();
       }
+      activeSynths.push(polySynth);
 
       // Compile articulations to modulations
       let modulations = [];
@@ -221,15 +227,15 @@ export function createPlayer(composition, options = {}) {
         const velocity = note.velocity || 0.8;
         const mods = modsByNote[noteIndex] || [];
 
-        // Handle chords
+        // Handle chords (no articulation support for chords)
         if (Array.isArray(note.pitch)) {
           const noteNames = note.pitch.map((p) =>
             typeof p === "number" ? ToneLib.Frequency(p, "midi").toNote() : p
           );
-          const scheduledNote = ToneLib.Transport.schedule(() => {
-            synth.triggerAttackRelease(noteNames, duration, "+0", velocity);
+          const eventId = ToneLib.Transport.schedule(() => {
+            polySynth.triggerAttackRelease(noteNames, duration, "+0", velocity);
           }, time);
-          scheduledNotes.push(scheduledNote);
+          scheduledEvents.push(eventId);
           return;
         }
 
@@ -238,49 +244,45 @@ export function createPlayer(composition, options = {}) {
           ? ToneLib.Frequency(note.pitch, "midi").toNote()
           : note.pitch;
 
-        // Check for glissando
+        // Check for articulations that need special handling
+        const vibrato = mods.find((m) => m.type === "pitch" && m.subtype === "vibrato");
+        const tremolo = mods.find((m) => m.type === "amplitude" && m.subtype === "tremolo");
         const glissando = mods.find(
           (m) => m.type === "pitch" && (m.subtype === "glissando" || m.subtype === "portamento")
         );
 
-        if (glissando && glissando.to !== undefined) {
-          // Handle glissando with detune automation
-          const scheduledNote = ToneLib.Transport.schedule((schedTime) => {
-            const fromNote = noteName;
-            const toNote = typeof glissando.to === "number"
-              ? ToneLib.Frequency(glissando.to, "midi").toNote()
-              : glissando.to;
+        // Notes with articulations need MonoSynth (PolySynth doesn't expose frequency/volume)
+        if (vibrato || tremolo || glissando) {
+          const eventId = ToneLib.Transport.schedule((schedTime) => {
+            // Create a dedicated MonoSynth for this articulated note
+            const monoSynth = new ToneLib.MonoSynth({
+              oscillator: { type: 'triangle' },
+              envelope: {
+                attack: 0.005,
+                decay: 0.1,
+                sustain: 0.9,
+                release: 0.1
+              }
+            }).toDestination();
 
-            synth.triggerAttack(fromNote, schedTime, velocity);
-
-            // Calculate pitch bend in cents
-            const startFreq = ToneLib.Frequency(fromNote).toFrequency();
-            const endFreq = ToneLib.Frequency(toNote).toFrequency();
-            const cents = 1200 * Math.log2(endFreq / startFreq);
+            monoSynth.triggerAttack(noteName, schedTime, velocity);
 
             // Apply glissando
-            if (synth.detune) {
-              synth.detune.setValueAtTime(0, schedTime);
-              synth.detune.linearRampToValueAtTime(cents, schedTime + duration);
+            if (glissando && glissando.to !== undefined) {
+              const toNote = typeof glissando.to === "number"
+                ? ToneLib.Frequency(glissando.to, "midi").toNote()
+                : glissando.to;
+
+              const startFreq = ToneLib.Frequency(noteName).toFrequency();
+              const endFreq = ToneLib.Frequency(toNote).toFrequency();
+              const cents = 1200 * Math.log2(endFreq / startFreq);
+
+              monoSynth.detune.setValueAtTime(0, schedTime);
+              monoSynth.detune.linearRampToValueAtTime(cents, schedTime + duration);
             }
 
-            synth.triggerRelease(schedTime + duration);
-          }, time);
-          scheduledNotes.push(scheduledNote);
-          return;
-        }
-
-        // Check for vibrato/tremolo
-        const vibrato = mods.find((m) => m.type === "pitch" && m.subtype === "vibrato");
-        const tremolo = mods.find((m) => m.type === "amplitude" && m.subtype === "tremolo");
-
-        if (vibrato || tremolo) {
-          // Use per-note parameter automation
-          const scheduledNote = ToneLib.Transport.schedule((schedTime) => {
-            synth.triggerAttack(noteName, schedTime, velocity);
-
-            // Vibrato: modulate frequency
-            if (vibrato && synth.frequency) {
+            // Apply vibrato (frequency modulation)
+            if (vibrato) {
               const rate = vibrato.rate || 5;
               const depth = vibrato.depth || 50;
               const depthRatio = Math.pow(2, depth / 1200);
@@ -293,11 +295,11 @@ export function createPlayer(composition, options = {}) {
                 const offset = Math.sin(phase) * (depthRatio - 1);
                 values.push(baseFreq * (1 + offset));
               }
-              synth.frequency.setValueCurveAtTime(values, schedTime, duration);
+              monoSynth.frequency.setValueCurveAtTime(values, schedTime, duration);
             }
 
-            // Tremolo: modulate volume
-            if (tremolo && synth.volume) {
+            // Apply tremolo (volume modulation)
+            if (tremolo) {
               const rate = tremolo.rate || 8;
               const depth = tremolo.depth || 0.3;
 
@@ -308,18 +310,25 @@ export function createPlayer(composition, options = {}) {
                 const offset = Math.sin(phase) * depth;
                 values.push(offset * -20); // Convert to dB
               }
-              synth.volume.setValueCurveAtTime(values, schedTime, duration);
+              monoSynth.volume.setValueCurveAtTime(values, schedTime, duration);
             }
 
-            synth.triggerRelease(schedTime + duration);
+            // Schedule note release and cleanup
+            monoSynth.triggerRelease(schedTime + duration);
+
+            // Dispose synth after note ends
+            const disposeId = ToneLib.Transport.schedule(() => {
+              monoSynth.dispose();
+            }, schedTime + duration + 0.5);
+            scheduledEvents.push(disposeId);
           }, time);
-          scheduledNotes.push(scheduledNote);
+          scheduledEvents.push(eventId);
         } else {
-          // Normal note without articulations
-          const scheduledNote = ToneLib.Transport.schedule((schedTime) => {
-            synth.triggerAttackRelease(noteName, duration, schedTime, velocity);
+          // Normal note without articulations - use PolySynth
+          const eventId = ToneLib.Transport.schedule((schedTime) => {
+            polySynth.triggerAttackRelease(noteName, duration, schedTime, velocity);
           }, time);
-          scheduledNotes.push(scheduledNote);
+          scheduledEvents.push(eventId);
         }
       });
     });
@@ -335,7 +344,7 @@ export function createPlayer(composition, options = {}) {
       cancelAnimationFrame(animationId);
     } else {
       // Ensure audio is setup
-      if (!window.Tone) {
+      if (!window.Tone || scheduledEvents.length === 0) {
         await setupAudio();
       }
 
@@ -359,8 +368,13 @@ export function createPlayer(composition, options = {}) {
       window.Tone.Transport.stop();
       window.Tone.Transport.cancel(0);
 
+      // Clean up all scheduled events
+      scheduledEvents.forEach(eventId => {
+        window.Tone.Transport.clear(eventId);
+      });
+      scheduledEvents = [];
+
       // Re-setup audio to reschedule notes
-      scheduledNotes = [];
       setupAudio().catch(console.error);
     }
 
@@ -369,7 +383,7 @@ export function createPlayer(composition, options = {}) {
     playButton.textContent = "▶ Play";
     stopButton.disabled = true;
     timelineProgress.style.width = "0%";
-    timeDisplay.textContent = `0:00 / ${formatTime(totalDuration)}`;
+    currentTimeDisplay.textContent = "0:00";
     cancelAnimationFrame(animationId);
   }
 
@@ -389,7 +403,7 @@ export function createPlayer(composition, options = {}) {
         play();
       } else {
         timelineProgress.style.width = `${percent * 100}%`;
-        timeDisplay.textContent = `${formatTime(newTime)} / ${formatTime(totalDuration)}`;
+        currentTimeDisplay.textContent = formatTime(newTime);
       }
     }
   });
