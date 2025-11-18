@@ -755,6 +755,12 @@
             "type": "string",
             "description": "Reference to an audioGraph node to use as the synth."
           },
+          "clef": {
+            "type": "string",
+            "enum": ["treble", "bass", "alto", "tenor", "percussion"],
+            "default": "treble",
+            "description": "Clef for notation rendering of this track (treble/G clef, bass/F clef, alto/C clef, etc.)."
+          },
           "notes": {
             "type": "array",
             "description": "Array of note events.",

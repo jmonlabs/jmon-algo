@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chord Support Test - ABC Notation</title>
+  <script src="https://cdn.jsdelivr.net/npm/abcjs@6.4.3/dist/abcjs-basic-min.js"></script>
+  <style>
+    body {
+      font-family: 'Arial', sans-serif;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+      background-color: #f5f5f5;
+    }
+    h1, h2 {
+      color: #333;
+    }
+    .test-section {
+      background: white;
+      padding: 20px;
+      margin: 20px 0;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .score-container {
+      margin: 20px 0;
+      padding: 10px;
+      background: #fafafa;
+      border-radius: 4px;
+    }
+    .status {
+      padding: 10px;
+      margin: 10px 0;
+      border-radius: 4px;
+    }
+    .success {
+      background-color: #d4edda;
+      color: #155724;
+      border: 1px solid #c3e6cb;
+    }
+    pre {
+      background-color: #f4f4f4;
+      padding: 10px;
+      border-radius: 4px;
+      overflow-x: auto;
+      font-size: 12px;
+    }
+    .comparison {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      margin: 20px 0;
+    }
+  </style>
+</head>
+<body>
+  <h1>Chord Support Test - ABC Notation</h1>
+
+  <div class="test-section">
+    <h2>Test 1: C Major Chord</h2>
+    <p>A single C major chord (C-E-G) held for 4 beats</p>
+    <div class="score-container" id="test1-score"></div>
+    <div id="test1-status"></div>
+    <h3>JMON Composition:</h3>
+    <pre id="test1-jmon"></pre>
+    <h3>Generated ABC Notation:</h3>
+    <pre id="test1-abc"></pre>
+  </div>
+
+  <div class="test-section">
+    <h2>Test 2: Chord Progression (C-F-G-C)</h2>
+    <p>Four chords in sequence</p>
+    <div class="score-container" id="test2-score"></div>
+    <div id="test2-status"></div>
+    <h3>JMON Composition:</h3>
+    <pre id="test2-jmon"></pre>
+    <h3>Generated ABC Notation:</h3>
+    <pre id="test2-abc"></pre>
+  </div>
+
+  <div class="test-section">
+    <h2>Test 3: Mixed Melody and Chords</h2>
+    <p>Melody with single notes and chords</p>
+    <div class="score-container" id="test3-score"></div>
+    <div id="test3-status"></div>
+    <h3>JMON Composition:</h3>
+    <pre id="test3-jmon"></pre>
+    <h3>Generated ABC Notation:</h3>
+    <pre id="test3-abc"></pre>
+  </div>
+
+  <script type="module">
+    import { jm } from './dist/jmon.esm.js';
+
+    // Test 1: Simple C Major Chord
+    const test1 = {
+      title: "C Major Chord",
+      tempo: 120,
+      timeSignature: "4/4",
+      keySignature: "C",
+      tracks: [{
+        label: "Harmony",
+        notes: [
+          {
+            pitch: [60, 64, 67],  // C-E-G
+            duration: 4,
+            time: 0
+          }
+        ]
+      }]
+    };
+
+    // Test 2: Chord Progression
+    const test2 = {
+      title: "Chord Progression (C-F-G-C)",
+      tempo: 120,
+      timeSignature: "4/4",
+      keySignature: "C",
+      tracks: [{
+        label: "Harmony",
+        notes: [
+          { pitch: [60, 64, 67], duration: 1, time: 0 },  // C major
+          { pitch: [65, 69, 72], duration: 1, time: 1 },  // F major
+          { pitch: [67, 71, 74], duration: 1, time: 2 },  // G major
+          { pitch: [60, 64, 67], duration: 1, time: 3 }   // C major
+        ]
+      }]
+    };
+
+    // Test 3: Mixed melody and chords
+    const test3 = {
+      title: "Mixed Melody and Chords",
+      tempo: 120,
+      timeSignature: "4/4",
+      keySignature: "C",
+      tracks: [{
+        label: "Piano",
+        notes: [
+          { pitch: 60, duration: 1, time: 0 },           // Single C
+          { pitch: 62, duration: 1, time: 1 },           // Single D
+          { pitch: [60, 64, 67], duration: 1, time: 2 }, // C chord
+          { pitch: 64, duration: 1, time: 3 },           // Single E
+          { pitch: [65, 69, 72], duration: 2, time: 4 }, // F chord
+          { pitch: null, duration: 1, time: 6 },         // Rest
+          { pitch: [67, 71, 74], duration: 1, time: 7 }  // G chord
+        ]
+      }]
+    };
+
+    // Helper to get ABC notation
+    function getABCNotation(composition) {
+      return jm.converters.abc(composition);
+    }
+
+    // Render Test 1
+    try {
+      const score1 = jm.score(test1, { ABCJS: window.ABCJS });
+      document.getElementById('test1-score').appendChild(score1);
+      document.getElementById('test1-status').innerHTML =
+        '<div class="status success">✓ C Major chord rendered successfully</div>';
+      document.getElementById('test1-jmon').textContent = JSON.stringify(test1, null, 2);
+      document.getElementById('test1-abc').textContent = getABCNotation(test1);
+    } catch (error) {
+      document.getElementById('test1-status').innerHTML =
+        `<div class="status error">✗ Error: ${error.message}</div>`;
+      console.error('Test 1 error:', error);
+    }
+
+    // Render Test 2
+    try {
+      const score2 = jm.score(test2, { ABCJS: window.ABCJS });
+      document.getElementById('test2-score').appendChild(score2);
+      document.getElementById('test2-status').innerHTML =
+        '<div class="status success">✓ Chord progression rendered successfully</div>';
+      document.getElementById('test2-jmon').textContent = JSON.stringify(test2, null, 2);
+      document.getElementById('test2-abc').textContent = getABCNotation(test2);
+    } catch (error) {
+      document.getElementById('test2-status').innerHTML =
+        `<div class="status error">✗ Error: ${error.message}</div>`;
+      console.error('Test 2 error:', error);
+    }
+
+    // Render Test 3
+    try {
+      const score3 = jm.score(test3, { ABCJS: window.ABCJS });
+      document.getElementById('test3-score').appendChild(score3);
+      document.getElementById('test3-status').innerHTML =
+        '<div class="status success">✓ Mixed melody and chords rendered successfully</div>';
+      document.getElementById('test3-jmon').textContent = JSON.stringify(test3, null, 2);
+      document.getElementById('test3-abc').textContent = getABCNotation(test3);
+    } catch (error) {
+      document.getElementById('test3-status').innerHTML =
+        `<div class="status error">✗ Error: ${error.message}</div>`;
+      console.error('Test 3 error:', error);
+    }
+  </script>
+</body>
+</html>

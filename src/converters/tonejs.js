@@ -58,9 +58,16 @@ export class Tonejs {
     }
 }
 
-import { normalizeSamplerUrlsToNoteNames } from '../utils/normalize.js';
+import { normalizeAudioGraph, normalizeSamplerUrlsToNoteNames } from '../utils/normalize.js';
 
 export function tonejs(composition, options = {}) {
+    // Normalize audioGraph format (nodes/connections -> flat array)
+    try {
+        normalizeAudioGraph(composition);
+    } catch (_) {
+        // Ignore normalization errors - composition may not have audioGraph
+    }
+
     // Normalize audioGraph Sampler keys to scientific note names (best compatibility)
     try {
         normalizeSamplerUrlsToNoteNames(composition);

@@ -1,216 +1,209 @@
 /**
  * Articulation System for JMON
- * Handles articulation application with automatic validation and synchronization
+ * Handles articulation application with immutable transformations
  */
 
 import { ARTICULATION_TYPES } from "../../constants/ArticulationTypes.js";
 
 export class Articulation {
   /**
-   * Add articulation to a note in a sequence
-   * @param {Array} sequence - The note sequence
+   * Apply articulation to notes array (returns new array, immutable)
+   * This API matches the Ornament pattern for consistency
+   * @param {Array} notes - The notes array
+   * @param {number|Array} noteIndex - Index of note to articulate, or array of indices
    * @param {string} articulationType - Type of articulation
-   * @param {number} noteIndex - Index of note to articulate
    * @param {Object} params - Parameters for complex articulations
-   * @returns {Object} Result with success status and any warnings
+   * @returns {Array} New notes array with articulation applied
    */
-  static addArticulation(sequence, articulationType, noteIndex, params = {}) {
-    const result = {
-      success: false,
-      warnings: [],
-      errors: [],
-    };
+  static apply(notes, noteIndex, articulationType, params = {}) {
+    if (!Array.isArray(notes) || notes.length === 0) {
+      return notes;
+    }
 
-    // Validate inputs
-    if (!Array.isArray(sequence)) {
-      result.errors.push("Sequence must be an array");
+    // Handle array of indices
+    if (Array.isArray(noteIndex)) {
+      let result = notes;
+      // Sort indices in descending order to handle insertions correctly
+      // (when staccato inserts rests, later indices shift)
+      const sortedIndices = [...noteIndex].sort((a, b) => b - a);
+
+      for (const idx of sortedIndices) {
+        result = this.apply(result, idx, articulationType, params);
+      }
       return result;
     }
 
-    if (noteIndex < 0 || noteIndex >= sequence.length) {
-      result.errors.push(
-        `Note index ${noteIndex} out of bounds (sequence length: ${sequence.length})`,
-      );
-      return result;
+    // Handle single index
+    if (noteIndex < 0 || noteIndex >= notes.length) {
+      console.warn(`Note index ${noteIndex} out of bounds`);
+      return notes;
     }
 
     const articulationDef = ARTICULATION_TYPES[articulationType];
     if (!articulationDef) {
-      result.errors.push(`Unknown articulation type: ${articulationType}`);
-      return result;
+      console.warn(`Unknown articulation type: ${articulationType}`);
+      return notes;
     }
 
-    const note = sequence[noteIndex];
+    const note = notes[noteIndex];
     if (!note || typeof note !== "object") {
-      result.errors.push(`Invalid note at index ${noteIndex}`);
-      return result;
+      console.warn(`Invalid note at index ${noteIndex}`);
+      return notes;
     }
 
-    // Handle simple articulations
-    if (!articulationDef.complex) {
-      // Modify note properties based on articulation type
-      switch (articulationType) {
-        case 'staccato':
-          note.duration = note.duration * 0.5;
-          break;
-        case 'staccatissimo':
-          note.duration = note.duration * 0.25;
-          break;
-        case 'accent':
-          if (note.velocity === undefined) note.velocity = 0.8;
-          note.velocity = Math.min(1.0, note.velocity * 1.2);
-          break;
-        case 'marcato':
-          if (note.velocity === undefined) note.velocity = 0.8;
-          note.velocity = Math.min(1.0, note.velocity * 1.3);
-          break;
-        case 'legato':
-          note.duration = note.duration * 1.05;
-          break;
-      }
+    // Create new notes array
+    const newNotes = notes.slice();
 
-      const arr = Array.isArray(note.articulations) ? note.articulations : [];
-      note.articulations = [...arr, articulationType];
-      result.success = true;
-      return result;
-    }
-
-    // Handle complex articulations
-    return this._addComplexArticulation(
-      note,
-      articulationType,
-      articulationDef,
-      params,
-      result,
-    );
-  }
-
-  /**
-   * Add complex articulation with parameter validation and synchronization
-   */
-  static _addComplexArticulation(
-    note,
-    articulationType,
-    articulationDef,
-    params,
-    result,
-  ) {
-    // Validate required parameters
-    if (articulationDef.requiredParams) {
-      for (const param of articulationDef.requiredParams) {
-        if (!(param in params)) {
-          result.errors.push(
-            `Missing required parameter '${param}' for ${articulationType}`,
-          );
-          return result;
-        }
-      }
-    }
-
-    // Apply articulation based on type
+    // Handle articulation based on type
     switch (articulationType) {
-      case "glissando":
-      case "portamento":
-        return this._applyGlissando(note, articulationType, params, result);
+      case 'staccato':
+        return this._applyStaccato(newNotes, noteIndex);
 
-      case "bend":
-        return this._applyBend(note, params, result);
+      case 'staccatissimo':
+        return this._applyStaccatissimo(newNotes, noteIndex);
 
-      case "vibrato":
-        return this._applyVibrato(note, params, result);
+      case 'accent':
+      case 'marcato':
+        return this._applyAccent(newNotes, noteIndex, articulationType);
 
-      case "tremolo":
-        return this._applyTremolo(note, params, result);
+      case 'tenuto':
+        return this._applyTenuto(newNotes, noteIndex);
 
-      case "crescendo":
-      case "diminuendo":
-        return this._applyDynamicChange(note, articulationType, params, result);
+      case 'legato':
+        return this._applyLegato(newNotes, noteIndex);
+
+      case 'glissando':
+      case 'portamento':
+      case 'bend':
+      case 'vibrato':
+      case 'tremolo':
+      case 'crescendo':
+      case 'diminuendo':
+        return this._applyComplexArticulation(newNotes, noteIndex, articulationType, params);
 
       default:
-        result.errors.push(
-          `Complex articulation ${articulationType} not implemented`,
-        );
-        return result;
+        return notes;
     }
   }
 
   /**
-   * Apply glissando/portamento articulation
+   * Apply staccato - shorten duration and insert rest
    */
-  static _applyGlissando(note, type, params, result) {
-    const arr = Array.isArray(note.articulations) ? note.articulations : [];
-    note.articulations = [...arr, { type, ...params }];
-    result.success = true;
-    return result;
-  }
+  static _applyStaccato(notes, noteIndex) {
+    const note = notes[noteIndex];
+    const originalDuration = note.duration;
+    const shortenedDuration = originalDuration * 0.5;
+    const restDuration = originalDuration - shortenedDuration;
 
-  /**
-   * Apply pitch bend articulation
-   */
-  static _applyBend(note, params, result) {
-    const arr = Array.isArray(note.articulations) ? note.articulations : [];
-    note.articulations = [...arr, { type: "bend", ...params }];
-    result.success = true;
-    return result;
-  }
-
-  /**
-   * Apply vibrato articulation
-   */
-  static _applyVibrato(note, params, result) {
-    const arr = Array.isArray(note.articulations) ? note.articulations : [];
-    note.articulations = [...arr, { type: "vibrato", ...params }];
-    result.success = true;
-    return result;
-  }
-
-  /**
-   * Apply tremolo articulation
-   */
-  static _applyTremolo(note, params, result) {
-    const arr = Array.isArray(note.articulations) ? note.articulations : [];
-    note.articulations = [...arr, { type: "tremolo", ...params }];
-    result.success = true;
-    return result;
-  }
-
-  /**
-   * Apply dynamic change (crescendo/diminuendo)
-   */
-  static _applyDynamicChange(note, type, params, result) {
-    const arr = Array.isArray(note.articulations) ? note.articulations : [];
-    note.articulations = [...arr, { type, ...params }];
-    result.success = true;
-    return result;
-  }
-
-  /**
-   * Remove articulation from a note
-   */
-  static removeArticulation(sequence, noteIndex) {
-    if (
-      !Array.isArray(sequence) || noteIndex < 0 || noteIndex >= sequence.length
-    ) {
-      return { success: false, error: "Invalid sequence or note index" };
-    }
-
-    const note = sequence[noteIndex];
-    if (!note || typeof note !== "object") {
-      return { success: false, error: "Invalid note" };
-    }
-
-    const removed = Array.isArray(note.articulations)
-      ? note.articulations.slice()
-      : [];
-
-    // Remove declarative articulations only
-    note.articulations = [];
-
-    return {
-      success: true,
-      removed,
-      message: "Removed articulations from note",
+    // Create shortened note with articulation
+    const shortenedNote = {
+      ...note,
+      duration: shortenedDuration,
+      articulations: [...(Array.isArray(note.articulations) ? note.articulations : []), 'staccato']
     };
+
+    // Create rest to fill the gap
+    const rest = {
+      pitch: null,
+      duration: restDuration,
+      time: note.time + shortenedDuration
+    };
+
+    // Insert shortened note and rest
+    notes[noteIndex] = shortenedNote;
+    notes.splice(noteIndex + 1, 0, rest);
+
+    return notes;
+  }
+
+  /**
+   * Apply staccatissimo - very short duration with rest
+   */
+  static _applyStaccatissimo(notes, noteIndex) {
+    const note = notes[noteIndex];
+    const originalDuration = note.duration;
+    const shortenedDuration = originalDuration * 0.25;
+    const restDuration = originalDuration - shortenedDuration;
+
+    const shortenedNote = {
+      ...note,
+      duration: shortenedDuration,
+      articulations: [...(Array.isArray(note.articulations) ? note.articulations : []), 'staccatissimo']
+    };
+
+    const rest = {
+      pitch: null,
+      duration: restDuration,
+      time: note.time + shortenedDuration
+    };
+
+    notes[noteIndex] = shortenedNote;
+    notes.splice(noteIndex + 1, 0, rest);
+
+    return notes;
+  }
+
+  /**
+   * Apply accent or marcato - increase velocity
+   */
+  static _applyAccent(notes, noteIndex, type) {
+    const note = notes[noteIndex];
+    const multiplier = type === 'marcato' ? 1.3 : 1.2;
+    const velocity = note.velocity !== undefined ? note.velocity : 0.8;
+
+    notes[noteIndex] = {
+      ...note,
+      velocity: Math.min(1.0, velocity * multiplier),
+      articulations: [...(Array.isArray(note.articulations) ? note.articulations : []), type]
+    };
+
+    return notes;
+  }
+
+  /**
+   * Apply tenuto - mark for full duration
+   */
+  static _applyTenuto(notes, noteIndex) {
+    const note = notes[noteIndex];
+
+    notes[noteIndex] = {
+      ...note,
+      articulations: [...(Array.isArray(note.articulations) ? note.articulations : []), 'tenuto']
+    };
+
+    return notes;
+  }
+
+  /**
+   * Apply legato - extend duration slightly
+   */
+  static _applyLegato(notes, noteIndex) {
+    const note = notes[noteIndex];
+
+    notes[noteIndex] = {
+      ...note,
+      duration: note.duration * 1.05,
+      articulations: [...(Array.isArray(note.articulations) ? note.articulations : []), 'legato']
+    };
+
+    return notes;
+  }
+
+  /**
+   * Apply complex articulation with parameters
+   */
+  static _applyComplexArticulation(notes, noteIndex, type, params) {
+    const note = notes[noteIndex];
+
+    notes[noteIndex] = {
+      ...note,
+      articulations: [
+        ...(Array.isArray(note.articulations) ? note.articulations : []),
+        { type, ...params }
+      ]
+    };
+
+    return notes;
   }
 
   /**
@@ -258,7 +251,8 @@ export class Articulation {
 
   /**
    * Get available articulation types with descriptions
-   */ static getAvailableTypes() {
+   */
+  static getAvailableTypes() {
     return Object.entries(ARTICULATION_TYPES).map(([type, def]) => ({
       type,
       complex: def.complex,
@@ -267,160 +261,4 @@ export class Articulation {
       optionalParams: def.optionalParams || [],
     }));
   }
-
-  /**
-   * Apply articulation to a note (modifies note in-place)
-   * This is a simpler API that directly modifies note properties
-   * @param {Object} note - The note object to modify
-   * @param {string} articulationType - Type of articulation
-   * @param {Object} params - Parameters for complex articulations
-   * @returns {Object} Result with success status
-   */
-  static apply(note, articulationType, params = {}) {
-    const result = { success: false, warnings: [], errors: [] };
-
-    if (!note || typeof note !== "object") {
-      result.errors.push("Invalid note");
-      return result;
-    }
-
-    const articulationDef = ARTICULATION_TYPES[articulationType];
-    if (!articulationDef) {
-      result.errors.push(`Unknown articulation type: ${articulationType}`);
-      return result;
-    }
-
-    // Modify note properties based on articulation type
-    switch (articulationType) {
-      case 'staccato':
-        // Shorten duration to 50% of original
-        note.duration = note.duration * 0.5;
-        break;
-
-      case 'staccatissimo':
-        // Very short - 25% of original
-        note.duration = note.duration * 0.25;
-        break;
-
-      case 'accent':
-        // Increase velocity by 20%
-        if (note.velocity === undefined) note.velocity = 0.8;
-        note.velocity = Math.min(1.0, note.velocity * 1.2);
-        break;
-
-      case 'marcato':
-        // Strong accent - increase velocity by 30%
-        if (note.velocity === undefined) note.velocity = 0.8;
-        note.velocity = Math.min(1.0, note.velocity * 1.3);
-        break;
-
-      case 'tenuto':
-        // Hold full duration - ensure duration is not shortened
-        // This is more of a marking, no modification needed
-        break;
-
-      case 'legato':
-        // Extend duration slightly to connect with next note
-        note.duration = note.duration * 1.05;
-        break;
-    }
-
-    // Add to articulations array
-    const arr = Array.isArray(note.articulations) ? note.articulations : [];
-    if (articulationDef.complex && Object.keys(params).length > 0) {
-      note.articulations = [...arr, { type: articulationType, ...params }];
-    } else {
-      note.articulations = [...arr, articulationType];
-    }
-
-    result.success = true;
-    return result;
-  }
 }
-
-// Export for use in sequences
-// Deprecated mutating helpers (kept for backward compatibility)
-
-
-
-
-export function validateArticulations(sequence) {
-  return Articulation.validateSequence(sequence);
-}
-
-// Immutable Option B helpers (preferred)
-// addArticulation(notes, indexOrSelector, type, params?)
-export function addArticulation(notes, index, type, params = {}) {
-  if (!Array.isArray(notes)) return notes;
-  const next = notes.slice();
-  const src = notes[index];
-  if (!src || typeof src !== "object") return next;
-
-  const isSimple = (t) =>
-    t === "staccato" || t === "accent" || t === "tenuto" || t === "marcato";
-
-  const articulations = Array.isArray(src.articulations)
-    ? src.articulations.slice()
-    : [];
-
-  if (isSimple(type)) {
-    articulations.push(type);
-  } else {
-    articulations.push({ type, ...params });
-  }
-
-  const updated = {
-    ...src,
-    articulations,
-  };
-
-  next[index] = updated;
-  return next;
-}
-
-// removeArticulation(notes, index, predicate?)
-export function removeArticulation(notes, index, predicate) {
-  if (!Array.isArray(notes)) return notes;
-  const next = notes.slice();
-  const src = notes[index];
-  if (!src || typeof src !== "object") return next;
-
-  const shouldRemove = (t) =>
-    (typeof predicate === "function" ? predicate(t) : true);
-
-  const arts = Array.isArray(src.articulations)
-    ? src.articulations.filter((a) => {
-      const t = typeof a === "string" ? a : a.type;
-      return !shouldRemove(t);
-    })
-    : [];
-
-  const updated = { ...src, articulations: arts };
-
-  next[index] = updated;
-  return next;
-}
-
-/**
- * Immutable helpers: return new arrays/objects without mutating input.
- * These are recommended for reactive environments (e.g., Observable).
- */
-
-/**
- * Add an articulation to a note immutably (returns a new notes array).
- * Simple types: 'staccato', 'accent', 'tenuto', 'marcato'
- * Complex types (e.g., 'glissando') can include params (e.g., { target }).
- */
-
-
-/**
- * Batch-apply articulations immutably.
- * specs: Array<{ type, index, params? }>
- */
-
-
-/**
- * Remove articulations immutably from a given note.
- * If predicate is omitted, removes all articulations on that note.
- * predicate receives the articulation type string.
- */

@@ -468,7 +468,8 @@ class VexFlowConverter {
             (rendererConfig.width || 800) - left - right,
           );
           const mCount = Math.max(1, measures.length);
-          const mWidth = Math.max(100, Math.floor(avail / mCount));
+          // Increase minimum measure width to prevent note cramping
+          const mWidth = Math.max(300, Math.floor(avail / mCount));
           // Auto-detect clef based on median pitch across measures
           const keyToMidi = (k) => {
             const m = /^([a-g])(b|#)?\/(-?\d+)$/.exec(k);
@@ -1187,7 +1188,8 @@ class VexFlowConverter {
             (rendererConfig.width || 800) - left - right,
           );
           const mCount = Math.max(1, measures.length);
-          const mWidth = Math.max(100, Math.floor(avail / mCount));
+          // Increase minimum measure width to prevent note cramping
+          const mWidth = Math.max(300, Math.floor(avail / mCount));
 
           // Determine clef based on median pitch (renderer fallback)
           const fallbackKeyToMidi = (k) => {

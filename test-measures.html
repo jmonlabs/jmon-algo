@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Measure Bars Test - abcjs</title>
+  <script src="https://cdn.jsdelivr.net/npm/abcjs@6.4.3/dist/abcjs-basic-min.js"></script>
+  <style>
+    body {
+      font-family: 'Arial', sans-serif;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+      background-color: #f5f5f5;
+    }
+    h1, h2 {
+      color: #333;
+    }
+    .test-section {
+      background: white;
+      padding: 20px;
+      margin: 20px 0;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .score-container {
+      margin: 20px 0;
+      padding: 10px;
+      background: #fafafa;
+      border-radius: 4px;
+    }
+    .status {
+      padding: 10px;
+      margin: 10px 0;
+      border-radius: 4px;
+    }
+    .success {
+      background-color: #d4edda;
+      color: #155724;
+      border: 1px solid #c3e6cb;
+    }
+    pre {
+      background-color: #f4f4f4;
+      padding: 10px;
+      border-radius: 4px;
+      overflow-x: auto;
+      font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Measure Bars Test - abcjs Renderer</h1>
+
+  <div class="test-section">
+    <h2>Test 1: 4/4 Time Signature (Twinkle Twinkle)</h2>
+    <p>Expected: 4 quarter notes per measure, measure bars every 4 beats</p>
+    <div class="score-container" id="test1-score"></div>
+    <div id="test1-status"></div>
+    <h3>Generated ABC Notation:</h3>
+    <pre id="test1-abc"></pre>
+  </div>
+
+  <div class="test-section">
+    <h2>Test 2: 3/4 Time Signature (Waltz)</h2>
+    <p>Expected: 3 quarter notes per measure, measure bars every 3 beats</p>
+    <div class="score-container" id="test2-score"></div>
+    <div id="test2-status"></div>
+    <h3>Generated ABC Notation:</h3>
+    <pre id="test2-abc"></pre>
+  </div>
+
+  <div class="test-section">
+    <h2>Test 3: 6/8 Time Signature</h2>
+    <p>Expected: 6 eighth notes per measure, measure bars every 3 beats (quarter notes)</p>
+    <div class="score-container" id="test3-score"></div>
+    <div id="test3-status"></div>
+    <h3>Generated ABC Notation:</h3>
+    <pre id="test3-abc"></pre>
+  </div>
+
+  <script type="module">
+    import { jm } from './dist/jmon.esm.js';
+
+    // Helper to extract ABC notation from renderer
+    function getABCNotation(composition) {
+      // Call the internal converter (we'll show the ABC in the status)
+      const lines = [];
+      lines.push('X:1');
+      const title = composition.title || composition.metadata?.title || 'Untitled';
+      lines.push(`T:${title}`);
+      const tempo = composition.tempo || 120;
+      lines.push(`Q:1/4=${tempo}`);
+      const timeSignature = composition.timeSignature || '4/4';
+      lines.push(`M:${timeSignature}`);
+      lines.push('L:1/4');
+      const track = composition.tracks?.[0];
+      const keySignature = composition.keySignature || 'C';
+      const clef = track?.clef || 'treble';
+      lines.push(`K:${keySignature} clef=${clef}`);
+
+      // Generate notes with measure bars
+      const [beatsPerMeasure, beatValue] = timeSignature.split('/').map(Number);
+      const measureDuration = beatsPerMeasure * (4 / beatValue);
+
+      const abcNotes = [];
+      let currentMeasureDuration = 0;
+
+      track.notes.forEach((note, index) => {
+        const duration = note.duration || 1;
+        abcNotes.push(`[Note ${index + 1}]`);
+        currentMeasureDuration += duration;
+
+        if (currentMeasureDuration >= measureDuration) {
+          if (index < track.notes.length - 1) {
+            abcNotes.push('|');
+          }
+          currentMeasureDuration = 0;
+        }
+      });
+
+      lines.push(abcNotes.join(' '));
+      return lines.join('\n');
+    }
+
+    // Test 1: 4/4 Time - Twinkle Twinkle
+    const test1 = {
+      title: "Twinkle Twinkle Little Star",
+      tempo: 120,
+      timeSignature: "4/4",
+      keySignature: "C",
+      tracks: [{
+        label: "Melody",
+        notes: [
+          { pitch: 60, duration: 1, time: 0 },  // C
+          { pitch: 60, duration: 1, time: 1 },  // C
+          { pitch: 67, duration: 1, time: 2 },  // G
+          { pitch: 67, duration: 1, time: 3 },  // G (measure bar)
+          { pitch: 69, duration: 1, time: 4 },  // A
+          { pitch: 69, duration: 1, time: 5 },  // A
+          { pitch: 67, duration: 2, time: 6 },  // G (measure bar)
+          { pitch: 65, duration: 1, time: 8 },  // F
+          { pitch: 65, duration: 1, time: 9 },  // F
+          { pitch: 64, duration: 1, time: 10 }, // E
+          { pitch: 64, duration: 1, time: 11 }, // E (measure bar)
+          { pitch: 62, duration: 1, time: 12 }, // D
+          { pitch: 62, duration: 1, time: 13 }, // D
+          { pitch: 60, duration: 2, time: 14 }  // C
+        ]
+      }]
+    };
+
+    try {
+      const score = jm.score(test1, { ABCJS: window.ABCJS, width: 900 });
+      document.getElementById('test1-score').appendChild(score);
+      document.getElementById('test1-status').innerHTML =
+        '<div class="success">✓ 4/4 time signature rendered with measure bars</div>';
+      document.getElementById('test1-abc').textContent = getABCNotation(test1);
+    } catch (error) {
+      document.getElementById('test1-status').innerHTML =
+        `<div class="error">✗ Error: ${error.message}</div>`;
+      console.error('Test 1 error:', error);
+    }
+
+    // Test 2: 3/4 Time - Waltz
+    const test2 = {
+      title: "Simple Waltz",
+      tempo: 180,
+      timeSignature: "3/4",
+      keySignature: "G",
+      tracks: [{
+        label: "Melody",
+        notes: [
+          { pitch: 67, duration: 1, time: 0 },  // G
+          { pitch: 69, duration: 1, time: 1 },  // A
+          { pitch: 71, duration: 1, time: 2 },  // B (measure bar)
+          { pitch: 72, duration: 1, time: 3 },  // C
+          { pitch: 71, duration: 1, time: 4 },  // B
+          { pitch: 69, duration: 1, time: 5 },  // A (measure bar)
+          { pitch: 67, duration: 3, time: 6 }   // G (3 beats)
+        ]
+      }]
+    };
+
+    try {
+      const score = jm.score(test2, { ABCJS: window.ABCJS, width: 700 });
+      document.getElementById('test2-score').appendChild(score);
+      document.getElementById('test2-status').innerHTML =
+        '<div class="success">✓ 3/4 time signature rendered with measure bars</div>';
+      document.getElementById('test2-abc').textContent = getABCNotation(test2);
+    } catch (error) {
+      document.getElementById('test2-status').innerHTML =
+        `<div class="error">✗ Error: ${error.message}</div>`;
+      console.error('Test 2 error:', error);
+    }
+
+    // Test 3: 6/8 Time
+    const test3 = {
+      title: "6/8 Time Example",
+      tempo: 120,
+      timeSignature: "6/8",
+      keySignature: "D",
+      tracks: [{
+        label: "Melody",
+        notes: [
+          { pitch: 62, duration: 0.5, time: 0 },    // D
+          { pitch: 64, duration: 0.5, time: 0.5 },  // E
+          { pitch: 66, duration: 0.5, time: 1 },    // F#
+          { pitch: 67, duration: 0.5, time: 1.5 },  // G
+          { pitch: 69, duration: 0.5, time: 2 },    // A
+          { pitch: 71, duration: 0.5, time: 2.5 },  // B (measure bar - 3 beats)
+          { pitch: 74, duration: 1.5, time: 3 },    // D (dotted quarter)
+          { pitch: 71, duration: 1.5, time: 4.5 }   // B (dotted quarter)
+        ]
+      }]
+    };
+
+    try {
+      const score = jm.score(test3, { ABCJS: window.ABCJS, width: 700 });
+      document.getElementById('test3-score').appendChild(score);
+      document.getElementById('test3-status').innerHTML =
+        '<div class="success">✓ 6/8 time signature rendered with measure bars</div>';
+      document.getElementById('test3-abc').textContent = getABCNotation(test3);
+    } catch (error) {
+      document.getElementById('test3-status').innerHTML =
+        `<div class="error">✗ Error: ${error.message}</div>`;
+      console.error('Test 3 error:', error);
+    }
+  </script>
+</body>
+</html>

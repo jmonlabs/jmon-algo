@@ -1,208 +1,274 @@
 /**
  * Score Renderer
- * Uses VexFlow for rendering musical notation.
+ * Uses abcjs for rendering musical notation.
  */
 
-import { convertToVexFlow } from "../converters/index.js";
+/**
+ * Convert JMON composition to ABC notation
+ *
+ * @param {Object} composition - The JMON composition
+ * @returns {string} ABC notation string
+ */
+function jmonToABC(composition) {
+  const lines = [];
 
+  // Header: Reference number
+  lines.push('X:1');
+
+  // Title - use composition.title directly
+  const title = composition.title || composition.metadata?.title || 'Untitled';
+  lines.push(`T:${title}`);
+
+  // Tempo (Q: = BPM)
+  const tempo = composition.tempo || 120;
+  lines.push(`Q:1/4=${tempo}`);
+
+  // Meter (time signature)
+  const timeSignature = composition.timeSignature || '4/4';
+  lines.push(`M:${timeSignature}`);
+
+  // Default note length
+  lines.push('L:1/4');
+
+  // Get notes from first track
+  const track = composition.tracks?.[0];
+
+  // Key signature with clef
+  const keySignature = composition.keySignature || 'C';
+  const clef = track?.clef || 'treble';
+
+  // Map JMON clef names to ABC clef names
+  const clefMap = {
+    'treble': 'treble',
+    'bass': 'bass',
+    'alto': 'alto',
+    'tenor': 'tenor',
+    'percussion': 'perc'
+  };
+  const abcClef = clefMap[clef] || 'treble';
+
+  // In ABC, clef is specified with the K: field
+  lines.push(`K:${keySignature} clef=${abcClef}`);
+
+  if (!track?.notes?.length) {
+    // Empty composition
+    lines.push('z4');
+    return lines.join('\n');
+  }
+
+  // Parse time signature to get beats per measure
+  const [beatsPerMeasure, beatValue] = timeSignature.split('/').map(Number);
+  const measureDuration = beatsPerMeasure * (4 / beatValue); // in quarter notes
+
+  // Convert JMON notes to ABC notation with measure bars
+  const abcNotes = [];
+  let currentMeasureDuration = 0;
+
+  track.notes.forEach((note, index) => {
+    // Convert duration to ABC duration
+    const duration = note.duration || 1;
+    const abcDuration = durationToABC(duration);
+
+    // Handle chords (array of pitches) vs single notes
+    let abcNote;
+    if (Array.isArray(note.pitch)) {
+      // Chord: convert each pitch and wrap in brackets
+      const chordNotes = note.pitch
+        .filter(p => typeof p === 'number') // Filter out nulls/invalid pitches
+        .map(p => midiToABC(p));
+
+      if (chordNotes.length > 1) {
+        // Multiple notes = chord notation [CEG]
+        abcNote = `[${chordNotes.join('')}]`;
+      } else if (chordNotes.length === 1) {
+        // Single note in array
+        abcNote = chordNotes[0];
+      } else {
+        // Empty array or all nulls = rest
+        abcNote = 'z';
+      }
+    } else if (note.pitch === null || note.pitch === undefined) {
+      // Rest
+      abcNote = 'z';
+    } else {
+      // Single note
+      abcNote = midiToABC(note.pitch);
+    }
+
+    // Add the note/chord with duration
+    abcNotes.push(`${abcNote}${abcDuration}`);
+
+    // Track measure duration
+    currentMeasureDuration += duration;
+
+    // Add measure bar if we've completed a measure
+    if (currentMeasureDuration >= measureDuration) {
+      // Add bar line unless it's the last note
+      if (index < track.notes.length - 1) {
+        abcNotes.push('|');
+      }
+      currentMeasureDuration = 0;
+    }
+  });
+
+  // Join notes with spaces
+  lines.push(abcNotes.join(' '));
+
+  return lines.join('\n');
+}
+
+/**
+ * Convert MIDI pitch number to ABC note name
+ *
+ * @param {number} midi - MIDI pitch number (60 = middle C)
+ * @returns {string} ABC note name
+ */
+function midiToABC(midi) {
+  if (typeof midi !== 'number') return 'C';
+
+  const noteNames = ['C', '^C', 'D', '^D', 'E', 'F', '^F', 'G', '^G', 'A', '^A', 'B'];
+  const octave = Math.floor(midi / 12) - 1;
+  const noteName = noteNames[midi % 12];
+
+  // ABC notation:
+  // C, D, E, F, G, A, B = octave 4 (middle octave)
+  // c, d, e, f, g, a, b = octave 5
+  // c', d', e' = octave 6
+  // C, D, E = octave 3
+  // C, D, E = octave 2
+
+  if (octave === 4) {
+    return noteName; // C D E F G A B
+  } else if (octave === 5) {
+    return noteName.toLowerCase(); // c d e f g a b
+  } else if (octave > 5) {
+    const ticks = "'".repeat(octave - 5);
+    return noteName.toLowerCase() + ticks; // c' d'' etc
+  } else if (octave === 3) {
+    return noteName; // Same as octave 4 in basic ABC
+  } else {
+    // Lower octaves use comma notation
+    const commas = ','.repeat(4 - octave);
+    return noteName + commas; // C, D,, etc
+  }
+}
+
+/**
+ * Convert JMON duration to ABC duration
+ *
+ * @param {number} duration - Duration in quarter notes
+ * @returns {string} ABC duration suffix
+ */
+function durationToABC(duration) {
+  // ABC durations relative to L:1/4 (quarter note)
+  // 4 = whole note = 4
+  // 2 = half note = 2
+  // 1 = quarter note = (no suffix)
+  // 0.5 = eighth note = /2
+  // 0.25 = sixteenth = /4
+
+  if (duration >= 4) return '4';
+  if (duration >= 3) return '3';
+  if (duration >= 2) return '2';
+  if (duration >= 1.5) return '3/2';
+  if (duration >= 1) return ''; // Default quarter note
+  if (duration >= 0.75) return '3/4';
+  if (duration >= 0.5) return '/2';
+  if (duration >= 0.25) return '/4';
+  return '/8';
+}
+
+/**
+ * Render sheet music notation using abcjs
+ *
+ * @param {Object} composition - The JMON composition to render
+ * @param {Object} options - Rendering options
+ * @param {Object} [options.ABCJS] - abcjs library instance (optional, will use window.ABCJS if available)
+ * @param {number} [options.width] - Staff width in pixels (if omitted, uses responsive mode)
+ * @param {number} [options.scale] - Scale factor for rendering (if omitted with width, uses responsive mode)
+ * @param {number} [options.height] - Not used (abcjs calculates height automatically)
+ * @returns {HTMLElement} DOM element containing the rendered score
+ *
+ * @example
+ * // Responsive mode (default) - fills container width
+ * const svg = jm.score(composition, { ABCJS });
+ *
+ * @example
+ * // Fixed width mode
+ * const svg = jm.score(composition, { ABCJS, width: 938 });
+ *
+ * @example
+ * // With custom dimensions and scale
+ * const svg = jm.score(composition, { ABCJS, width: 938, scale: 0.6 });
+ */
 export function score(composition, options = {}) {
   const {
-    width = 800,
-    height = 200,
-    scale = 1.0,
-    observable = false,
+    ABCJS: abcjsLib,
+    width,
+    height = 300,
+    scale,
   } = options;
 
-  const container = document.createElement("div");
-  container.style.width = "100%";
-  container.style.overflow = "hidden";
+  // Determine if we should use responsive mode
+  // Use responsive if neither width nor scale are specified
+  const useResponsive = (width === undefined && scale === undefined);
+  const finalWidth = width ?? 938;
+  const finalScale = scale ?? 1.0;
 
-  // Where the notation will be rendered
-  const notationDiv = document.createElement("div");
+  // Create container
+  const container = document.createElement('div');
+
+  if (useResponsive) {
+    // Responsive mode - full width
+    container.style.width = '100%';
+    container.style.overflow = 'visible';
+  } else {
+    // Fixed width mode
+    const actualWidth = finalWidth * finalScale;
+    container.style.width = `${actualWidth}px`;
+    container.style.overflow = 'visible';
+  }
+
+  // Create rendering target
+  const notationDiv = document.createElement('div');
   notationDiv.id = `rendered-score-${Date.now()}`;
-  notationDiv.style.width = "100%";
   container.appendChild(notationDiv);
 
-  // Direct mode: immediate VexFlow rendering (for standard browser environments)
-  if (!observable) {
-    setTimeout(() => {
-      try {
-        const VF = window.Vex?.Flow || window.VF || window.VexFlow;
+  try {
+    // Get ABCJS library
+    const ABCJS = abcjsLib || (typeof window !== 'undefined' && window.ABCJS);
 
-        if (!VF) {
-          notationDiv.innerHTML =
-            '<p style="color:#ff6b6b">VexFlow not loaded</p>';
-          return;
-        }
+    if (!ABCJS) {
+      notationDiv.innerHTML = '<p style="color:#ff6b6b">abcjs library not loaded</p>';
+      return container;
+    }
 
-        const renderer = new VF.Renderer(notationDiv, VF.Renderer.Backends.SVG);
-        renderer.resize(width, height);
-        const context = renderer.getContext();
+    // Convert JMON to ABC notation
+    const abcNotation = jmonToABC(composition);
 
-        const stave = new VF.Stave(10, 40, width - 50);
-        stave.addClef("treble");
-        if (composition.timeSignature)
-          stave.addTimeSignature(composition.timeSignature);
-        stave.setContext(context).draw();
+    // Render with abcjs
+    const renderOptions = {
+      paddingtop: 0,
+      paddingbottom: 0,
+      paddingright: 10,
+      paddingleft: 10,
+    };
 
-        const track = composition.tracks?.[0];
-        if (!track?.notes?.length) return;
+    if (useResponsive) {
+      // Responsive mode
+      renderOptions.responsive = 'resize';
+    } else {
+      // Fixed width mode
+      renderOptions.staffwidth = finalWidth;
+      renderOptions.scale = finalScale;
+    }
 
-        const vfNotes = track.notes.map((note) => {
-          let keys;
-          if (typeof note.pitch === "number") {
-            const octave = Math.floor(note.pitch / 12) - 1;
-            const noteNames = [
-              "c",
-              "c#",
-              "d",
-              "d#",
-              "e",
-              "f",
-              "f#",
-              "g",
-              "g#",
-              "a",
-              "a#",
-              "b",
-            ];
-            const noteName = noteNames[note.pitch % 12];
-            keys = [`${noteName}/${octave}`];
-          } else if (Array.isArray(note.pitch)) {
-            keys = note.pitch.map((p) => {
-              const octave = Math.floor(p / 12) - 1;
-              const noteNames = [
-                "c",
-                "c#",
-                "d",
-                "d#",
-                "e",
-                "f",
-                "f#",
-                "g",
-                "g#",
-                "a",
-                "a#",
-                "b",
-              ];
-              const noteName = noteNames[p % 12];
-              return `${noteName}/${octave}`;
-            });
-          } else {
-            keys = ["c/4"];
-          }
+    ABCJS.renderAbc(notationDiv, abcNotation, renderOptions);
 
-          let duration = "q";
-          const dur = note.duration || 1;
-          if (dur >= 4) duration = "w";
-          else if (dur >= 2) duration = "h";
-          else if (dur >= 1) duration = "q";
-          else if (dur >= 0.5) duration = "8";
-          else if (dur >= 0.25) duration = "16";
-          else duration = "32";
-
-          return new VF.StaveNote({ keys, duration });
-        });
-
-        // VexFlow needs num_beats to match the number of beats the notes actually take
-        // Calculate based on VexFlow duration values
-        const vexflowBeats = vfNotes.reduce((sum, note) => {
-          const dur = note.attrs.duration;
-          if (dur === 'w') return sum + 4;
-          if (dur === 'h') return sum + 2;
-          if (dur === 'q') return sum + 1;
-          if (dur === '8') return sum + 0.5;
-          if (dur === '16') return sum + 0.25;
-          if (dur === '32') return sum + 0.125;
-          return sum + 1;
-        }, 0);
-
-        const voice = new VF.Voice({
-          num_beats: vexflowBeats,
-          beat_value: 4,
-        });
-        voice.addTickables(vfNotes);
-        new VF.Formatter().joinVoices([voice]).format([voice], width - 100);
-        voice.draw(context, stave);
-      } catch (e) {
-        console.error("[SCORE] Simple render error:", e);
-        notationDiv.innerHTML = `<p style="color:#ff6b6b">Error: ${e.message}</p>`;
-      }
-    }, 10);
-
-    return container;
+  } catch (error) {
+    console.error('[SCORE] Render error:', error);
+    notationDiv.innerHTML = `<p style="color:#ff6b6b">Error: ${error.message}</p>`;
   }
-
-  // Helper: attempt VexFlow rendering
-  async function tryVexFlow() {
-    // Check for VexFlow in multiple possible locations
-    let VF = null;
-    if (typeof window !== "undefined") {
-      VF = window.Vex?.Flow || window.VF || window.VexFlow || window.Vex;
-    }
-
-    console.log("[SCORE] VexFlow check:", {
-      hasWindow: typeof window !== "undefined",
-      hasVex: !!window?.Vex,
-      hasVexFlow: !!window?.Vex?.Flow,
-      hasVF: !!window?.VF,
-      VF: VF ? "found" : "not found",
-    });
-
-    const vexData = convertToVexFlow(composition, {
-      elementId: notationDiv.id,
-      width,
-      height,
-    });
-
-    console.log("[SCORE] VexData:", {
-      hasVexData: !!vexData,
-      hasRender: vexData && typeof vexData.render === "function",
-      type: typeof vexData,
-    });
-
-    if (VF && vexData && typeof vexData.render === "function") {
-      try {
-        vexData.render(VF);
-        console.log("[SCORE] ✓ Render successful");
-        return true;
-      } catch (e) {
-        console.error("[SCORE] Render error:", e);
-        notationDiv.innerHTML = `<p style="color:#ff6b6b">Render error: ${e.message}</p>`;
-        return false;
-      }
-    }
-
-    // Observable require() path: try loading a UMD build of VexFlow
-    if (typeof require !== "undefined") {
-      try {
-        await require("https://cdn.jsdelivr.net/npm/vexflow@4.2.2/build/umd/vexflow.min.js");
-        const VF2 =
-          (typeof window !== "undefined" &&
-            (window.VF ||
-              window.VexFlow ||
-              (window.Vex && (window.Vex.Flow || window.Vex)))) ||
-          null;
-        if (VF2 && vexData && typeof vexData.render === "function") {
-          vexData.render(VF2);
-          return true;
-        }
-      } catch (_) {
-        // ignore and fallback
-      }
-    }
-
-    return false;
-  }
-
-  // Render with VexFlow
-  (async () => {
-    const ok = await tryVexFlow();
-    if (!ok) {
-      notationDiv.innerHTML =
-        '<p style="color:#ff6b6b">Error: Could not render score with VexFlow</p>';
-    }
-  })();
 
   return container;
 }

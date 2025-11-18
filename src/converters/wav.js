@@ -9,3 +9,228 @@ export function wav(composition, options = {}) {
 		notes: composition.tracks?.flatMap(t => t.notes) || []
 	};
 }
+
+/**
+ * Download a WAV file from a JMON composition
+ *
+ * @param {Object} composition - The JMON composition
+ * @param {Object} Tone - The Tone.js library (import from npm:tone)
+ * @param {string} filename - Output filename (default: "composition.wav")
+ * @param {number} duration - Duration in seconds (default: auto-calculated from composition)
+ * @returns {Promise<void>}
+ *
+ * @example
+ * import * as Tone from "npm:tone@14.7.77";
+ * await jm.converters.downloadWav(composition, Tone, "my-song.wav");
+ */
+export async function downloadWav(composition, Tone, filename = "composition.wav", duration) {
+	// Normalize audioGraph format before processing
+	const { normalizeAudioGraph } = await import("../utils/normalize.js");
+	normalizeAudioGraph(composition);
+
+	// Calculate duration from composition if not provided
+	const maxTime = composition.tracks?.reduce((max, track) => {
+		const trackMax = track.notes?.reduce((tMax, note) => {
+			const endTime = (note.time || 0) + (note.duration || 0);
+			return Math.max(tMax, endTime);
+		}, 0) || 0;
+		return Math.max(max, trackMax);
+	}, 0) || 4;
+
+	// Convert quarter notes to seconds
+	const tempo = composition.tempo || 120;
+	const secondsPerQuarterNote = 60 / tempo;
+	const calculatedDuration = maxTime * secondsPerQuarterNote + 1; // +1 second buffer
+
+	const finalDuration = duration || calculatedDuration;
+
+	// Render audio offline using Tone.js
+	const buffer = await Tone.Offline(async ({ transport }) => {
+		transport.bpm.value = tempo;
+
+		// Build audioGraph instruments if present
+		const graphInstruments = await buildAudioGraphInstruments(composition, Tone);
+
+		// Create synths for each track
+		const tracks = composition.tracks || [];
+		tracks.forEach((track) => {
+			const notes = track.notes || [];
+			const synthRef = track.synthRef;
+
+			// Determine which synth to use
+			let synth = null;
+			if (synthRef && graphInstruments && graphInstruments[synthRef]) {
+				// Use audioGraph synth
+				synth = graphInstruments[synthRef];
+			} else {
+				// Use default PolySynth
+				synth = new Tone.PolySynth().toDestination();
+			}
+
+			// Schedule notes
+			notes.forEach((note) => {
+				const time = (note.time || 0) * secondsPerQuarterNote;
+				const noteDuration = (note.duration || 1) * secondsPerQuarterNote;
+
+				if (Array.isArray(note.pitch)) {
+					const noteNames = note.pitch.map((p) =>
+						typeof p === "number" ? Tone.Frequency(p, "midi").toNote() : p
+					);
+					synth.triggerAttackRelease(
+						noteNames,
+						noteDuration,
+						time,
+						note.velocity || 0.8
+					);
+				} else {
+					const noteName =
+						typeof note.pitch === "number"
+							? Tone.Frequency(note.pitch, "midi").toNote()
+							: note.pitch;
+					synth.triggerAttackRelease(
+						noteName,
+						noteDuration,
+						time,
+						note.velocity || 0.8
+					);
+				}
+			});
+		});
+
+		transport.start(0);
+	}, finalDuration);
+
+	// Convert AudioBuffer to WAV blob
+	const wavBlob = await audioBufferToWav(buffer);
+
+	// Download
+	const url = URL.createObjectURL(wavBlob);
+	const a = document.createElement("a");
+	a.href = url;
+	a.download = filename;
+	a.click();
+	URL.revokeObjectURL(url);
+}
+
+/**
+ * Build audioGraph instruments from composition
+ * @private
+ */
+async function buildAudioGraphInstruments(composition, Tone) {
+	if (!composition.audioGraph || !Array.isArray(composition.audioGraph)) {
+		return null;
+	}
+
+	const map = {};
+	const { SYNTHESIZER_TYPES, ALL_EFFECTS } = await import("../constants/audio-effects.js");
+
+	try {
+		// First pass: Create all nodes
+		composition.audioGraph.forEach((node) => {
+			const { id, type, options = {} } = node;
+			if (!id || !type) return;
+
+			let instrument = null;
+
+			if (SYNTHESIZER_TYPES.includes(type)) {
+				// Create synth
+				try {
+					instrument = new Tone[type](options);
+				} catch (e) {
+					console.warn(`Failed to create ${type}, using PolySynth:`, e);
+					instrument = new Tone.PolySynth();
+				}
+			} else if (ALL_EFFECTS.includes(type)) {
+				// Create effect
+				try {
+					instrument = new Tone[type](options);
+				} catch (e) {
+					console.warn(`Failed to create ${type} effect:`, e);
+					instrument = null;
+				}
+			} else if (type === "Destination") {
+				map[id] = Tone.Destination;
+			}
+
+			if (instrument) {
+				map[id] = instrument;
+			}
+		});
+
+		// Second pass: Connect the routing
+		composition.audioGraph.forEach((node) => {
+			const { id, target } = node;
+			if (!id || !map[id] || map[id] === Tone.Destination) return;
+
+			const currentNode = map[id];
+
+			if (target && map[target]) {
+				// Connect to target
+				if (map[target] === Tone.Destination) {
+					currentNode.toDestination();
+				} else {
+					currentNode.connect(map[target]);
+				}
+			} else {
+				// No target, connect to destination
+				currentNode.toDestination();
+			}
+		});
+
+		return map;
+	} catch (e) {
+		console.error("Failed building audioGraph instruments:", e);
+		return null;
+	}
+}
+
+/**
+ * Convert an AudioBuffer to a WAV blob
+ * @private
+ */
+async function audioBufferToWav(buffer) {
+	const numberOfChannels = buffer.numberOfChannels;
+	const sampleRate = buffer.sampleRate;
+	const length = buffer.length * numberOfChannels * 2;
+
+	const arrayBuffer = new ArrayBuffer(44 + length);
+	const view = new DataView(arrayBuffer);
+
+	// WAV header
+	const writeString = (offset, string) => {
+		for (let i = 0; i < string.length; i++) {
+			view.setUint8(offset + i, string.charCodeAt(i));
+		}
+	};
+
+	writeString(0, "RIFF");
+	view.setUint32(4, 36 + length, true);
+	writeString(8, "WAVE");
+	writeString(12, "fmt ");
+	view.setUint32(16, 16, true); // fmt chunk size
+	view.setUint16(20, 1, true); // PCM format
+	view.setUint16(22, numberOfChannels, true);
+	view.setUint32(24, sampleRate, true);
+	view.setUint32(28, sampleRate * numberOfChannels * 2, true); // byte rate
+	view.setUint16(32, numberOfChannels * 2, true); // block align
+	view.setUint16(34, 16, true); // bits per sample
+	writeString(36, "data");
+	view.setUint32(40, length, true);
+
+	// Write audio data
+	const channels = [];
+	for (let i = 0; i < numberOfChannels; i++) {
+		channels.push(buffer.getChannelData(i));
+	}
+
+	let offset = 44;
+	for (let i = 0; i < buffer.length; i++) {
+		for (let channel = 0; channel < numberOfChannels; channel++) {
+			const sample = Math.max(-1, Math.min(1, channels[channel][i]));
+			view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7fff, true);
+			offset += 2;
+		}
+	}
+
+	return new Blob([arrayBuffer], { type: "audio/wav" });
+}
