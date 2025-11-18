@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Player & WAV Articulation Playback Test</title>
+  <style>
+    body {
+      font-family: 'Arial', sans-serif;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+      background-color: #f5f5f5;
+    }
+    h1, h2 { color: #333; }
+    .test-section {
+      background: white;
+      padding: 20px;
+      margin: 20px 0;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    button {
+      background-color: #4CAF50;
+      border: none;
+      color: white;
+      padding: 15px 32px;
+      text-align: center;
+      font-size: 16px;
+      margin: 4px 2px;
+      cursor: pointer;
+      border-radius: 4px;
+    }
+    button:hover { background-color: #45a049; }
+    button:disabled {
+      background-color: #cccccc;
+      cursor: not-allowed;
+    }
+    pre {
+      background-color: #f4f4f4;
+      padding: 10px;
+      border-radius: 4px;
+      overflow-x: auto;
+      font-size: 12px;
+    }
+    .status {
+      padding: 10px;
+      margin: 10px 0;
+      border-radius: 4px;
+    }
+    .success {
+      background-color: #d4edda;
+      color: #155724;
+      border: 1px solid #c3e6cb;
+    }
+    .info {
+      background-color: #d1ecf1;
+      color: #0c5460;
+      border: 1px solid #bee5eb;
+    }
+    .warning {
+      background-color: #fff3cd;
+      color: #856404;
+      border: 1px solid #ffeeba;
+    }
+    .player-container {
+      margin: 20px 0;
+    }
+  </style>
+</head>
+<body>
+  <h1>Browser Player & WAV Articulation Playback Test</h1>
+
+  <div class="test-section">
+    <h2>Test: Real-time Vibrato and Tremolo Playback</h2>
+    <p>This composition includes:</p>
+    <ul>
+      <li><strong>Note 3 (F):</strong> Vibrato (5 Hz, 50 cents depth)</li>
+      <li><strong>Note 5 (A):</strong> Tremolo (8 Hz, 0.3 depth)</li>
+      <li><strong>Note 7 (C):</strong> Both Vibrato and Tremolo</li>
+    </ul>
+
+    <div class="status info">
+      <strong>Expected Behavior:</strong>
+      <ul>
+        <li>Browser Player: Should hear pitch oscillation on vibrato notes and volume oscillation on tremolo notes</li>
+        <li>WAV Export: Downloaded file should contain the same audible effects</li>
+        <li>Console: Check browser console for effect scheduling logs (enable with F12)</li>
+      </ul>
+    </div>
+
+    <h3>Browser Player:</h3>
+    <div id="player-container" class="player-container"></div>
+
+    <h3>Export Options:</h3>
+    <button id="download-wav" disabled>Download WAV with Articulations</button>
+    <button id="download-midi" disabled>Download MIDI with Articulations</button>
+    <div id="status"></div>
+
+    <h3>Composition with Articulations:</h3>
+    <pre id="composition-display"></pre>
+  </div>
+
+  <script type="module">
+    import { jm } from './dist/jmon.esm.js';
+
+    // Create C major scale with longer notes to hear effects clearly
+    const c_major = [60, 62, 64, 65, 67, 69, 71, 72];
+    const durations = new Array(c_major.length).fill(2); // 2 beats each for clear articulation
+    const time = durations.map(
+      (duration, i) => durations.slice(0, i + 1).reduce((sum, d) => sum + d, 0) - durations[0]
+    );
+
+    let c_major_track = c_major.map((pitch, i) => ({
+      pitch: pitch,
+      duration: durations[i],
+      time: time[i]
+    }));
+
+    // Add vibrato to note at index 3 (F - fourth note)
+    c_major_track = jm.theory.harmony.Articulation.apply(
+      c_major_track,
+      3,
+      'vibrato',
+      { rate: 5, depth: 50 } // 5 Hz, 50 cents
+    );
+
+    // Add tremolo to note at index 5 (A - sixth note)
+    c_major_track = jm.theory.harmony.Articulation.apply(
+      c_major_track,
+      5,
+      'tremolo',
+      { rate: 8, depth: 0.3 } // 8 Hz, 30% depth
+    );
+
+    // Add BOTH vibrato and tremolo to note at index 7 (C - eighth note)
+    c_major_track = jm.theory.harmony.Articulation.apply(
+      c_major_track,
+      7,
+      'vibrato',
+      { rate: 6, depth: 60 } // Slightly different params
+    );
+    c_major_track = jm.theory.harmony.Articulation.apply(
+      c_major_track,
+      7,
+      'tremolo',
+      { rate: 10, depth: 0.4 }
+    );
+
+    const composition = {
+      metadata: {
+        title: "C Major with Vibrato & Tremolo"
+      },
+      tempo: 90, // Slower tempo to hear effects clearly
+      timeSignature: "4/4",
+      tracks: [{
+        label: "Melody with Articulations",
+        notes: c_major_track
+      }]
+    };
+
+    // Display composition
+    document.getElementById('composition-display').textContent =
+      JSON.stringify(composition, null, 2);
+
+    // Initialize player
+    const statusDiv = document.getElementById('status');
+    statusDiv.innerHTML = '<div class="status">Loading Tone.js...</div>';
+
+    // Load Tone.js
+    let Tone;
+    try {
+      Tone = await import("https://esm.sh/tone@14.8.49");
+      Tone = Tone.default || Tone;
+      statusDiv.innerHTML = '<div class="status success">✓ Tone.js loaded. Creating player...</div>';
+
+      // Create player
+      const playerContainer = document.getElementById('player-container');
+      const player = jm.browser.createPlayer(composition, {
+        Tone: Tone,
+        preloadTone: true
+      });
+      playerContainer.appendChild(player);
+
+      // Enable export buttons
+      document.getElementById('download-wav').disabled = false;
+      document.getElementById('download-midi').disabled = false;
+      statusDiv.innerHTML = '<div class="status success">✓ Player ready! Click play to hear vibrato and tremolo effects.</div>';
+
+    } catch (error) {
+      statusDiv.innerHTML = `<div class="status error">✗ Error loading Tone.js: ${error.message}</div>`;
+      console.error('Initialization error:', error);
+    }
+
+    // Download WAV button
+    document.getElementById('download-wav').addEventListener('click', async () => {
+      if (!Tone) {
+        alert('Tone.js not loaded');
+        return;
+      }
+
+      try {
+        statusDiv.innerHTML = '<div class="status">Rendering WAV with articulations (this may take a few seconds)...</div>';
+        await jm.converters.downloadWav(composition, Tone, "articulations-test.wav");
+        statusDiv.innerHTML =
+          '<div class="status success">✓ WAV file downloaded! Play the file to verify vibrato and tremolo effects were rendered.</div>';
+      } catch (error) {
+        statusDiv.innerHTML = `<div class="status error">✗ Error: ${error.message}</div>`;
+        console.error('WAV download error:', error);
+      }
+    });
+
+    // Download MIDI button (for comparison)
+    document.getElementById('download-midi').addEventListener('click', async () => {
+      try {
+        statusDiv.innerHTML = '<div class="status">Generating MIDI file with CC messages...</div>';
+        const ToneMidi = await import("https://esm.sh/@tonejs/midi@2.0.28");
+        await jm.converters.downloadMidi(composition, ToneMidi, "articulations-test.mid");
+        statusDiv.innerHTML =
+          '<div class="status success">✓ MIDI file downloaded! Import into your DAW to see CC1 (vibrato) and CC11 (tremolo) messages.</div>';
+      } catch (error) {
+        statusDiv.innerHTML = `<div class="status error">✗ Error: ${error.message}</div>`;
+        console.error('MIDI download error:', error);
+      }
+    });
+  </script>
+</body>
+</html>

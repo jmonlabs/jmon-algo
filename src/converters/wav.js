@@ -1,4 +1,6 @@
 /* JMON WAV - WAV audio generation from JMON format */
+import { compileEvents } from "../algorithms/audio/index.js";
+
 // ...existing code...
 export function wav(composition, options = {}) {
 	return {
@@ -51,11 +53,24 @@ export async function downloadWav(composition, Tone, filename = "composition.wav
 		// Build audioGraph instruments if present
 		const graphInstruments = await buildAudioGraphInstruments(composition, Tone);
 
-		// Create synths for each track
+		// Compile modulations for all tracks
+		const compiledModulations = [];
 		const tracks = composition.tracks || [];
-		tracks.forEach((track) => {
+		tracks.forEach((track, index) => {
+			try {
+				const compiled = compileEvents(track);
+				compiledModulations[index] = compiled.modulations || [];
+			} catch (e) {
+				console.warn(`[WAV] Failed to compile modulations for track ${index}:`, e);
+				compiledModulations[index] = [];
+			}
+		});
+
+		// Create synths for each track
+		tracks.forEach((track, trackIndex) => {
 			const notes = track.notes || [];
 			const synthRef = track.synthRef;
+			const trackModulations = compiledModulations[trackIndex] || [];
 
 			// Determine which synth to use
 			let synth = null;
@@ -65,6 +80,101 @@ export async function downloadWav(composition, Tone, filename = "composition.wav
 			} else {
 				// Use default PolySynth
 				synth = new Tone.PolySynth().toDestination();
+			}
+
+			// Check for vibrato/tremolo modulations
+			const vibratoMods = trackModulations.filter(
+				(m) => m.type === "pitch" && m.subtype === "vibrato"
+			);
+			const tremoloMods = trackModulations.filter(
+				(m) => m.type === "amplitude" && m.subtype === "tremolo"
+			);
+
+			// Create effect chain if needed
+			let vibratoEffect = null;
+			let tremoloEffect = null;
+
+			if (vibratoMods.length > 0 || tremoloMods.length > 0) {
+				console.log(
+					`[WAV] Creating effect chain for track ${trackIndex} (${vibratoMods.length} vibrato, ${tremoloMods.length} tremolo)`
+				);
+
+				// Disconnect synth from destination first
+				if (!synthRef || !graphInstruments?.[synthRef]) {
+					synth.disconnect();
+				}
+
+				// Create effects
+				if (vibratoMods.length > 0) {
+					const defaultVibrato = vibratoMods[0];
+					vibratoEffect = new Tone.Vibrato({
+						frequency: defaultVibrato.rate || 5,
+						depth: (defaultVibrato.depth || 50) / 100,
+					});
+					vibratoEffect.wet.value = 0; // Start disabled
+				}
+
+				if (tremoloMods.length > 0) {
+					const defaultTremolo = tremoloMods[0];
+					tremoloEffect = new Tone.Tremolo({
+						frequency: defaultTremolo.rate || 8,
+						depth: defaultTremolo.depth || 0.3,
+					}).start();
+					tremoloEffect.wet.value = 0; // Start disabled
+				}
+
+				// Connect effect chain
+				if (vibratoEffect && tremoloEffect) {
+					synth.connect(vibratoEffect);
+					vibratoEffect.connect(tremoloEffect);
+					tremoloEffect.toDestination();
+				} else if (vibratoEffect) {
+					synth.connect(vibratoEffect);
+					vibratoEffect.toDestination();
+				} else if (tremoloEffect) {
+					synth.connect(tremoloEffect);
+					tremoloEffect.toDestination();
+				}
+
+				// Schedule effect enable/disable based on modulations
+				trackModulations.forEach((mod) => {
+					const startTime = mod.start * secondsPerQuarterNote;
+					const endTime = mod.end * secondsPerQuarterNote;
+
+					if (mod.type === "pitch" && mod.subtype === "vibrato" && vibratoEffect) {
+						const vibratoFreq = mod.rate || 5;
+						const vibratoDepth = (mod.depth || 50) / 100;
+
+						// Schedule enable
+						transport.schedule((time) => {
+							vibratoEffect.frequency.value = vibratoFreq;
+							vibratoEffect.depth.value = vibratoDepth;
+							vibratoEffect.wet.value = 1;
+						}, startTime);
+
+						// Schedule disable
+						transport.schedule((time) => {
+							vibratoEffect.wet.value = 0;
+						}, endTime);
+					}
+
+					if (mod.type === "amplitude" && mod.subtype === "tremolo" && tremoloEffect) {
+						const tremoloFreq = mod.rate || 8;
+						const tremoloDepth = mod.depth || 0.3;
+
+						// Schedule enable
+						transport.schedule((time) => {
+							tremoloEffect.frequency.value = tremoloFreq;
+							tremoloEffect.depth.value = tremoloDepth;
+							tremoloEffect.wet.value = 1;
+						}, startTime);
+
+						// Schedule disable
+						transport.schedule((time) => {
+							tremoloEffect.wet.value = 0;
+						}, endTime);
+					}
+				});
 			}
 
 			// Schedule notes

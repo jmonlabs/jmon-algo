@@ -1,5 +1,6 @@
 // import { JmonValidator } from '../utils/jmon-validator.js';
 import { tonejs } from "../converters/tonejs.js";
+import { compileEvents } from "../algorithms/audio/index.js";
 import {
   CDN_SOURCES,
   createGMInstrumentNode,
@@ -829,7 +830,8 @@ export function createPlayer(composition, options = {}) {
   let Tone,
     isPlaying = false,
     synths = [],
-    parts = [];
+    parts = [],
+    effects = []; // Track effects for cleanup
 
   // Track sampler loading promises so we can await before starting
   let samplerLoadPromises = [];
@@ -1229,12 +1231,40 @@ export function createPlayer(composition, options = {}) {
       }
     });
 
+    // Dispose effects
+    effects.forEach((e, index) => {
+      try {
+        if (e.disconnect && typeof e.disconnect === "function") {
+          e.disconnect();
+        }
+        e.dispose();
+      } catch (err) {
+        console.warn(`[PLAYER] Failed to dispose effect ${index}:`, err);
+      }
+    });
+
     synths = [];
     parts = [];
+    effects = [];
 
     console.log("[PLAYER] Audio cleanup completed");
 
     console.log("[PLAYER] Converted tracks:", convertedTracks.length);
+
+    // Compile modulations for all original tracks
+    const compiledModulations = [];
+    originalTracksSource.forEach((track, index) => {
+      try {
+        const compiled = compileEvents(track);
+        compiledModulations[index] = compiled.modulations || [];
+      } catch (e) {
+        console.warn(
+          `[PLAYER] Failed to compile modulations for track ${index}:`,
+          e,
+        );
+        compiledModulations[index] = [];
+      }
+    });
 
     // Create synths and parts from converted track data
     convertedTracks.forEach((trackConfig) => {
@@ -1370,6 +1400,61 @@ export function createPlayer(composition, options = {}) {
             );
             return; // Skip this track if we can't create any synth
           }
+        }
+      }
+
+      // Get modulations for this track
+      const trackModulations = compiledModulations[originalTrackIndex] || [];
+      const vibratoMods = trackModulations.filter(
+        (m) => m.type === "pitch" && m.subtype === "vibrato",
+      );
+      const tremoloMods = trackModulations.filter(
+        (m) => m.type === "amplitude" && m.subtype === "tremolo",
+      );
+
+      // Create effect chain if there are vibrato/tremolo modulations
+      let vibratoEffect = null;
+      let tremoloEffect = null;
+
+      if (vibratoMods.length > 0 || tremoloMods.length > 0) {
+        console.log(
+          `[PLAYER] Creating effect chain for track ${originalTrackIndex} (${vibratoMods.length} vibrato, ${tremoloMods.length} tremolo)`,
+        );
+
+        // Create effects (initially with wet=0 so they don't affect notes without articulations)
+        if (vibratoMods.length > 0) {
+          // Use first modulation's params as default (can be overridden per-note)
+          const defaultVibrato = vibratoMods[0];
+          vibratoEffect = new Tone.Vibrato({
+            frequency: defaultVibrato.rate || 5,
+            depth: (defaultVibrato.depth || 50) / 100, // Convert cents to 0-1
+          });
+          vibratoEffect.wet.value = 0; // Start disabled
+        }
+
+        if (tremoloMods.length > 0) {
+          const defaultTremolo = tremoloMods[0];
+          tremoloEffect = new Tone.Tremolo({
+            frequency: defaultTremolo.rate || 8,
+            depth: defaultTremolo.depth || 0.3,
+          }).start();
+          tremoloEffect.wet.value = 0; // Start disabled
+        }
+
+        // Rebuild effect chain: synth → vibrato → tremolo → destination
+        if (vibratoEffect && tremoloEffect) {
+          synth.connect(vibratoEffect);
+          vibratoEffect.connect(tremoloEffect);
+          tremoloEffect.toDestination();
+          effects.push(vibratoEffect, tremoloEffect);
+        } else if (vibratoEffect) {
+          synth.connect(vibratoEffect);
+          vibratoEffect.toDestination();
+          effects.push(vibratoEffect);
+        } else if (tremoloEffect) {
+          synth.connect(tremoloEffect);
+          tremoloEffect.toDestination();
+          effects.push(tremoloEffect);
         }
       }
 
@@ -1536,6 +1621,74 @@ export function createPlayer(composition, options = {}) {
           );
         }
       }, normalizedEvents);
+
+      // Schedule vibrato/tremolo effects based on modulations
+      if (vibratoEffect || tremoloEffect) {
+        // Match modulations to normalized events by timing
+        trackModulations.forEach((mod) => {
+          // Find the matching event by note index
+          const noteIndex = mod.index;
+          const originalNote = originalTracksSource[originalTrackIndex]?.notes?.[
+            noteIndex
+          ];
+          if (!originalNote) return;
+
+          // Convert modulation times from beats to seconds
+          const startTime = mod.start * secPerBeat;
+          const endTime = mod.end * secPerBeat;
+
+          if (
+            mod.type === "pitch" &&
+            mod.subtype === "vibrato" &&
+            vibratoEffect
+          ) {
+            // Update vibrato parameters if they differ from default
+            const vibratoFreq = mod.rate || 5;
+            const vibratoDepth = (mod.depth || 50) / 100;
+
+            // Schedule enable at note start
+            Tone.Transport.schedule((time) => {
+              vibratoEffect.frequency.value = vibratoFreq;
+              vibratoEffect.depth.value = vibratoDepth;
+              vibratoEffect.wet.value = 1; // Enable
+              console.log(
+                `[PLAYER] Vibrato enabled at ${startTime}s (rate: ${vibratoFreq}Hz, depth: ${vibratoDepth})`,
+              );
+            }, startTime);
+
+            // Schedule disable at note end
+            Tone.Transport.schedule((time) => {
+              vibratoEffect.wet.value = 0; // Disable
+              console.log(`[PLAYER] Vibrato disabled at ${endTime}s`);
+            }, endTime);
+          }
+
+          if (
+            mod.type === "amplitude" &&
+            mod.subtype === "tremolo" &&
+            tremoloEffect
+          ) {
+            const tremoloFreq = mod.rate || 8;
+            const tremoloDepth = mod.depth || 0.3;
+
+            // Schedule enable at note start
+            Tone.Transport.schedule((time) => {
+              tremoloEffect.frequency.value = tremoloFreq;
+              tremoloEffect.depth.value = tremoloDepth;
+              tremoloEffect.wet.value = 1; // Enable
+              console.log(
+                `[PLAYER] Tremolo enabled at ${startTime}s (rate: ${tremoloFreq}Hz, depth: ${tremoloDepth})`,
+              );
+            }, startTime);
+
+            // Schedule disable at note end
+            Tone.Transport.schedule((time) => {
+              tremoloEffect.wet.value = 0; // Disable
+              console.log(`[PLAYER] Tremolo disabled at ${endTime}s`);
+            }, endTime);
+          }
+        });
+      }
 
       // Don't start the part yet - wait for user to click play
       // part.start(0) will be called in the play button handler
