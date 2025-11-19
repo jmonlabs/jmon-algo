@@ -74,11 +74,6 @@ export async function downloadWav(composition, Tone, filename = "composition.wav
 			const synthRef = track.synthRef;
 			const trackModulations = compiledModulations[trackIndex] || [];
 
-			// Check if track has glissando (needs MonoSynth for detune support)
-			const hasGlissando = trackModulations.some(
-				(m) => m.type === "pitch" && (m.subtype === "glissando" || m.subtype === "portamento")
-			);
-
 			// Determine which synth/sampler to use
 			let synth = null;
 			if (synthRef && graphInstruments && graphInstruments[synthRef]) {
@@ -94,14 +89,7 @@ export async function downloadWav(composition, Tone, filename = "composition.wav
 				console.log(`[WAV] Creating Sampler for GM instrument ${track.instrument}`);
 			} else {
 				// Use specified synth type or default PolySynth
-				let synthType = track.synth || "PolySynth";
-
-				// If track has glissando and no specific synth type, use MonoSynth
-				if (hasGlissando && !track.synth) {
-					synthType = "MonoSynth";
-					console.log(`[WAV] Using MonoSynth for track ${trackIndex} (has glissando)`);
-				}
-
+				const synthType = track.synth || "PolySynth";
 				try {
 					synth = new Tone[synthType]().toDestination();
 				} catch (e) {
@@ -238,7 +226,7 @@ export async function downloadWav(composition, Tone, filename = "composition.wav
 							? Tone.Frequency(note.pitch, "midi").toNote()
 							: note.pitch;
 
-					// Handle glissando using detune parameter or playbackRate
+					// Handle glissando using detune parameter
 					if (glissando && glissando.to !== undefined) {
 						const toNote = typeof glissando.to === "number"
 							? Tone.Frequency(glissando.to, "midi").toNote()
@@ -246,33 +234,26 @@ export async function downloadWav(composition, Tone, filename = "composition.wav
 
 						const startFreq = Tone.Frequency(noteName).toFrequency();
 						const endFreq = Tone.Frequency(toNote).toFrequency();
+						const cents = 1200 * Math.log2(endFreq / startFreq);
 
 						if (synth.detune) {
-							// Synths: Use detune parameter
-							const cents = 1200 * Math.log2(endFreq / startFreq);
-							console.log(`[WAV] Glissando using detune: ${noteName} -> ${toNote} (${cents} cents)`);
+							// Main synth supports detune
+							console.log(`[WAV] Glissando using main synth: ${noteName} -> ${toNote} (${cents} cents)`);
 
 							synth.triggerAttack(noteName, time, note.velocity || 0.8);
 							synth.detune.setValueAtTime(0, time);
 							synth.detune.linearRampToValueAtTime(cents, time + noteDuration);
 							synth.triggerRelease(time + noteDuration);
-						} else if (synth.playbackRate) {
-							// Samplers: Use playbackRate parameter
-							const startRate = 1.0;
-							const endRate = endFreq / startFreq;
-							console.log(`[WAV] Glissando using playbackRate: ${noteName} -> ${toNote} (${startRate} -> ${endRate})`);
-
-							synth.triggerAttack(noteName, time, note.velocity || 0.8);
-							synth.playbackRate = startRate;
-
-							if (synth.playbackRate.linearRampToValueAtTime) {
-								synth.playbackRate.linearRampToValueAtTime(endRate, time + noteDuration);
-							}
-
-							synth.triggerRelease(time + noteDuration);
 						} else {
-							console.warn(`[WAV] Glissando not supported - no detune or playbackRate`);
-							synth.triggerAttackRelease(noteName, noteDuration, time, note.velocity || 0.8);
+							// Create temporary MonoSynth for glissando
+							// (PolySynth and Sampler don't support detune automation)
+							console.log(`[WAV] Glissando using temp MonoSynth: ${noteName} -> ${toNote} (${cents} cents)`);
+
+							const glissSynth = new Tone.MonoSynth().toDestination();
+							glissSynth.triggerAttack(noteName, time, note.velocity || 0.8);
+							glissSynth.detune.setValueAtTime(0, time);
+							glissSynth.detune.linearRampToValueAtTime(cents, time + noteDuration);
+							glissSynth.triggerRelease(time + noteDuration);
 						}
 					} else {
 						// Normal note

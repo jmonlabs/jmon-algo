@@ -201,11 +201,6 @@ export function createPlayer(composition, options = {}) {
         console.warn("Failed to compile articulations:", e);
       }
 
-      // Check if track has glissando (needs MonoSynth for detune support)
-      const hasGlissando = modulations.some(
-        (m) => m.type === "pitch" && (m.subtype === "glissando" || m.subtype === "portamento")
-      );
-
       // Create synth or sampler based on track configuration
       let synth;
 
@@ -220,16 +215,8 @@ export function createPlayer(composition, options = {}) {
         }).toDestination();
         console.log(`Creating Sampler for GM instrument ${originalTrack.instrument}`);
       } else {
-        // Create synth from specified type or default
-        let requestedSynthType = originalTrack.synth || "PolySynth";
-
-        // If track has glissando and no specific synth type requested, use MonoSynth
-        // (PolySynth doesn't expose detune parameter directly)
-        if (hasGlissando && !originalTrack.synth) {
-          requestedSynthType = "MonoSynth";
-          console.log(`[GLISSANDO] Using MonoSynth for track ${originalTrackIndex} (has glissando)`);
-        }
-
+        // Create synth from specified type or default PolySynth
+        const requestedSynthType = originalTrack.synth || "PolySynth";
         try {
           synth = new ToneLib[requestedSynthType]().toDestination();
         } catch {
@@ -376,7 +363,7 @@ export function createPlayer(composition, options = {}) {
           ? ToneLib.Frequency(note.pitch, "midi").toNote()
           : note.pitch;
 
-        // Handle glissando using detune parameter or playbackRate
+        // Handle glissando using detune parameter
         if (glissando && glissando.to !== undefined) {
           const toNote = typeof glissando.to === "number"
             ? ToneLib.Frequency(glissando.to, "midi").toNote()
@@ -384,13 +371,12 @@ export function createPlayer(composition, options = {}) {
 
           const startFreq = ToneLib.Frequency(noteName).toFrequency();
           const endFreq = ToneLib.Frequency(toNote).toFrequency();
+          const cents = 1200 * Math.log2(endFreq / startFreq);
 
-          console.log(`[GLISSANDO] ${noteName} -> ${toNote}, detune:`, !!synth.detune, `playbackRate:`, !!synth.playbackRate);
-
+          // Check if main synth supports detune
           if (synth.detune) {
-            // Synths: Use detune parameter (in cents)
-            const cents = 1200 * Math.log2(endFreq / startFreq);
-            console.log(`[GLISSANDO] Using detune: ${cents} cents`);
+            // Main synth supports detune (e.g., MonoSynth, Synth)
+            console.log(`[GLISSANDO] Using main synth detune: ${noteName} -> ${toNote} (${cents} cents)`);
 
             const eventId = ToneLib.Transport.schedule((schedTime) => {
               synth.triggerAttack(noteName, schedTime, velocity);
@@ -399,28 +385,19 @@ export function createPlayer(composition, options = {}) {
               synth.triggerRelease(schedTime + duration);
             }, time);
             scheduledEvents.push(eventId);
-          } else if (synth.playbackRate) {
-            // Samplers: Use playbackRate parameter
-            const startRate = 1.0;
-            const endRate = endFreq / startFreq;
-            console.log(`[GLISSANDO] Using playbackRate: ${startRate} -> ${endRate}`);
-
-            const eventId = ToneLib.Transport.schedule((schedTime) => {
-              synth.triggerAttack(noteName, schedTime, velocity);
-              synth.playbackRate = startRate;
-
-              // Schedule playback rate ramp
-              if (synth.playbackRate.linearRampToValueAtTime) {
-                synth.playbackRate.linearRampToValueAtTime(endRate, schedTime + duration);
-              }
-
-              synth.triggerRelease(schedTime + duration);
-            }, time);
-            scheduledEvents.push(eventId);
           } else {
-            console.warn(`[GLISSANDO] Synth doesn't support detune or playbackRate - falling back to normal note`);
+            // Create temporary MonoSynth for this glissando note
+            // (PolySynth and Sampler don't expose detune for automation)
+            console.log(`[GLISSANDO] Creating temporary MonoSynth: ${noteName} -> ${toNote} (${cents} cents)`);
+
+            const glissSynth = new ToneLib.MonoSynth().toDestination();
+            activeSynths.push(glissSynth);
+
             const eventId = ToneLib.Transport.schedule((schedTime) => {
-              synth.triggerAttackRelease(noteName, duration, schedTime, velocity);
+              glissSynth.triggerAttack(noteName, schedTime, velocity);
+              glissSynth.detune.setValueAtTime(0, schedTime);
+              glissSynth.detune.linearRampToValueAtTime(cents, schedTime + duration);
+              glissSynth.triggerRelease(schedTime + duration);
             }, time);
             scheduledEvents.push(eventId);
           }
