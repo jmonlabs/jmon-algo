@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>GM Instruments + Articulations Test</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+      background: #1a1a1a;
+      color: #fff;
+    }
+    .test-info {
+      background: #333;
+      padding: 15px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+    }
+    h2 { margin-top: 0; }
+    pre { background: #222; padding: 10px; overflow-x: auto; }
+    code { color: #4CAF50; }
+  </style>
+</head>
+<body>
+  <h1>GM Instruments + Articulations Test</h1>
+
+  <div class="test-info">
+    <h2>Test 1: Violin (GM #40) - Normal Notes</h2>
+    <p>Uses <code>instrument: 40</code> (Violin) with Tone.Sampler</p>
+    <p>Should hear realistic violin samples playing three notes</p>
+  </div>
+  <div id="player1-container"></div>
+
+  <div class="test-info">
+    <h2>Test 2: Violin (GM #40) - With Vibrato</h2>
+    <p>Uses <code>instrument: 40</code> (Violin) with vibrato articulation</p>
+    <p>Should hear violin with pitch wobble (vibrato effect)</p>
+  </div>
+  <div id="player2-container"></div>
+
+  <div class="test-info">
+    <h2>Test 3: Piano (GM #0) - With Tremolo</h2>
+    <p>Uses <code>instrument: 0</code> (Acoustic Grand Piano) with tremolo</p>
+    <p>Should hear piano with volume pulsing (tremolo effect)</p>
+  </div>
+  <div id="player3-container"></div>
+
+  <div class="test-info">
+    <h2>Test 4: Flute (GM #73) - With Glissando</h2>
+    <p>Uses <code>instrument: 73</code> (Flute) with glissando articulation</p>
+    <p>Should hear flute sliding from C4 to G4</p>
+  </div>
+  <div id="player4-container"></div>
+
+  <div class="test-info">
+    <h2>Test 5: FMSynth - With Vibrato (Control Test)</h2>
+    <p>Uses <code>synth: "FMSynth"</code> with vibrato</p>
+    <p>Should hear FM synthesis with vibrato - proves synths still work</p>
+  </div>
+  <div id="player5-container"></div>
+
+  <script type="module">
+    import { createPlayer } from './src/browser/music-player.js';
+
+    // Test 1: Violin - Normal notes
+    const composition1 = {
+      metadata: { title: "Violin Normal" },
+      tempo: 120,
+      tracks: [
+        {
+          instrument: 40, // Violin
+          events: [
+            { time: 0, duration: 1, pitch: 60, velocity: 0.8 },
+            { time: 1, duration: 1, pitch: 64, velocity: 0.8 },
+            { time: 2, duration: 1, pitch: 67, velocity: 0.8 }
+          ]
+        }
+      ]
+    };
+
+    // Test 2: Violin - With vibrato
+    const composition2 = {
+      metadata: { title: "Violin Vibrato" },
+      tempo: 120,
+      tracks: [
+        {
+          instrument: 40, // Violin
+          events: [
+            {
+              time: 0,
+              duration: 3,
+              pitch: 64, // E4
+              velocity: 0.8,
+              articulations: [
+                {
+                  type: "vibrato",
+                  rate: 5,
+                  depth: 50
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    };
+
+    // Test 3: Piano - With tremolo
+    const composition3 = {
+      metadata: { title: "Piano Tremolo" },
+      tempo: 120,
+      tracks: [
+        {
+          instrument: 0, // Acoustic Grand Piano
+          events: [
+            {
+              time: 0,
+              duration: 3,
+              pitch: 60, // C4
+              velocity: 0.8,
+              articulations: [
+                {
+                  type: "tremolo",
+                  rate: 8,
+                  depth: 0.5
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    };
+
+    // Test 4: Flute - With glissando
+    const composition4 = {
+      metadata: { title: "Flute Glissando" },
+      tempo: 120,
+      tracks: [
+        {
+          instrument: 73, // Flute
+          events: [
+            {
+              time: 0,
+              duration: 2,
+              pitch: 60, // C4
+              velocity: 0.8,
+              articulations: [
+                {
+                  type: "glissando",
+                  to: 67 // G4
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    };
+
+    // Test 5: FMSynth - With vibrato (control)
+    const composition5 = {
+      metadata: { title: "FMSynth Vibrato" },
+      tempo: 120,
+      tracks: [
+        {
+          synth: "FMSynth",
+          events: [
+            {
+              time: 0,
+              duration: 2,
+              pitch: 60,
+              velocity: 0.8,
+              articulations: [
+                {
+                  type: "vibrato",
+                  rate: 6,
+                  depth: 60
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    };
+
+    // Create players
+    const player1 = createPlayer(composition1, { autoplay: false });
+    const player2 = createPlayer(composition2, { autoplay: false });
+    const player3 = createPlayer(composition3, { autoplay: false });
+    const player4 = createPlayer(composition4, { autoplay: false });
+    const player5 = createPlayer(composition5, { autoplay: false });
+
+    document.getElementById('player1-container').appendChild(player1);
+    document.getElementById('player2-container').appendChild(player2);
+    document.getElementById('player3-container').appendChild(player3);
+    document.getElementById('player4-container').appendChild(player4);
+    document.getElementById('player5-container').appendChild(player5);
+
+    console.log('GM Instruments + Articulations tests loaded');
+    console.log('Expected behavior:');
+    console.log('- Test 1: Violin samples with no effects');
+    console.log('- Test 2: Violin samples with pitch wobble (vibrato)');
+    console.log('- Test 3: Piano samples with volume pulsing (tremolo)');
+    console.log('- Test 4: Flute sample sliding from C4 to G4 (glissando)');
+    console.log('- Test 5: FM synthesis with vibrato (control test)');
+  </script>
+</body>
+</html>

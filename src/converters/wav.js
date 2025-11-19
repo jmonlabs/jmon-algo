@@ -33,10 +33,11 @@ export async function downloadWav(composition, Tone, filename = "composition.wav
 
 	// Calculate duration from composition if not provided
 	const maxTime = composition.tracks?.reduce((max, track) => {
-		const trackMax = track.notes?.reduce((tMax, note) => {
+		const events = track.events || track.notes || [];
+		const trackMax = events.reduce((tMax, note) => {
 			const endTime = (note.time || 0) + (note.duration || 0);
 			return Math.max(tMax, endTime);
-		}, 0) || 0;
+		}, 0);
 		return Math.max(max, trackMax);
 	}, 0) || 4;
 
@@ -69,7 +70,7 @@ export async function downloadWav(composition, Tone, filename = "composition.wav
 
 		// Create synths for each track
 		tracks.forEach((track, trackIndex) => {
-			const notes = track.notes || [];
+			const notes = track.events || track.notes || [];
 			const synthRef = track.synthRef;
 			const trackModulations = compiledModulations[trackIndex] || [];
 

@@ -48,7 +48,7 @@ export class Tonejs {
         return tracks.map(track => ({
             label: track.label,
             type: 'PolySynth', // Default type for the current player
-            part: (track.notes || []).map(note => ({
+            part: (track.events || track.notes || []).map(note => ({
                 time: note.time,
                 pitch: note.pitch,
                 duration: note.duration,

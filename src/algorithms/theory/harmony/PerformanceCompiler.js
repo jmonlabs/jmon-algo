@@ -85,7 +85,7 @@
  */
 export function compilePerformanceTrack(track, options = {}) {
   const { timeSignature = "4/4", tempo = 120 } = options; // reserved for future use
-  const notes = Array.isArray(track?.notes) ? track.notes : [];
+  const notes = Array.isArray(track?.events) ? track.events : Array.isArray(track?.notes) ? track.notes : [];
 
   /** @type {Array<PerformanceModulation>} */
   const modulations = [];
