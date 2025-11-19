@@ -1,5 +1,6 @@
 /* JMON WAV - WAV audio generation from JMON format */
 import { compileEvents } from "../algorithms/audio/index.js";
+import { generateSamplerUrls } from "../utils/gm-instruments.js";
 
 // ...existing code...
 export function wav(composition, options = {}) {
@@ -72,14 +73,27 @@ export async function downloadWav(composition, Tone, filename = "composition.wav
 			const synthRef = track.synthRef;
 			const trackModulations = compiledModulations[trackIndex] || [];
 
-			// Determine which synth to use
+			// Determine which synth/sampler to use
 			let synth = null;
 			if (synthRef && graphInstruments && graphInstruments[synthRef]) {
 				// Use audioGraph synth
 				synth = graphInstruments[synthRef];
+			} else if (track.instrument !== undefined && !track.synth) {
+				// Create Sampler for GM instrument
+				const urls = generateSamplerUrls(track.instrument);
+				synth = new Tone.Sampler({
+					urls,
+					baseUrl: "" // URLs are already complete
+				}).toDestination();
+				console.log(`[WAV] Creating Sampler for GM instrument ${track.instrument}`);
 			} else {
-				// Use default PolySynth
-				synth = new Tone.PolySynth().toDestination();
+				// Use specified synth type or default PolySynth
+				const synthType = track.synth || "PolySynth";
+				try {
+					synth = new Tone[synthType]().toDestination();
+				} catch (e) {
+					synth = new Tone.PolySynth().toDestination();
+				}
 			}
 
 			// Check for vibrato/tremolo modulations

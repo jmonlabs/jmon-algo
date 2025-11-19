@@ -1,5 +1,6 @@
 import { tonejs } from "../converters/tonejs.js";
 import { compileEvents } from "../algorithms/audio/index.js";
+import { generateSamplerUrls } from "../utils/gm-instruments.js";
 
 /**
  * Simplified Music Player - Just playback with articulations
@@ -190,16 +191,29 @@ export function createPlayer(composition, options = {}) {
       const { originalTrackIndex, partEvents } = trackConfig;
       const originalTrack = originalTracksSource[originalTrackIndex] || {};
 
-      // Determine synth type from JMON or use default
-      const requestedSynthType = originalTrack.synth || "PolySynth";
-
-      // Create synth
+      // Create synth or sampler based on track configuration
       let synth;
-      try {
-        synth = new ToneLib[requestedSynthType]().toDestination();
-      } catch {
-        synth = new ToneLib.PolySynth().toDestination();
+
+      // Check if track specifies a GM instrument number
+      if (originalTrack.instrument !== undefined && !originalTrack.synth) {
+        // Create Sampler for GM instrument
+        const urls = generateSamplerUrls(originalTrack.instrument);
+        synth = new ToneLib.Sampler({
+          urls,
+          baseUrl: "", // URLs are already complete
+          onload: () => console.log(`Loaded GM instrument ${originalTrack.instrument}`)
+        }).toDestination();
+        console.log(`Creating Sampler for GM instrument ${originalTrack.instrument}`);
+      } else {
+        // Create synth from specified type or default
+        const requestedSynthType = originalTrack.synth || "PolySynth";
+        try {
+          synth = new ToneLib[requestedSynthType]().toDestination();
+        } catch {
+          synth = new ToneLib.PolySynth().toDestination();
+        }
       }
+
       activeSynths.push(synth);
 
       // Compile articulations to modulations
