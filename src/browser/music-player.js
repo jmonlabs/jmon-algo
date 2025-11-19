@@ -191,6 +191,21 @@ export function createPlayer(composition, options = {}) {
       const { originalTrackIndex, partEvents } = trackConfig;
       const originalTrack = originalTracksSource[originalTrackIndex] || {};
 
+      // Compile articulations to modulations FIRST (to check for glissando)
+      let modulations = [];
+      try {
+        const compiled = compileEvents(originalTrack);
+        modulations = compiled.modulations || [];
+        console.log(`[ARTICULATIONS] Track ${originalTrackIndex}: Found ${modulations.length} modulations`, modulations);
+      } catch (e) {
+        console.warn("Failed to compile articulations:", e);
+      }
+
+      // Check if track has glissando (needs MonoSynth for detune support)
+      const hasGlissando = modulations.some(
+        (m) => m.type === "pitch" && (m.subtype === "glissando" || m.subtype === "portamento")
+      );
+
       // Create synth or sampler based on track configuration
       let synth;
 
@@ -206,7 +221,15 @@ export function createPlayer(composition, options = {}) {
         console.log(`Creating Sampler for GM instrument ${originalTrack.instrument}`);
       } else {
         // Create synth from specified type or default
-        const requestedSynthType = originalTrack.synth || "PolySynth";
+        let requestedSynthType = originalTrack.synth || "PolySynth";
+
+        // If track has glissando and no specific synth type requested, use MonoSynth
+        // (PolySynth doesn't expose detune parameter directly)
+        if (hasGlissando && !originalTrack.synth) {
+          requestedSynthType = "MonoSynth";
+          console.log(`[GLISSANDO] Using MonoSynth for track ${originalTrackIndex} (has glissando)`);
+        }
+
         try {
           synth = new ToneLib[requestedSynthType]().toDestination();
         } catch {
@@ -215,16 +238,6 @@ export function createPlayer(composition, options = {}) {
       }
 
       activeSynths.push(synth);
-
-      // Compile articulations to modulations
-      let modulations = [];
-      try {
-        const compiled = compileEvents(originalTrack);
-        modulations = compiled.modulations || [];
-        console.log(`[ARTICULATIONS] Track ${originalTrackIndex}: Found ${modulations.length} modulations`, modulations);
-      } catch (e) {
-        console.warn("Failed to compile articulations:", e);
-      }
 
       // Check for vibrato/tremolo modulations (track-level effects)
       const vibratoMods = modulations.filter(
@@ -458,17 +471,31 @@ export function createPlayer(composition, options = {}) {
   // Stop
   function stop() {
     if (window.Tone) {
+      // Stop and cancel all transport events FIRST
       window.Tone.Transport.stop();
       window.Tone.Transport.cancel(0);
 
       // Clean up all scheduled events
       scheduledEvents.forEach(eventId => {
-        window.Tone.Transport.clear(eventId);
+        try {
+          window.Tone.Transport.clear(eventId);
+        } catch (e) {
+          // Event may already be cleared
+        }
       });
       scheduledEvents = [];
 
-      // Re-setup audio to reschedule notes
-      setupAudio().catch(console.error);
+      // Clear synths only (don't recreate yet - wait for next play)
+      activeSynths.forEach(s => {
+        try {
+          if (!s.disposed) {
+            s.dispose();
+          }
+        } catch (e) {
+          console.warn('Error disposing synth/effect:', e);
+        }
+      });
+      activeSynths = [];
     }
 
     isPlaying = false;

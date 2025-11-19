@@ -74,6 +74,11 @@ export async function downloadWav(composition, Tone, filename = "composition.wav
 			const synthRef = track.synthRef;
 			const trackModulations = compiledModulations[trackIndex] || [];
 
+			// Check if track has glissando (needs MonoSynth for detune support)
+			const hasGlissando = trackModulations.some(
+				(m) => m.type === "pitch" && (m.subtype === "glissando" || m.subtype === "portamento")
+			);
+
 			// Determine which synth/sampler to use
 			let synth = null;
 			if (synthRef && graphInstruments && graphInstruments[synthRef]) {
@@ -89,7 +94,14 @@ export async function downloadWav(composition, Tone, filename = "composition.wav
 				console.log(`[WAV] Creating Sampler for GM instrument ${track.instrument}`);
 			} else {
 				// Use specified synth type or default PolySynth
-				const synthType = track.synth || "PolySynth";
+				let synthType = track.synth || "PolySynth";
+
+				// If track has glissando and no specific synth type, use MonoSynth
+				if (hasGlissando && !track.synth) {
+					synthType = "MonoSynth";
+					console.log(`[WAV] Using MonoSynth for track ${trackIndex} (has glissando)`);
+				}
+
 				try {
 					synth = new Tone[synthType]().toDestination();
 				} catch (e) {
