@@ -165,7 +165,10 @@ export function compilePerformanceTrack(track, options = {}) {
         case "portamento": {
           if (isRest) break;
           const fromPitch = toMainPitch(n.pitch);
-          const toPitch = typeof art.target === "number" ? art.target : undefined;
+          // Accept both 'target' (standard) and 'to' (common mistake) for compatibility
+          const toPitch = typeof art.target === "number" ? art.target
+                        : typeof art.to === "number" ? art.to
+                        : undefined;
           if (typeof fromPitch !== "number" || typeof toPitch !== "number") break;
 
           modulations.push({
