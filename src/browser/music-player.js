@@ -33,8 +33,7 @@ export function createPlayer(composition, options = {}) {
   let currentTime = 0;
   let animationId = null;
   let scheduledEvents = []; // Track all scheduled events for cleanup
-  let activeSynths = []; // Track synths that need disposal
-  let articulatedSynths = []; // Track mono synths created for articulations
+  let activeSynths = []; // Track synths and effects that need disposal
 
   // Create UI container
   const container = document.createElement("div");
@@ -175,26 +174,15 @@ export function createPlayer(composition, options = {}) {
     await ToneLib.start();
     ToneLib.Transport.bpm.value = tempo;
 
-    // Clean up previous synths
+    // Clean up previous synths and effects
     activeSynths.forEach(s => {
       try {
         s.dispose();
       } catch (e) {
-        console.warn('Error disposing synth:', e);
+        console.warn('Error disposing synth/effect:', e);
       }
     });
     activeSynths = [];
-
-    // Clean up articulated synths
-    articulatedSynths.forEach(s => {
-      try {
-        s.dispose();
-      } catch (e) {
-        console.warn('Error disposing articulated synth:', e);
-      }
-    });
-    articulatedSynths = [];
-
     scheduledEvents = [];
 
     // Create synths and schedule notes
@@ -205,31 +193,14 @@ export function createPlayer(composition, options = {}) {
       // Determine synth type from JMON or use default
       const requestedSynthType = originalTrack.synth || "PolySynth";
 
-      // Create polyphonic synth for normal notes (chords, non-articulated notes)
-      let polySynth;
+      // Create synth
+      let synth;
       try {
-        polySynth = new ToneLib[requestedSynthType]().toDestination();
+        synth = new ToneLib[requestedSynthType]().toDestination();
       } catch {
-        polySynth = new ToneLib.PolySynth().toDestination();
+        synth = new ToneLib.PolySynth().toDestination();
       }
-      activeSynths.push(polySynth);
-
-      // Determine mono synth type for articulated notes
-      // PolySynth doesn't expose frequency/volume, so use underlying synth type
-      let monoSynthType = "MonoSynth"; // default
-      if (requestedSynthType === "PolySynth") {
-        // PolySynth uses Synth voices by default
-        monoSynthType = "Synth";
-      } else if (requestedSynthType.includes("Poly")) {
-        // Strip "Poly" prefix: PolySynth -> Synth, PolyFM -> FMSynth
-        monoSynthType = requestedSynthType.replace("Poly", "");
-        if (!ToneLib[monoSynthType]) {
-          monoSynthType = "MonoSynth";
-        }
-      } else {
-        // Already a mono synth type, use it
-        monoSynthType = requestedSynthType;
-      }
+      activeSynths.push(synth);
 
       // Compile articulations to modulations
       let modulations = [];
@@ -240,7 +211,103 @@ export function createPlayer(composition, options = {}) {
         console.warn("Failed to compile articulations:", e);
       }
 
-      // Create modulation lookup by note index
+      // Check for vibrato/tremolo modulations (track-level effects)
+      const vibratoMods = modulations.filter(
+        (m) => m.type === "pitch" && m.subtype === "vibrato"
+      );
+      const tremoloMods = modulations.filter(
+        (m) => m.type === "amplitude" && m.subtype === "tremolo"
+      );
+
+      // Create effect chain if needed
+      let vibratoEffect = null;
+      let tremoloEffect = null;
+
+      if (vibratoMods.length > 0 || tremoloMods.length > 0) {
+        // Disconnect synth from destination first
+        synth.disconnect();
+
+        // Create effects
+        if (vibratoMods.length > 0) {
+          const defaultVibrato = vibratoMods[0];
+          vibratoEffect = new ToneLib.Vibrato({
+            frequency: defaultVibrato.rate || 5,
+            depth: (defaultVibrato.depth || 50) / 100,
+          });
+          vibratoEffect.wet.value = 0; // Start disabled
+          activeSynths.push(vibratoEffect);
+        }
+
+        if (tremoloMods.length > 0) {
+          const defaultTremolo = tremoloMods[0];
+          tremoloEffect = new ToneLib.Tremolo({
+            frequency: defaultTremolo.rate || 8,
+            depth: defaultTremolo.depth || 0.3,
+          }).start();
+          tremoloEffect.wet.value = 0; // Start disabled
+          activeSynths.push(tremoloEffect);
+        }
+
+        // Connect effect chain
+        if (vibratoEffect && tremoloEffect) {
+          synth.connect(vibratoEffect);
+          vibratoEffect.connect(tremoloEffect);
+          tremoloEffect.toDestination();
+        } else if (vibratoEffect) {
+          synth.connect(vibratoEffect);
+          vibratoEffect.toDestination();
+        } else if (tremoloEffect) {
+          synth.connect(tremoloEffect);
+          tremoloEffect.toDestination();
+        }
+
+        // Schedule effect enable/disable based on modulations
+        const secondsPerQuarterNote = 60 / tempo;
+        modulations.forEach((mod) => {
+          const startTime = mod.start * secondsPerQuarterNote;
+          const endTime = mod.end * secondsPerQuarterNote;
+
+          if (mod.type === "pitch" && mod.subtype === "vibrato" && vibratoEffect) {
+            const vibratoFreq = mod.rate || 5;
+            const vibratoDepth = (mod.depth || 50) / 100;
+
+            // Schedule enable
+            const enableId = ToneLib.Transport.schedule((time) => {
+              vibratoEffect.frequency.value = vibratoFreq;
+              vibratoEffect.depth.value = vibratoDepth;
+              vibratoEffect.wet.value = 1;
+            }, startTime);
+            scheduledEvents.push(enableId);
+
+            // Schedule disable
+            const disableId = ToneLib.Transport.schedule((time) => {
+              vibratoEffect.wet.value = 0;
+            }, endTime);
+            scheduledEvents.push(disableId);
+          }
+
+          if (mod.type === "amplitude" && mod.subtype === "tremolo" && tremoloEffect) {
+            const tremoloFreq = mod.rate || 8;
+            const tremoloDepth = mod.depth || 0.3;
+
+            // Schedule enable
+            const enableId = ToneLib.Transport.schedule((time) => {
+              tremoloEffect.frequency.value = tremoloFreq;
+              tremoloEffect.depth.value = tremoloDepth;
+              tremoloEffect.wet.value = 1;
+            }, startTime);
+            scheduledEvents.push(enableId);
+
+            // Schedule disable
+            const disableId = ToneLib.Transport.schedule((time) => {
+              tremoloEffect.wet.value = 0;
+            }, endTime);
+            scheduledEvents.push(disableId);
+          }
+        });
+      }
+
+      // Create modulation lookup by note index for glissando
       const modsByNote = {};
       modulations.forEach((mod) => {
         if (!modsByNote[mod.index]) modsByNote[mod.index] = [];
@@ -258,84 +325,20 @@ export function createPlayer(composition, options = {}) {
         const velocity = note.velocity || 0.8;
         const mods = modsByNote[noteIndex] || [];
 
+        // Check for glissando
+        const glissando = mods.find(
+          (m) => m.type === "pitch" && (m.subtype === "glissando" || m.subtype === "portamento")
+        );
+
         // Handle chords
         if (Array.isArray(note.pitch)) {
           const noteNames = note.pitch.map((p) =>
             typeof p === "number" ? ToneLib.Frequency(p, "midi").toNote() : p
           );
-
-          // Check if chord has articulations
-          const vibrato = mods.find((m) => m.type === "pitch" && m.subtype === "vibrato");
-          const tremolo = mods.find((m) => m.type === "amplitude" && m.subtype === "tremolo");
-          const glissando = mods.find(
-            (m) => m.type === "pitch" && (m.subtype === "glissando" || m.subtype === "portamento")
-          );
-
-          if (vibrato || tremolo || glissando) {
-            // Apply articulations to each note in the chord individually
-            const eventId = ToneLib.Transport.schedule((schedTime) => {
-              noteNames.forEach((noteName) => {
-                // Create dedicated mono synth for each note in chord
-                const monoSynth = new ToneLib[monoSynthType]().toDestination();
-                articulatedSynths.push(monoSynth); // Track for cleanup
-
-                monoSynth.triggerAttack(noteName, schedTime, velocity);
-
-                // Apply glissando
-                if (glissando && glissando.to !== undefined) {
-                  const toNote = typeof glissando.to === "number"
-                    ? ToneLib.Frequency(glissando.to, "midi").toNote()
-                    : glissando.to;
-                  const startFreq = ToneLib.Frequency(noteName).toFrequency();
-                  const endFreq = ToneLib.Frequency(toNote).toFrequency();
-                  const cents = 1200 * Math.log2(endFreq / startFreq);
-                  if (monoSynth.detune) {
-                    monoSynth.detune.setValueAtTime(0, schedTime);
-                    monoSynth.detune.linearRampToValueAtTime(cents, schedTime + duration);
-                  }
-                }
-
-                // Apply vibrato
-                if (vibrato && monoSynth.frequency) {
-                  const rate = vibrato.rate || 5;
-                  const depth = vibrato.depth || 50;
-                  const depthRatio = Math.pow(2, depth / 1200);
-                  const baseFreq = ToneLib.Frequency(noteName).toFrequency();
-                  const numSteps = Math.ceil(duration * rate * 10);
-                  const values = [];
-                  for (let i = 0; i < numSteps; i++) {
-                    const phase = (i / numSteps) * duration * rate * Math.PI * 2;
-                    const offset = Math.sin(phase) * (depthRatio - 1);
-                    values.push(baseFreq * (1 + offset));
-                  }
-                  monoSynth.frequency.setValueCurveAtTime(values, schedTime, duration);
-                }
-
-                // Apply tremolo
-                if (tremolo && monoSynth.volume) {
-                  const rate = tremolo.rate || 8;
-                  const depth = tremolo.depth || 0.3;
-                  const numSteps = Math.ceil(duration * rate * 10);
-                  const values = [];
-                  for (let i = 0; i < numSteps; i++) {
-                    const phase = (i / numSteps) * duration * rate * Math.PI * 2;
-                    const offset = Math.sin(phase) * depth;
-                    values.push(offset * -20);
-                  }
-                  monoSynth.volume.setValueCurveAtTime(values, schedTime, duration);
-                }
-
-                monoSynth.triggerRelease(schedTime + duration);
-              });
-            }, time);
-            scheduledEvents.push(eventId);
-          } else {
-            // Normal chord without articulations
-            const eventId = ToneLib.Transport.schedule(() => {
-              polySynth.triggerAttackRelease(noteNames, duration, "+0", velocity);
-            }, time);
-            scheduledEvents.push(eventId);
-          }
+          const eventId = ToneLib.Transport.schedule((schedTime) => {
+            synth.triggerAttackRelease(noteNames, duration, schedTime, velocity);
+          }, time);
+          scheduledEvents.push(eventId);
           return;
         }
 
@@ -344,76 +347,27 @@ export function createPlayer(composition, options = {}) {
           ? ToneLib.Frequency(note.pitch, "midi").toNote()
           : note.pitch;
 
-        // Check for articulations that need special handling
-        const vibrato = mods.find((m) => m.type === "pitch" && m.subtype === "vibrato");
-        const tremolo = mods.find((m) => m.type === "amplitude" && m.subtype === "tremolo");
-        const glissando = mods.find(
-          (m) => m.type === "pitch" && (m.subtype === "glissando" || m.subtype === "portamento")
-        );
+        // Handle glissando using detune parameter
+        if (glissando && glissando.to !== undefined && synth.detune) {
+          const toNote = typeof glissando.to === "number"
+            ? ToneLib.Frequency(glissando.to, "midi").toNote()
+            : glissando.to;
 
-        // Notes with articulations need mono synth (PolySynth doesn't expose frequency/volume)
-        if (vibrato || tremolo || glissando) {
+          const startFreq = ToneLib.Frequency(noteName).toFrequency();
+          const endFreq = ToneLib.Frequency(toNote).toFrequency();
+          const cents = 1200 * Math.log2(endFreq / startFreq);
+
           const eventId = ToneLib.Transport.schedule((schedTime) => {
-            // Create a dedicated mono synth for this articulated note using the track's synth type
-            const monoSynth = new ToneLib[monoSynthType]().toDestination();
-            articulatedSynths.push(monoSynth); // Track for cleanup
-
-            monoSynth.triggerAttack(noteName, schedTime, velocity);
-
-            // Apply glissando
-            if (glissando && glissando.to !== undefined && monoSynth.detune) {
-              const toNote = typeof glissando.to === "number"
-                ? ToneLib.Frequency(glissando.to, "midi").toNote()
-                : glissando.to;
-
-              const startFreq = ToneLib.Frequency(noteName).toFrequency();
-              const endFreq = ToneLib.Frequency(toNote).toFrequency();
-              const cents = 1200 * Math.log2(endFreq / startFreq);
-
-              monoSynth.detune.setValueAtTime(0, schedTime);
-              monoSynth.detune.linearRampToValueAtTime(cents, schedTime + duration);
-            }
-
-            // Apply vibrato (frequency modulation)
-            if (vibrato && monoSynth.frequency) {
-              const rate = vibrato.rate || 5;
-              const depth = vibrato.depth || 50;
-              const depthRatio = Math.pow(2, depth / 1200);
-              const baseFreq = ToneLib.Frequency(noteName).toFrequency();
-
-              const numSteps = Math.ceil(duration * rate * 10);
-              const values = [];
-              for (let i = 0; i < numSteps; i++) {
-                const phase = (i / numSteps) * duration * rate * Math.PI * 2;
-                const offset = Math.sin(phase) * (depthRatio - 1);
-                values.push(baseFreq * (1 + offset));
-              }
-              monoSynth.frequency.setValueCurveAtTime(values, schedTime, duration);
-            }
-
-            // Apply tremolo (volume modulation)
-            if (tremolo && monoSynth.volume) {
-              const rate = tremolo.rate || 8;
-              const depth = tremolo.depth || 0.3;
-
-              const numSteps = Math.ceil(duration * rate * 10);
-              const values = [];
-              for (let i = 0; i < numSteps; i++) {
-                const phase = (i / numSteps) * duration * rate * Math.PI * 2;
-                const offset = Math.sin(phase) * depth;
-                values.push(offset * -20); // Convert to dB
-              }
-              monoSynth.volume.setValueCurveAtTime(values, schedTime, duration);
-            }
-
-            // Schedule note release
-            monoSynth.triggerRelease(schedTime + duration);
+            synth.triggerAttack(noteName, schedTime, velocity);
+            synth.detune.setValueAtTime(0, schedTime);
+            synth.detune.linearRampToValueAtTime(cents, schedTime + duration);
+            synth.triggerRelease(schedTime + duration);
           }, time);
           scheduledEvents.push(eventId);
         } else {
-          // Normal note without articulations - use PolySynth
+          // Normal note
           const eventId = ToneLib.Transport.schedule((schedTime) => {
-            polySynth.triggerAttackRelease(noteName, duration, schedTime, velocity);
+            synth.triggerAttackRelease(noteName, duration, schedTime, velocity);
           }, time);
           scheduledEvents.push(eventId);
         }
@@ -460,18 +414,6 @@ export function createPlayer(composition, options = {}) {
         window.Tone.Transport.clear(eventId);
       });
       scheduledEvents = [];
-
-      // Immediately dispose articulated synths to prevent "already disposed" errors
-      articulatedSynths.forEach(s => {
-        try {
-          if (s && !s.disposed) {
-            s.dispose();
-          }
-        } catch (e) {
-          console.warn('Error disposing articulated synth on stop:', e);
-        }
-      });
-      articulatedSynths = [];
 
       // Re-setup audio to reschedule notes
       setupAudio().catch(console.error);
