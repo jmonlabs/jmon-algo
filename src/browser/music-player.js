@@ -401,6 +401,11 @@ export function createPlayer(composition, options = {}) {
       // Ensure audio is setup
       if (!window.Tone || scheduledEvents.length === 0) {
         await setupAudio();
+
+        // Wait for all samplers to load
+        console.log("Waiting for samples to load...");
+        await window.Tone.loaded();
+        console.log("Samples loaded, starting playback");
       }
 
       // Resume or start
