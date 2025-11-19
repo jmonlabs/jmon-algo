@@ -70,18 +70,39 @@ export async function downloadWav(composition, Tone, filename = "composition.wav
 			const { modulations = [] } = compiledTracks[trackIndex] || {};
 			const synthRef = track.synthRef;
 
-			// Determine which synth to use
-			let synth = null;
+			// Determine synth type - prioritize track.synth, then fall back to track.instrument
+			let requestedSynthType = track.synth || "PolySynth";
+
+			// Map MIDI instrument numbers to synth types (if instrument specified)
+			if (!track.synth && track.instrument !== undefined) {
+				// For now, use MonoSynth for all GM instruments to support articulations
+				// TODO: Could map specific instruments to specific synth types
+				requestedSynthType = "MonoSynth";
+			}
+
+			// Create polyphonic synth for normal notes
+			let polySynth = null;
 			if (synthRef && graphInstruments && graphInstruments[synthRef]) {
-				synth = graphInstruments[synthRef];
+				polySynth = graphInstruments[synthRef];
 			} else {
-				// Use specified synth or default to PolySynth
-				const synthType = track.synth || "PolySynth";
 				try {
-					synth = new Tone[synthType]().toDestination();
+					polySynth = new Tone[requestedSynthType]().toDestination();
 				} catch (e) {
-					synth = new Tone.PolySynth().toDestination();
+					polySynth = new Tone.PolySynth().toDestination();
 				}
+			}
+
+			// Determine mono synth type for articulated notes
+			let monoSynthType = "MonoSynth"; // default
+			if (requestedSynthType === "PolySynth") {
+				monoSynthType = "Synth";
+			} else if (requestedSynthType.includes("Poly")) {
+				monoSynthType = requestedSynthType.replace("Poly", "");
+				if (!Tone[monoSynthType]) {
+					monoSynthType = "MonoSynth";
+				}
+			} else {
+				monoSynthType = requestedSynthType;
 			}
 
 			// Create modulation lookup by note index
@@ -103,36 +124,69 @@ export async function downloadWav(composition, Tone, filename = "composition.wav
 					const noteNames = note.pitch.map((p) =>
 						typeof p === "number" ? Tone.Frequency(p, "midi").toNote() : p
 					);
-					synth.triggerAttackRelease(noteNames, duration, time, velocity);
-					return;
-				}
 
-				// Handle glissando
-				const glissando = noteMods.find(
-					(m) => m.type === "pitch" && (m.subtype === "glissando" || m.subtype === "portamento")
-				);
-				if (glissando && glissando.to !== undefined) {
-					const fromNote = typeof note.pitch === "number"
-						? Tone.Frequency(note.pitch, "midi").toNote()
-						: note.pitch;
-					const toNote = typeof glissando.to === "number"
-						? Tone.Frequency(glissando.to, "midi").toNote()
-						: glissando.to;
+					// Check if chord has articulations
+					const vibrato = noteMods.find((m) => m.type === "pitch" && m.subtype === "vibrato");
+					const tremolo = noteMods.find((m) => m.type === "amplitude" && m.subtype === "tremolo");
+					const glissando = noteMods.find(
+						(m) => m.type === "pitch" && (m.subtype === "glissando" || m.subtype === "portamento")
+					);
 
-					synth.triggerAttack(fromNote, time, velocity);
+					if (vibrato || tremolo || glissando) {
+						// Apply articulations to each note in chord with dedicated mono synths
+						noteNames.forEach((noteName) => {
+							const monoSynth = new Tone[monoSynthType]().toDestination();
 
-					// Calculate pitch bend
-					const startFreq = Tone.Frequency(fromNote).toFrequency();
-					const endFreq = Tone.Frequency(toNote).toFrequency();
-					const cents = 1200 * Math.log2(endFreq / startFreq);
+							monoSynth.triggerAttack(noteName, time, velocity);
 
-					// Apply glissando with detune
-					if (synth.detune) {
-						synth.detune.setValueAtTime(0, time);
-						synth.detune.linearRampToValueAtTime(cents, time + duration);
+							// Apply glissando
+							if (glissando && glissando.to !== undefined && monoSynth.detune) {
+								const toNote = typeof glissando.to === "number"
+									? Tone.Frequency(glissando.to, "midi").toNote()
+									: glissando.to;
+								const startFreq = Tone.Frequency(noteName).toFrequency();
+								const endFreq = Tone.Frequency(toNote).toFrequency();
+								const cents = 1200 * Math.log2(endFreq / startFreq);
+								monoSynth.detune.setValueAtTime(0, time);
+								monoSynth.detune.linearRampToValueAtTime(cents, time + duration);
+							}
+
+							// Apply vibrato
+							if (vibrato && monoSynth.frequency) {
+								const rate = vibrato.rate || 5;
+								const depth = vibrato.depth || 50;
+								const depthRatio = Math.pow(2, depth / 1200);
+								const baseFreq = Tone.Frequency(noteName).toFrequency();
+								const numSteps = Math.ceil(duration * rate * 10);
+								const values = [];
+								for (let i = 0; i < numSteps; i++) {
+									const phase = (i / numSteps) * duration * rate * Math.PI * 2;
+									const offset = Math.sin(phase) * (depthRatio - 1);
+									values.push(baseFreq * (1 + offset));
+								}
+								monoSynth.frequency.setValueCurveAtTime(values, time, duration);
+							}
+
+							// Apply tremolo
+							if (tremolo && monoSynth.volume) {
+								const rate = tremolo.rate || 8;
+								const depth = tremolo.depth || 0.3;
+								const numSteps = Math.ceil(duration * rate * 10);
+								const values = [];
+								for (let i = 0; i < numSteps; i++) {
+									const phase = (i / numSteps) * duration * rate * Math.PI * 2;
+									const offset = Math.sin(phase) * depth;
+									values.push(offset * -20);
+								}
+								monoSynth.volume.setValueCurveAtTime(values, time, duration);
+							}
+
+							monoSynth.triggerRelease(time + duration);
+						});
+					} else {
+						// Normal chord without articulations
+						polySynth.triggerAttackRelease(noteNames, duration, time, velocity);
 					}
-
-					synth.triggerRelease(time + duration);
 					return;
 				}
 
@@ -141,16 +195,33 @@ export async function downloadWav(composition, Tone, filename = "composition.wav
 					? Tone.Frequency(note.pitch, "midi").toNote()
 					: note.pitch;
 
-				// Check for vibrato/tremolo
+				// Check for articulations
 				const vibrato = noteMods.find((m) => m.type === "pitch" && m.subtype === "vibrato");
 				const tremolo = noteMods.find((m) => m.type === "amplitude" && m.subtype === "tremolo");
+				const glissando = noteMods.find(
+					(m) => m.type === "pitch" && (m.subtype === "glissando" || m.subtype === "portamento")
+				);
 
-				if (vibrato || tremolo) {
-					// Apply modulations using parameter automation
-					synth.triggerAttack(noteName, time, velocity);
+				if (vibrato || tremolo || glissando) {
+					// Create dedicated mono synth for articulated note
+					const monoSynth = new Tone[monoSynthType]().toDestination();
 
-					// Vibrato: modulate frequency
-					if (vibrato && synth.frequency) {
+					monoSynth.triggerAttack(noteName, time, velocity);
+
+					// Apply glissando
+					if (glissando && glissando.to !== undefined && monoSynth.detune) {
+						const toNote = typeof glissando.to === "number"
+							? Tone.Frequency(glissando.to, "midi").toNote()
+							: glissando.to;
+						const startFreq = Tone.Frequency(noteName).toFrequency();
+						const endFreq = Tone.Frequency(toNote).toFrequency();
+						const cents = 1200 * Math.log2(endFreq / startFreq);
+						monoSynth.detune.setValueAtTime(0, time);
+						monoSynth.detune.linearRampToValueAtTime(cents, time + duration);
+					}
+
+					// Apply vibrato
+					if (vibrato && monoSynth.frequency) {
 						const rate = vibrato.rate || 5;
 						const depth = vibrato.depth || 50;
 						const depthRatio = Math.pow(2, depth / 1200);
@@ -163,11 +234,11 @@ export async function downloadWav(composition, Tone, filename = "composition.wav
 							const offset = Math.sin(phase) * (depthRatio - 1);
 							values.push(baseFreq * (1 + offset));
 						}
-						synth.frequency.setValueCurveAtTime(values, time, duration);
+						monoSynth.frequency.setValueCurveAtTime(values, time, duration);
 					}
 
-					// Tremolo: modulate volume
-					if (tremolo && synth.volume) {
+					// Apply tremolo
+					if (tremolo && monoSynth.volume) {
 						const rate = tremolo.rate || 8;
 						const depth = tremolo.depth || 0.3;
 
@@ -178,13 +249,13 @@ export async function downloadWav(composition, Tone, filename = "composition.wav
 							const offset = Math.sin(phase) * depth;
 							values.push(offset * -20); // Convert to dB
 						}
-						synth.volume.setValueCurveAtTime(values, time, duration);
+						monoSynth.volume.setValueCurveAtTime(values, time, duration);
 					}
 
-					synth.triggerRelease(time + duration);
+					monoSynth.triggerRelease(time + duration);
 				} else {
-					// Normal note
-					synth.triggerAttackRelease(noteName, duration, time, velocity);
+					// Normal note without articulations
+					polySynth.triggerAttackRelease(noteName, duration, time, velocity);
 				}
 			});
 		});
