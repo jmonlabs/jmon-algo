@@ -73,10 +73,10 @@ export async function downloadWav(composition, Tone, filename = "composition.wav
 			// Determine synth type - prioritize track.synth, then fall back to track.instrument
 			let requestedSynthType = track.synth || "PolySynth";
 
-			// Map MIDI instrument numbers to synth types (if instrument specified)
+			// If instrument specified, use MonoSynth to support articulations
+			// Note: This won't sound like the actual GM instrument (would need Sampler)
+			// but Samplers can't be modulated for vibrato/tremolo/glissando
 			if (!track.synth && track.instrument !== undefined) {
-				// For now, use MonoSynth for all GM instruments to support articulations
-				// TODO: Could map specific instruments to specific synth types
 				requestedSynthType = "MonoSynth";
 			}
 
