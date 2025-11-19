@@ -34,6 +34,7 @@ export function createPlayer(composition, options = {}) {
   let animationId = null;
   let scheduledEvents = []; // Track all scheduled events for cleanup
   let activeSynths = []; // Track synths that need disposal
+  let articulatedSynths = []; // Track mono synths created for articulations
 
   // Create UI container
   const container = document.createElement("div");
@@ -183,6 +184,17 @@ export function createPlayer(composition, options = {}) {
       }
     });
     activeSynths = [];
+
+    // Clean up articulated synths
+    articulatedSynths.forEach(s => {
+      try {
+        s.dispose();
+      } catch (e) {
+        console.warn('Error disposing articulated synth:', e);
+      }
+    });
+    articulatedSynths = [];
+
     scheduledEvents = [];
 
     // Create synths and schedule notes
@@ -265,6 +277,7 @@ export function createPlayer(composition, options = {}) {
               noteNames.forEach((noteName) => {
                 // Create dedicated mono synth for each note in chord
                 const monoSynth = new ToneLib[monoSynthType]().toDestination();
+                articulatedSynths.push(monoSynth); // Track for cleanup
 
                 monoSynth.triggerAttack(noteName, schedTime, velocity);
 
@@ -313,11 +326,6 @@ export function createPlayer(composition, options = {}) {
                 }
 
                 monoSynth.triggerRelease(schedTime + duration);
-
-                // Dispose synth after note ends
-                ToneLib.Transport.schedule(() => {
-                  monoSynth.dispose();
-                }, schedTime + duration + 0.5);
               });
             }, time);
             scheduledEvents.push(eventId);
@@ -348,6 +356,7 @@ export function createPlayer(composition, options = {}) {
           const eventId = ToneLib.Transport.schedule((schedTime) => {
             // Create a dedicated mono synth for this articulated note using the track's synth type
             const monoSynth = new ToneLib[monoSynthType]().toDestination();
+            articulatedSynths.push(monoSynth); // Track for cleanup
 
             monoSynth.triggerAttack(noteName, schedTime, velocity);
 
@@ -397,14 +406,8 @@ export function createPlayer(composition, options = {}) {
               monoSynth.volume.setValueCurveAtTime(values, schedTime, duration);
             }
 
-            // Schedule note release and cleanup
+            // Schedule note release
             monoSynth.triggerRelease(schedTime + duration);
-
-            // Dispose synth after note ends
-            const disposeId = ToneLib.Transport.schedule(() => {
-              monoSynth.dispose();
-            }, schedTime + duration + 0.5);
-            scheduledEvents.push(disposeId);
           }, time);
           scheduledEvents.push(eventId);
         } else {
@@ -457,6 +460,18 @@ export function createPlayer(composition, options = {}) {
         window.Tone.Transport.clear(eventId);
       });
       scheduledEvents = [];
+
+      // Immediately dispose articulated synths to prevent "already disposed" errors
+      articulatedSynths.forEach(s => {
+        try {
+          if (s && !s.disposed) {
+            s.dispose();
+          }
+        } catch (e) {
+          console.warn('Error disposing articulated synth on stop:', e);
+        }
+      });
+      articulatedSynths = [];
 
       // Re-setup audio to reschedule notes
       setupAudio().catch(console.error);
