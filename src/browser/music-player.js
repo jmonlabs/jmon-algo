@@ -363,20 +363,21 @@ export function createPlayer(composition, options = {}) {
           ? ToneLib.Frequency(note.pitch, "midi").toNote()
           : note.pitch;
 
-        // Handle glissando using detune parameter
+        // Handle glissando using detune parameter or playbackRate
         if (glissando && glissando.to !== undefined) {
-          console.log(`[GLISSANDO] Found glissando mod:`, glissando, `Synth has detune:`, !!synth.detune);
+          const toNote = typeof glissando.to === "number"
+            ? ToneLib.Frequency(glissando.to, "midi").toNote()
+            : glissando.to;
+
+          const startFreq = ToneLib.Frequency(noteName).toFrequency();
+          const endFreq = ToneLib.Frequency(toNote).toFrequency();
+
+          console.log(`[GLISSANDO] ${noteName} -> ${toNote}, detune:`, !!synth.detune, `playbackRate:`, !!synth.playbackRate);
 
           if (synth.detune) {
-            const toNote = typeof glissando.to === "number"
-              ? ToneLib.Frequency(glissando.to, "midi").toNote()
-              : glissando.to;
-
-            const startFreq = ToneLib.Frequency(noteName).toFrequency();
-            const endFreq = ToneLib.Frequency(toNote).toFrequency();
+            // Synths: Use detune parameter (in cents)
             const cents = 1200 * Math.log2(endFreq / startFreq);
-
-            console.log(`[GLISSANDO] Applying: ${noteName} -> ${toNote} (${cents} cents)`);
+            console.log(`[GLISSANDO] Using detune: ${cents} cents`);
 
             const eventId = ToneLib.Transport.schedule((schedTime) => {
               synth.triggerAttack(noteName, schedTime, velocity);
@@ -385,8 +386,26 @@ export function createPlayer(composition, options = {}) {
               synth.triggerRelease(schedTime + duration);
             }, time);
             scheduledEvents.push(eventId);
+          } else if (synth.playbackRate) {
+            // Samplers: Use playbackRate parameter
+            const startRate = 1.0;
+            const endRate = endFreq / startFreq;
+            console.log(`[GLISSANDO] Using playbackRate: ${startRate} -> ${endRate}`);
+
+            const eventId = ToneLib.Transport.schedule((schedTime) => {
+              synth.triggerAttack(noteName, schedTime, velocity);
+              synth.playbackRate = startRate;
+
+              // Schedule playback rate ramp
+              if (synth.playbackRate.linearRampToValueAtTime) {
+                synth.playbackRate.linearRampToValueAtTime(endRate, schedTime + duration);
+              }
+
+              synth.triggerRelease(schedTime + duration);
+            }, time);
+            scheduledEvents.push(eventId);
           } else {
-            console.warn(`[GLISSANDO] Synth doesn't support detune parameter - falling back to normal note`);
+            console.warn(`[GLISSANDO] Synth doesn't support detune or playbackRate - falling back to normal note`);
             const eventId = ToneLib.Transport.schedule((schedTime) => {
               synth.triggerAttackRelease(noteName, duration, schedTime, velocity);
             }, time);

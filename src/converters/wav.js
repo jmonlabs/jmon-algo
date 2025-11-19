@@ -226,25 +226,42 @@ export async function downloadWav(composition, Tone, filename = "composition.wav
 							? Tone.Frequency(note.pitch, "midi").toNote()
 							: note.pitch;
 
-					// Handle glissando using detune parameter
-					if (glissando && glissando.to !== undefined && synth.detune) {
+					// Handle glissando using detune parameter or playbackRate
+					if (glissando && glissando.to !== undefined) {
 						const toNote = typeof glissando.to === "number"
 							? Tone.Frequency(glissando.to, "midi").toNote()
 							: glissando.to;
 
 						const startFreq = Tone.Frequency(noteName).toFrequency();
 						const endFreq = Tone.Frequency(toNote).toFrequency();
-						const cents = 1200 * Math.log2(endFreq / startFreq);
 
-						// Trigger note
-						synth.triggerAttack(noteName, time, note.velocity || 0.8);
+						if (synth.detune) {
+							// Synths: Use detune parameter
+							const cents = 1200 * Math.log2(endFreq / startFreq);
+							console.log(`[WAV] Glissando using detune: ${noteName} -> ${toNote} (${cents} cents)`);
 
-						// Apply glissando with detune automation
-						synth.detune.setValueAtTime(0, time);
-						synth.detune.linearRampToValueAtTime(cents, time + noteDuration);
+							synth.triggerAttack(noteName, time, note.velocity || 0.8);
+							synth.detune.setValueAtTime(0, time);
+							synth.detune.linearRampToValueAtTime(cents, time + noteDuration);
+							synth.triggerRelease(time + noteDuration);
+						} else if (synth.playbackRate) {
+							// Samplers: Use playbackRate parameter
+							const startRate = 1.0;
+							const endRate = endFreq / startFreq;
+							console.log(`[WAV] Glissando using playbackRate: ${noteName} -> ${toNote} (${startRate} -> ${endRate})`);
 
-						// Release note
-						synth.triggerRelease(time + noteDuration);
+							synth.triggerAttack(noteName, time, note.velocity || 0.8);
+							synth.playbackRate = startRate;
+
+							if (synth.playbackRate.linearRampToValueAtTime) {
+								synth.playbackRate.linearRampToValueAtTime(endRate, time + noteDuration);
+							}
+
+							synth.triggerRelease(time + noteDuration);
+						} else {
+							console.warn(`[WAV] Glissando not supported - no detune or playbackRate`);
+							synth.triggerAttackRelease(noteName, noteDuration, time, note.velocity || 0.8);
+						}
 					} else {
 						// Normal note
 						synth.triggerAttackRelease(
@@ -257,6 +274,11 @@ export async function downloadWav(composition, Tone, filename = "composition.wav
 				}
 			});
 		});
+
+		// Wait for all samplers to load before starting offline rendering
+		console.log('[WAV] Waiting for all samples to load...');
+		await Tone.loaded();
+		console.log('[WAV] Samples loaded, starting offline rendering');
 
 		transport.start(0);
 	}, finalDuration);
