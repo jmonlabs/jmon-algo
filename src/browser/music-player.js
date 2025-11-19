@@ -221,6 +221,7 @@ export function createPlayer(composition, options = {}) {
       try {
         const compiled = compileEvents(originalTrack);
         modulations = compiled.modulations || [];
+        console.log(`[ARTICULATIONS] Track ${originalTrackIndex}: Found ${modulations.length} modulations`, modulations);
       } catch (e) {
         console.warn("Failed to compile articulations:", e);
       }
@@ -232,6 +233,7 @@ export function createPlayer(composition, options = {}) {
       const tremoloMods = modulations.filter(
         (m) => m.type === "amplitude" && m.subtype === "tremolo"
       );
+      console.log(`[EFFECTS] Track ${originalTrackIndex}: ${vibratoMods.length} vibrato, ${tremoloMods.length} tremolo`);
 
       // Create effect chain if needed
       let vibratoEffect = null;
@@ -362,22 +364,34 @@ export function createPlayer(composition, options = {}) {
           : note.pitch;
 
         // Handle glissando using detune parameter
-        if (glissando && glissando.to !== undefined && synth.detune) {
-          const toNote = typeof glissando.to === "number"
-            ? ToneLib.Frequency(glissando.to, "midi").toNote()
-            : glissando.to;
+        if (glissando && glissando.to !== undefined) {
+          console.log(`[GLISSANDO] Found glissando mod:`, glissando, `Synth has detune:`, !!synth.detune);
 
-          const startFreq = ToneLib.Frequency(noteName).toFrequency();
-          const endFreq = ToneLib.Frequency(toNote).toFrequency();
-          const cents = 1200 * Math.log2(endFreq / startFreq);
+          if (synth.detune) {
+            const toNote = typeof glissando.to === "number"
+              ? ToneLib.Frequency(glissando.to, "midi").toNote()
+              : glissando.to;
 
-          const eventId = ToneLib.Transport.schedule((schedTime) => {
-            synth.triggerAttack(noteName, schedTime, velocity);
-            synth.detune.setValueAtTime(0, schedTime);
-            synth.detune.linearRampToValueAtTime(cents, schedTime + duration);
-            synth.triggerRelease(schedTime + duration);
-          }, time);
-          scheduledEvents.push(eventId);
+            const startFreq = ToneLib.Frequency(noteName).toFrequency();
+            const endFreq = ToneLib.Frequency(toNote).toFrequency();
+            const cents = 1200 * Math.log2(endFreq / startFreq);
+
+            console.log(`[GLISSANDO] Applying: ${noteName} -> ${toNote} (${cents} cents)`);
+
+            const eventId = ToneLib.Transport.schedule((schedTime) => {
+              synth.triggerAttack(noteName, schedTime, velocity);
+              synth.detune.setValueAtTime(0, schedTime);
+              synth.detune.linearRampToValueAtTime(cents, schedTime + duration);
+              synth.triggerRelease(schedTime + duration);
+            }, time);
+            scheduledEvents.push(eventId);
+          } else {
+            console.warn(`[GLISSANDO] Synth doesn't support detune parameter - falling back to normal note`);
+            const eventId = ToneLib.Transport.schedule((schedTime) => {
+              synth.triggerAttackRelease(noteName, duration, schedTime, velocity);
+            }, time);
+            scheduledEvents.push(eventId);
+          }
         } else {
           // Normal note
           const eventId = ToneLib.Transport.schedule((schedTime) => {
