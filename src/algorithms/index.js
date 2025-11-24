@@ -1,5 +1,5 @@
 // Constants
-import { MusicTheoryConstants } from './constants/MusicTheoryConstants.js';
+import { MusicTheoryConstants, ARTICULATION_TYPES, ORNAMENT_TYPES } from './constants/index.js';
 
 // Theory imports
 import harmony from './theory/harmony/index.js';
@@ -38,7 +38,9 @@ export const theory = {
 };
 
 export const constants = {
-    theory: MusicTheoryConstants
+    theory: MusicTheoryConstants,
+    articulations: ARTICULATION_TYPES,
+    ornaments: ORNAMENT_TYPES
 };
 
 export const generative = {
