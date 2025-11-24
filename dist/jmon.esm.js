@@ -12380,6 +12380,7 @@ var jm = {
   analysis: algorithms_default.analysis,
   constants: algorithms_default.constants,
   audio: algorithms_default.audio,
+  visualization: algorithms_default.visualization,
   // Utils
   utils: {
     ...algorithms_default.utils,
