@@ -1,4 +1,4 @@
-var JmonStudio = (() => {
+var jm = (() => {
   var __create = Object.create;
   var __defProp = Object.defineProperty;
   var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
@@ -138,11 +138,11 @@ var JmonStudio = (() => {
       return Plotly;
     plotlyLoadAttempted = true;
     try {
-      if (typeof window !== "undefined" && window.Plotly) {
-        Plotly = window.Plotly;
+      if (typeof globalThis.window !== "undefined" && globalThis.window.Plotly) {
+        Plotly = globalThis.window.Plotly;
         return Plotly;
       }
-      if (typeof window === "undefined") {
+      if (typeof globalThis.window === "undefined") {
         const plotlyPackage = "plotly.js";
         const plotlyModule = await import(plotlyPackage);
         Plotly = plotlyModule.default || plotlyModule;
@@ -197,6 +197,10 @@ var JmonStudio = (() => {
          * Create a scatter plot
          */
         static async scatter(data, options = {}, elementId = "plot") {
+          const plotly2 = await getPlotly();
+          if (!plotly2) {
+            return { data, options, type: "scatter", message: "Plotly.js not available" };
+          }
           const {
             title,
             width = 640,
@@ -223,7 +227,7 @@ var JmonStudio = (() => {
             xaxis: { title: { text: xTitle } },
             yaxis: { title: { text: yTitle } }
           };
-          await plotly.newPlot(elementId, [trace], layout);
+          await plotly2.newPlot(elementId, [trace], layout);
         }
         /**
          * Create a heatmap from 2D matrix data
@@ -864,11 +868,11 @@ var JmonStudio = (() => {
       return Plotly2;
     plotlyLoadAttempted2 = true;
     try {
-      if (typeof window !== "undefined" && window.Plotly) {
-        Plotly2 = window.Plotly;
+      if (typeof globalThis.window !== "undefined" && globalThis.window.Plotly) {
+        Plotly2 = globalThis.window.Plotly;
         return Plotly2;
       }
-      if (typeof window === "undefined") {
+      if (typeof globalThis.window === "undefined") {
         const plotlyPackage = "plotly.js";
         const plotlyModule = await import(plotlyPackage);
         Plotly2 = plotlyModule.default || plotlyModule;
@@ -1006,12 +1010,12 @@ var JmonStudio = (() => {
         static generateColors(count, scheme = "colorblind") {
           const colors = [];
           switch (scheme) {
-            case "colorblind":
+            case "colorblind": {
               const cbPalette = [
                 "rgba(230, 159, 0, 0.65)",
                 // Orange
                 "rgba(86, 180, 233, 0.65)",
-                // Sky blue  
+                // Sky blue
                 "rgba(0, 158, 115, 0.65)",
                 // Bluish green
                 "rgba(240, 228, 66, 0.65)",
@@ -1027,7 +1031,8 @@ var JmonStudio = (() => {
                 colors.push(cbPalette[i % cbPalette.length]);
               }
               break;
-            case "viridis":
+            }
+            case "viridis": {
               const viridisColors = [
                 "rgba(68, 1, 84, 0.65)",
                 // Purple
@@ -1052,6 +1057,7 @@ var JmonStudio = (() => {
                 }
               }
               break;
+            }
             case "classic":
             default:
               for (let i = 0; i < count; i++) {
@@ -1383,421 +1389,65 @@ var JmonStudio = (() => {
     }
   });
 
-  // src/utils/normalize.js
-  function midiToNoteName(midiLike) {
-    const n = typeof midiLike === "string" ? parseInt(midiLike, 10) : midiLike;
-    if (!Number.isFinite(n))
-      return String(midiLike);
-    const names = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
-    const note = names[(n % 12 + 12) % 12];
-    const octave = Math.floor(n / 12) - 1;
-    return `${note}${octave}`;
-  }
-  function normalizeSamplerUrlsToNoteNames(composition) {
-    if (!composition || !Array.isArray(composition.audioGraph))
-      return composition;
-    composition.audioGraph.forEach((node) => {
-      try {
-        if (!node || node.type !== "Sampler")
-          return;
-        const opts = node.options || {};
-        const urls = opts.urls;
-        if (!urls || typeof urls !== "object")
-          return;
-        const normalized = {};
-        Object.keys(urls).forEach((k) => {
-          const keyStr = String(k);
-          let noteKey = keyStr;
-          if (/^\d+$/.test(keyStr)) {
-            noteKey = midiToNoteName(parseInt(keyStr, 10));
-          }
-          normalized[noteKey] = urls[k];
-        });
-        node.options = { ...opts, urls: normalized };
-      } catch (_) {
-      }
-    });
-    return composition;
-  }
-  var init_normalize = __esm({
-    "src/utils/normalize.js"() {
-    }
-  });
-
-  // src/converters/tonejs.js
-  function tonejs(composition, options = {}) {
-    try {
-      normalizeSamplerUrlsToNoteNames(composition);
-    } catch (_) {
-    }
-    const converter = new Tonejs(options);
-    const originalTracks = converter.convert(composition);
-    const tracks = originalTracks.map((track, index) => ({
-      originalTrackIndex: index,
-      voiceIndex: 0,
-      totalVoices: 1,
-      trackInfo: { label: track.label },
-      synthConfig: { type: track.type || "PolySynth" },
-      partEvents: track.part || []
-    }));
-    const bpm = composition.tempo || composition.metadata?.tempo || composition.bpm || 120;
-    const [tsNum, tsDen] = (composition.timeSignature || "4/4").split("/").map((x) => parseInt(x, 10));
-    const beatsPerBar = isFinite(tsNum) ? tsNum : 4;
-    let totalBeats = 0;
-    tracks.forEach((track) => {
-      if (track.partEvents && track.partEvents.length > 0) {
-        track.partEvents.forEach((ev) => {
-          const startBeats = Tonejs.parseBBTToBeats(ev.time, beatsPerBar);
-          const durBeats = Tonejs.parseDurationToBeats(ev.duration, beatsPerBar);
-          const endBeats = startBeats + durBeats;
-          if (endBeats > totalBeats)
-            totalBeats = endBeats;
-        });
-      }
-    });
-    const secondsPerBeat = 60 / bpm;
-    const totalDuration = totalBeats * secondsPerBeat;
-    console.log(`[TONEJS] Duration calc: totalBeats=${totalBeats.toFixed(2)} beats = ${totalDuration.toFixed(2)}s - loop ends exactly when last note finishes`);
-    return {
-      tracks,
-      metadata: {
-        totalDuration,
-        // Use total duration - loop should end when last note finishes
-        tempo: bpm
-      }
-    };
-  }
-  var Tonejs;
-  var init_tonejs = __esm({
-    "src/converters/tonejs.js"() {
-      init_normalize();
-      Tonejs = class {
-        constructor(options = {}) {
-          this.options = options;
-        }
-        // Parse bars:beats:ticks -> beats (supports fractional beats)
-        static parseBBTToBeats(timeStr, beatsPerBar = 4, ppq = 480) {
-          if (typeof timeStr === "number")
-            return timeStr;
-          if (typeof timeStr !== "string")
-            return 0;
-          const m = timeStr.match(/^(\d+):(\d+(?:\.\d+)?):(\d+)$/);
-          if (!m)
-            return 0;
-          const bars = parseInt(m[1], 10);
-          const beats = parseFloat(m[2]);
-          const ticks = parseInt(m[3], 10);
-          return bars * beatsPerBar + beats + ticks / ppq;
-        }
-        // Parse note value (e.g., 4n, 8n, 8t) or BBT to beats
-        static parseDurationToBeats(dur, beatsPerBar = 4, ppq = 480) {
-          if (typeof dur === "number")
-            return dur;
-          if (typeof dur !== "string")
-            return 0;
-          if (/^\d+:\d+(?:\.\d+)?:\d+$/.test(dur)) {
-            return this.parseBBTToBeats(dur, beatsPerBar, ppq);
-          }
-          const m = dur.match(/^(\d+)(n|t)$/);
-          if (m) {
-            const val = parseInt(m[1], 10);
-            const type = m[2];
-            if (type === "n") {
-              return 4 / val;
-            } else if (type === "t") {
-              return 4 / val * (2 / 3);
-            }
-          }
-          return 0;
-        }
-        convert(composition) {
-          const tracks = composition.tracks || [];
-          return tracks.map((track) => ({
-            label: track.label,
-            type: "PolySynth",
-            // Default type for the current player
-            part: (track.notes || []).map((note) => ({
-              time: note.time,
-              pitch: note.pitch,
-              duration: note.duration,
-              velocity: note.velocity || 0.8
-            }))
-          }));
-        }
-      };
-    }
-  });
-
-  // src/utils/gm-instruments.js
-  var gm_instruments_exports = {};
-  __export(gm_instruments_exports, {
-    CDN_SOURCES: () => CDN_SOURCES,
-    GM_INSTRUMENTS: () => GM_INSTRUMENTS,
-    createGMInstrumentNode: () => createGMInstrumentNode,
-    findGMProgramByName: () => findGMProgramByName,
-    generateCompleteSamplerUrls: () => generateCompleteSamplerUrls,
-    generateSamplerUrls: () => generateSamplerUrls,
-    getPopularInstruments: () => getPopularInstruments
-  });
-  function generateSamplerUrls(gmProgram, baseUrl = CDN_SOURCES[0], noteRange = [21, 108], strategy = "complete") {
-    const instrument = GM_INSTRUMENTS[gmProgram];
-    if (!instrument) {
-      console.warn(
-        `GM program ${gmProgram} not found, using Acoustic Grand Piano`
-      );
-      return generateSamplerUrls(0, baseUrl, noteRange);
-    }
-    const urls = {};
-    const [minNote, maxNote] = noteRange;
-    let selectedMidis = [];
-    switch (strategy) {
-      case "minimal":
-        for (let midi2 = minNote; midi2 <= maxNote; midi2 += 12) {
-          selectedMidis.push(midi2);
-        }
-        selectedMidis.push(60);
-        break;
-      case "balanced":
-        for (let midi2 = minNote; midi2 <= maxNote; midi2 += 4) {
-          selectedMidis.push(midi2);
-        }
-        [60, 64, 67].forEach((key) => {
-          if (key >= minNote && key <= maxNote && !selectedMidis.includes(key)) {
-            selectedMidis.push(key);
-          }
-        });
-        break;
-      case "quality":
-        for (let midi2 = minNote; midi2 <= maxNote; midi2 += 3) {
-          selectedMidis.push(midi2);
-        }
-        break;
-      case "complete":
-        for (let midi2 = minNote; midi2 <= maxNote; midi2++) {
-          selectedMidis.push(midi2);
-        }
-        break;
-      default:
-        console.warn(`Unknown sampling strategy '${strategy}', using 'balanced'`);
-        return generateSamplerUrls(gmProgram, baseUrl, noteRange, "balanced");
-    }
-    selectedMidis = [...new Set(selectedMidis)].sort((a, b) => a - b);
-    for (const midi2 of selectedMidis) {
-      const noteName = midiToNoteName2(midi2);
-      urls[noteName] = generateFallbackUrl(instrument.folder, noteName, baseUrl);
-    }
-    console.log(
-      `[GM INSTRUMENT] Generated ${Object.keys(urls).length} sample URLs for ${instrument.name} (${strategy} strategy)`
-    );
-    return urls;
-  }
-  function generateFallbackUrl(folder, noteName, preferredBaseUrl) {
-    return `${preferredBaseUrl}/${folder}/${noteName}.mp3`;
-  }
-  function generateCompleteSamplerUrls(gmProgram, baseUrl = CDN_SOURCES[0], noteRange = [21, 108]) {
-    const instrument = GM_INSTRUMENTS[gmProgram];
-    if (!instrument) {
-      console.warn(
-        `GM program ${gmProgram} not found, using Acoustic Grand Piano`
-      );
-      return generateCompleteSamplerUrls(0, baseUrl, noteRange);
-    }
-    const urls = {};
-    const [minNote, maxNote] = noteRange;
-    for (let midi2 = minNote; midi2 <= maxNote; midi2++) {
-      const noteName = midiToNoteName2(midi2);
-      urls[noteName] = `${baseUrl}/${instrument.folder}/${noteName}.mp3`;
-    }
-    return urls;
-  }
-  function midiToNoteName2(midi2) {
-    const noteNames = [
-      "C",
-      "Db",
-      "D",
-      "Eb",
-      "E",
-      "F",
-      "Gb",
-      "G",
-      "Ab",
-      "A",
-      "Bb",
-      "B"
-    ];
-    const octave = Math.floor(midi2 / 12) - 1;
-    const noteIndex = midi2 % 12;
-    return `${noteNames[noteIndex]}${octave}`;
-  }
-  function findGMProgramByName(instrumentName) {
-    const searchName = instrumentName.toLowerCase().trim();
-    for (const [program, instrument] of Object.entries(GM_INSTRUMENTS)) {
-      if (instrument.name.toLowerCase() === searchName) {
-        return parseInt(program, 10);
-      }
-    }
-    for (const [program, instrument] of Object.entries(GM_INSTRUMENTS)) {
-      const instName = instrument.name.toLowerCase();
-      if (instName.includes(searchName) || searchName.includes(instName.split(" ")[0])) {
-        return parseInt(program, 10);
-      }
-    }
-    return null;
-  }
-  function createGMInstrumentNode(id, instrument, options = {}, target = "destination") {
-    let gmProgram;
-    if (typeof instrument === "string") {
-      gmProgram = findGMProgramByName(instrument);
-      if (gmProgram === null) {
-        console.warn(`GM instrument "${instrument}" not found. Available instruments:`);
-        const availableNames = Object.values(GM_INSTRUMENTS).map((inst) => inst.name).slice(0, 10);
-        console.warn(`Examples: ${availableNames.join(", ")}...`);
-        console.warn("Using Acoustic Grand Piano as fallback");
-        gmProgram = 0;
-      }
-    } else {
-      gmProgram = instrument;
-    }
-    const instrumentData = GM_INSTRUMENTS[gmProgram];
-    if (!instrumentData)
-      return null;
-    const {
-      baseUrl = CDN_SOURCES[0],
-      noteRange = [21, 108],
-      // Complete MIDI range for maximum quality
-      envelope = { attack: 0.1, release: 1 },
-      strategy = "complete"
-      // Use complete sampling by default
-    } = options;
-    return {
-      id,
-      type: "Sampler",
-      options: {
-        urls: generateSamplerUrls(gmProgram, baseUrl, noteRange, strategy),
-        baseUrl: "",
-        // URLs are already complete
-        envelope: {
-          enabled: true,
-          attack: envelope.attack,
-          release: envelope.release
-        }
-      },
-      target
-    };
-  }
-  function getPopularInstruments() {
-    return [
-      // Piano & Keys
-      { program: 0, name: "Acoustic Grand Piano", category: "Piano" },
-      { program: 1, name: "Bright Acoustic Piano", category: "Piano" },
-      { program: 4, name: "Electric Piano 1", category: "Piano" },
-      { program: 6, name: "Harpsichord", category: "Piano" },
-      // Strings
-      { program: 40, name: "Violin", category: "Strings" },
-      { program: 42, name: "Cello", category: "Strings" },
-      { program: 48, name: "String Ensemble 1", category: "Strings" },
-      // Brass
-      { program: 56, name: "Trumpet", category: "Brass" },
-      { program: 57, name: "Trombone", category: "Brass" },
-      // Woodwinds
-      { program: 65, name: "Alto Sax", category: "Woodwinds" },
-      { program: 71, name: "Clarinet", category: "Woodwinds" },
-      { program: 73, name: "Flute", category: "Woodwinds" },
-      // Guitar & Bass
-      { program: 24, name: "Acoustic Guitar (nylon)", category: "Guitar" },
-      { program: 25, name: "Acoustic Guitar (steel)", category: "Guitar" },
-      { program: 33, name: "Electric Bass (finger)", category: "Bass" },
-      // Organ & Accordion
-      { program: 16, name: "Drawbar Organ", category: "Organ" },
-      { program: 21, name: "Accordion", category: "Organ" }
-    ];
-  }
-  var GM_INSTRUMENTS, CDN_SOURCES;
-  var init_gm_instruments = __esm({
-    "src/utils/gm-instruments.js"() {
-      GM_INSTRUMENTS = {
-        // Piano Family
-        0: { name: "Acoustic Grand Piano", folder: "acoustic_grand_piano-mp3" },
-        1: { name: "Bright Acoustic Piano", folder: "bright_acoustic_piano-mp3" },
-        2: { name: "Electric Grand Piano", folder: "electric_grand_piano-mp3" },
-        3: { name: "Honky-tonk Piano", folder: "honkytonk_piano-mp3" },
-        4: { name: "Electric Piano 1", folder: "electric_piano_1-mp3" },
-        5: { name: "Electric Piano 2", folder: "electric_piano_2-mp3" },
-        6: { name: "Harpsichord", folder: "harpsichord-mp3" },
-        7: { name: "Clavinet", folder: "clavinet-mp3" },
-        // Chromatic Percussion
-        8: { name: "Celesta", folder: "celesta-mp3" },
-        9: { name: "Glockenspiel", folder: "glockenspiel-mp3" },
-        10: { name: "Music Box", folder: "music_box-mp3" },
-        11: { name: "Vibraphone", folder: "vibraphone-mp3" },
-        12: { name: "Marimba", folder: "marimba-mp3" },
-        13: { name: "Xylophone", folder: "xylophone-mp3" },
-        14: { name: "Tubular Bells", folder: "tubular_bells-mp3" },
-        15: { name: "Dulcimer", folder: "dulcimer-mp3" },
-        // Organ
-        16: { name: "Drawbar Organ", folder: "drawbar_organ-mp3" },
-        17: { name: "Percussive Organ", folder: "percussive_organ-mp3" },
-        18: { name: "Rock Organ", folder: "rock_organ-mp3" },
-        19: { name: "Church Organ", folder: "church_organ-mp3" },
-        20: { name: "Reed Organ", folder: "reed_organ-mp3" },
-        21: { name: "Accordion", folder: "accordion-mp3" },
-        22: { name: "Harmonica", folder: "harmonica-mp3" },
-        23: { name: "Tango Accordion", folder: "tango_accordion-mp3" },
-        // Guitar
-        24: { name: "Acoustic Guitar (nylon)", folder: "acoustic_guitar_nylon-mp3" },
-        25: { name: "Acoustic Guitar (steel)", folder: "acoustic_guitar_steel-mp3" },
-        26: { name: "Electric Guitar (jazz)", folder: "electric_guitar_jazz-mp3" },
-        27: { name: "Electric Guitar (clean)", folder: "electric_guitar_clean-mp3" },
-        28: { name: "Electric Guitar (muted)", folder: "electric_guitar_muted-mp3" },
-        29: { name: "Overdriven Guitar", folder: "overdriven_guitar-mp3" },
-        30: { name: "Distortion Guitar", folder: "distortion_guitar-mp3" },
-        31: { name: "Guitar Harmonics", folder: "guitar_harmonics-mp3" },
-        // Bass
-        32: { name: "Acoustic Bass", folder: "acoustic_bass-mp3" },
-        33: { name: "Electric Bass (finger)", folder: "electric_bass_finger-mp3" },
-        34: { name: "Electric Bass (pick)", folder: "electric_bass_pick-mp3" },
-        35: { name: "Fretless Bass", folder: "fretless_bass-mp3" },
-        36: { name: "Slap Bass 1", folder: "slap_bass_1-mp3" },
-        37: { name: "Slap Bass 2", folder: "slap_bass_2-mp3" },
-        38: { name: "Synth Bass 1", folder: "synth_bass_1-mp3" },
-        39: { name: "Synth Bass 2", folder: "synth_bass_2-mp3" },
-        // Strings
-        40: { name: "Violin", folder: "violin-mp3" },
-        41: { name: "Viola", folder: "viola-mp3" },
-        42: { name: "Cello", folder: "cello-mp3" },
-        43: { name: "Contrabass", folder: "contrabass-mp3" },
-        44: { name: "Tremolo Strings", folder: "tremolo_strings-mp3" },
-        45: { name: "Pizzicato Strings", folder: "pizzicato_strings-mp3" },
-        46: { name: "Orchestral Harp", folder: "orchestral_harp-mp3" },
-        47: { name: "Timpani", folder: "timpani-mp3" },
-        // Popular selections for common use
-        48: { name: "String Ensemble 1", folder: "string_ensemble_1-mp3" },
-        49: { name: "String Ensemble 2", folder: "string_ensemble_2-mp3" },
-        56: { name: "Trumpet", folder: "trumpet-mp3" },
-        57: { name: "Trombone", folder: "trombone-mp3" },
-        58: { name: "Tuba", folder: "tuba-mp3" },
-        64: { name: "Soprano Sax", folder: "soprano_sax-mp3" },
-        65: { name: "Alto Sax", folder: "alto_sax-mp3" },
-        66: { name: "Tenor Sax", folder: "tenor_sax-mp3" },
-        67: { name: "Baritone Sax", folder: "baritone_sax-mp3" },
-        68: { name: "Oboe", folder: "oboe-mp3" },
-        69: { name: "English Horn", folder: "english_horn-mp3" },
-        70: { name: "Bassoon", folder: "bassoon-mp3" },
-        71: { name: "Clarinet", folder: "clarinet-mp3" },
-        72: { name: "Piccolo", folder: "piccolo-mp3" },
-        73: { name: "Flute", folder: "flute-mp3" },
-        74: { name: "Recorder", folder: "recorder-mp3" }
-      };
-      CDN_SOURCES = [
-        "https://raw.githubusercontent.com/jmonlabs/midi-js-soundfonts/gh-pages/FluidR3_GM",
-        "https://cdn.jsdelivr.net/gh/gleitz/midi-js-soundfonts@gh-pages/FluidR3_GM"
-      ];
-    }
-  });
-
   // src/converters/midi.js
   function midi(composition) {
     return Midi.convert(composition);
+  }
+  async function downloadMidi(composition, ToneMidi, filename = "composition.mid") {
+    const midiData = Midi.convert(composition);
+    const midiFile = new ToneMidi.Midi();
+    midiFile.header.setTempo(midiData.header.bpm);
+    midiData.tracks.forEach((trackData) => {
+      const track = midiFile.addTrack();
+      track.name = trackData.label || "Track";
+      trackData.notes.forEach((note) => {
+        track.addNote({
+          midi: typeof note.pitch === "number" ? note.pitch : 60,
+          time: note.time || 0,
+          duration: note.duration || 0.5,
+          velocity: note.velocity || 0.8
+        });
+      });
+      if (Array.isArray(trackData.modulations)) {
+        trackData.modulations.forEach((mod) => {
+          if (mod.subtype === "vibrato") {
+            const rate = mod.rate || 5;
+            const depth = mod.depth || 50;
+            const start = mod.start || 0;
+            const end = mod.end || start + 1;
+            const ccValue = Math.min(127, Math.round(depth / 100 * 127));
+            track.addCC({ number: 1, value: ccValue, time: start });
+            track.addCC({ number: 1, value: 0, time: end });
+          }
+          if (mod.subtype === "tremolo") {
+            const rate = mod.rate || 8;
+            const depth = mod.depth || 0.3;
+            const start = mod.start || 0;
+            const end = mod.end || start + 1;
+            const ccValue = Math.min(127, Math.round(depth * 127));
+            track.addCC({ number: 11, value: 127 - ccValue, time: start });
+            track.addCC({ number: 11, value: 127, time: end });
+          }
+          if (mod.subtype === "crescendo" || mod.subtype === "diminuendo") {
+            const startV = mod.startVelocity || 0.8;
+            const endV = mod.endVelocity || 0.8;
+            const start = mod.start || 0;
+            const end = mod.end || start + 1;
+            const startCC = Math.round(startV * 127);
+            const endCC = Math.round(endV * 127);
+            track.addCC({ number: 7, value: startCC, time: start });
+            track.addCC({ number: 7, value: endCC, time: end });
+          }
+        });
+      }
+    });
+    const blob = new Blob([midiFile.toArray()], { type: "audio/midi" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
   }
   var Midi;
   var init_midi = __esm({
@@ -1911,8 +1561,8 @@ var JmonStudio = (() => {
          */
         async initializeTone() {
           const externalTone = this.options.Tone;
-          if (typeof window !== "undefined") {
-            const existingTone = externalTone || window.Tone || (typeof Tone !== "undefined" ? Tone : null);
+          if (typeof globalThis.window !== "undefined") {
+            const existingTone = externalTone || globalThis.window.Tone || (typeof Tone !== "undefined" ? Tone : null);
             if (existingTone) {
               return existingTone;
             }
@@ -2145,7 +1795,89 @@ var JmonStudio = (() => {
          * @returns {string|null} Key signature like "C", "G", "Dm"
          */
         extractKeySignature(parsed) {
-          return null;
+          if (!this.options.includeKeySignature) {
+            return null;
+          }
+          let keySignature = null;
+          let earliestTime = Infinity;
+          if (parsed.header && parsed.header.keySignatures && parsed.header.keySignatures.length > 0) {
+            const ks = parsed.header.keySignatures[0];
+            keySignature = this.midiKeySignatureToString(ks.key, ks.scale);
+          }
+          for (const track of parsed.tracks) {
+            if (track.meta) {
+              for (const meta of track.meta) {
+                if (meta.type === "keySignature" && meta.time < earliestTime) {
+                  earliestTime = meta.time;
+                  keySignature = this.midiKeySignatureToString(meta.key, meta.scale);
+                }
+              }
+            }
+            if (track.keySignatures && track.keySignatures.length > 0) {
+              const ks = track.keySignatures[0];
+              if (ks.ticks < earliestTime) {
+                earliestTime = ks.ticks;
+                keySignature = this.midiKeySignatureToString(ks.key, ks.scale);
+              }
+            }
+          }
+          return keySignature;
+        }
+        /**
+         * Convert MIDI key signature to string representation
+         * @param {number} key - Number of sharps (positive) or flats (negative)
+         * @param {string|number} scale - 'major'/'minor' or 0/1 (0=major, 1=minor)
+         * @returns {string} Key signature like "C", "G", "Dm"
+         */
+        midiKeySignatureToString(key, scale) {
+          const isMinor = scale === "minor" || scale === 1 || scale === true;
+          const majorKeys = [
+            "C",
+            "G",
+            "D",
+            "A",
+            "E",
+            "B",
+            "F#",
+            "C#",
+            // Sharps
+            "C",
+            "F",
+            "Bb",
+            "Eb",
+            "Ab",
+            "Db",
+            "Gb",
+            "Cb"
+          ];
+          const minorKeys = [
+            "A",
+            "E",
+            "B",
+            "F#",
+            "C#",
+            "G#",
+            "D#",
+            "A#",
+            // Sharps
+            "A",
+            "D",
+            "G",
+            "C",
+            "F",
+            "Bb",
+            "Eb",
+            "Ab"
+          ];
+          let keyName;
+          if (key >= 0) {
+            const index = Math.min(key, 7);
+            keyName = isMinor ? minorKeys[index] : majorKeys[index];
+          } else {
+            const index = Math.min(Math.abs(key), 7);
+            keyName = isMinor ? minorKeys[8 + index] : majorKeys[8 + index];
+          }
+          return isMinor ? `${keyName}m` : keyName;
         }
         /**
          * Extract metadata from MIDI
@@ -2364,6 +2096,306 @@ var JmonStudio = (() => {
     }
   });
 
+  // src/utils/normalize.js
+  var normalize_exports = {};
+  __export(normalize_exports, {
+    midiToNoteName: () => midiToNoteName,
+    normalizeAudioGraph: () => normalizeAudioGraph,
+    normalizeSamplerUrlsToNoteNames: () => normalizeSamplerUrlsToNoteNames
+  });
+  function midiToNoteName(midiLike) {
+    const n = typeof midiLike === "string" ? parseInt(midiLike, 10) : midiLike;
+    if (!Number.isFinite(n))
+      return String(midiLike);
+    const names = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+    const note = names[(n % 12 + 12) % 12];
+    const octave = Math.floor(n / 12) - 1;
+    return `${note}${octave}`;
+  }
+  function capitalizeFirstLetter(str) {
+    if (!str || typeof str !== "string")
+      return str;
+    return str.charAt(0).toUpperCase() + str.slice(1);
+  }
+  function normalizeAudioGraph(composition) {
+    if (!composition || !composition.audioGraph)
+      return composition;
+    const ag = composition.audioGraph;
+    if (Array.isArray(ag))
+      return composition;
+    if (ag.nodes && Array.isArray(ag.nodes)) {
+      const connectionsMap = /* @__PURE__ */ new Map();
+      if (ag.connections && Array.isArray(ag.connections)) {
+        ag.connections.forEach((conn) => {
+          if (conn.from && conn.to) {
+            connectionsMap.set(conn.from, conn.to);
+          }
+        });
+      }
+      const flatArray = ag.nodes.map((node) => {
+        const target = connectionsMap.get(node.id);
+        const normalizedType = capitalizeFirstLetter(node.type);
+        return {
+          id: node.id,
+          type: normalizedType,
+          options: node.params || node.options || {},
+          ...target && { target }
+        };
+      });
+      const destinationRefs = /* @__PURE__ */ new Set();
+      if (ag.connections) {
+        ag.connections.forEach((conn) => {
+          if (conn.to === "destination") {
+            destinationRefs.add(conn.to);
+          }
+        });
+      }
+      if (destinationRefs.size > 0) {
+        flatArray.push({ id: "destination", type: "Destination" });
+      }
+      composition.audioGraph = flatArray;
+    }
+    return composition;
+  }
+  function normalizeSamplerUrlsToNoteNames(composition) {
+    if (!composition || !Array.isArray(composition.audioGraph))
+      return composition;
+    composition.audioGraph.forEach((node) => {
+      try {
+        if (!node || node.type !== "Sampler")
+          return;
+        const opts = node.options || {};
+        const urls = opts.urls;
+        if (!urls || typeof urls !== "object")
+          return;
+        const normalized = {};
+        Object.keys(urls).forEach((k) => {
+          const keyStr = String(k);
+          let noteKey = keyStr;
+          if (/^\d+$/.test(keyStr)) {
+            noteKey = midiToNoteName(parseInt(keyStr, 10));
+          }
+          normalized[noteKey] = urls[k];
+        });
+        node.options = { ...opts, urls: normalized };
+      } catch (_) {
+      }
+    });
+    return composition;
+  }
+  var init_normalize = __esm({
+    "src/utils/normalize.js"() {
+    }
+  });
+
+  // src/converters/tonejs.js
+  function tonejs(composition, options = {}) {
+    try {
+      normalizeAudioGraph(composition);
+    } catch (_) {
+    }
+    try {
+      normalizeSamplerUrlsToNoteNames(composition);
+    } catch (_) {
+    }
+    const converter = new Tonejs(options);
+    const originalTracks = converter.convert(composition);
+    const tracks = originalTracks.map((track, index) => ({
+      originalTrackIndex: index,
+      voiceIndex: 0,
+      totalVoices: 1,
+      trackInfo: { label: track.label },
+      synthConfig: { type: track.type || "PolySynth" },
+      partEvents: track.part || []
+    }));
+    const bpm = composition.tempo || composition.metadata?.tempo || composition.bpm || 120;
+    const [tsNum, tsDen] = (composition.timeSignature || "4/4").split("/").map((x) => parseInt(x, 10));
+    const beatsPerBar = isFinite(tsNum) ? tsNum : 4;
+    let totalBeats = 0;
+    tracks.forEach((track) => {
+      if (track.partEvents && track.partEvents.length > 0) {
+        track.partEvents.forEach((ev) => {
+          const startBeats = Tonejs.parseBBTToBeats(ev.time, beatsPerBar);
+          const durBeats = Tonejs.parseDurationToBeats(ev.duration, beatsPerBar);
+          const endBeats = startBeats + durBeats;
+          if (endBeats > totalBeats)
+            totalBeats = endBeats;
+        });
+      }
+    });
+    const secondsPerBeat = 60 / bpm;
+    const totalDuration = totalBeats * secondsPerBeat;
+    console.log(`[TONEJS] Duration calc: totalBeats=${totalBeats.toFixed(2)} beats = ${totalDuration.toFixed(2)}s - loop ends exactly when last note finishes`);
+    return {
+      tracks,
+      metadata: {
+        totalDuration,
+        // Use total duration - loop should end when last note finishes
+        tempo: bpm
+      }
+    };
+  }
+  var Tonejs;
+  var init_tonejs = __esm({
+    "src/converters/tonejs.js"() {
+      init_normalize();
+      Tonejs = class {
+        constructor(options = {}) {
+          this.options = options;
+        }
+        // Parse bars:beats:ticks -> beats (supports fractional beats)
+        static parseBBTToBeats(timeStr, beatsPerBar = 4, ppq = 480) {
+          if (typeof timeStr === "number")
+            return timeStr;
+          if (typeof timeStr !== "string")
+            return 0;
+          const m = timeStr.match(/^(\d+):(\d+(?:\.\d+)?):(\d+)$/);
+          if (!m)
+            return 0;
+          const bars = parseInt(m[1], 10);
+          const beats = parseFloat(m[2]);
+          const ticks = parseInt(m[3], 10);
+          return bars * beatsPerBar + beats + ticks / ppq;
+        }
+        // Parse note value (e.g., 4n, 8n, 8t) or BBT to beats
+        static parseDurationToBeats(dur, beatsPerBar = 4, ppq = 480) {
+          if (typeof dur === "number")
+            return dur;
+          if (typeof dur !== "string")
+            return 0;
+          if (/^\d+:\d+(?:\.\d+)?:\d+$/.test(dur)) {
+            return this.parseBBTToBeats(dur, beatsPerBar, ppq);
+          }
+          const m = dur.match(/^(\d+)(n|t)$/);
+          if (m) {
+            const val = parseInt(m[1], 10);
+            const type = m[2];
+            if (type === "n") {
+              return 4 / val;
+            } else if (type === "t") {
+              return 4 / val * (2 / 3);
+            }
+          }
+          return 0;
+        }
+        convert(composition) {
+          const tracks = composition.tracks || [];
+          return tracks.map((track) => ({
+            label: track.label,
+            type: "PolySynth",
+            // Default type for the current player
+            part: (track.notes || []).map((note) => ({
+              time: note.time,
+              pitch: note.pitch,
+              duration: note.duration,
+              velocity: note.velocity || 0.8
+            }))
+          }));
+        }
+      };
+    }
+  });
+
+  // src/constants/audio-effects.js
+  var audio_effects_exports = {};
+  __export(audio_effects_exports, {
+    ADVANCED_EFFECTS: () => ADVANCED_EFFECTS,
+    ALL_AUDIO_GRAPH_TYPES: () => ALL_AUDIO_GRAPH_TYPES,
+    ALL_EFFECTS: () => ALL_EFFECTS,
+    DELAY_EFFECTS: () => DELAY_EFFECTS,
+    DISTORTION_EFFECTS: () => DISTORTION_EFFECTS,
+    DYNAMICS_EFFECTS: () => DYNAMICS_EFFECTS,
+    FILTER_EFFECTS: () => FILTER_EFFECTS,
+    MODULATION_EFFECTS: () => MODULATION_EFFECTS,
+    REVERB_EFFECTS: () => REVERB_EFFECTS,
+    SPECIAL_NODE_TYPES: () => SPECIAL_NODE_TYPES,
+    SYNTHESIZER_TYPES: () => SYNTHESIZER_TYPES,
+    default: () => audio_effects_default
+  });
+  var REVERB_EFFECTS, DELAY_EFFECTS, MODULATION_EFFECTS, DISTORTION_EFFECTS, DYNAMICS_EFFECTS, FILTER_EFFECTS, ADVANCED_EFFECTS, ALL_EFFECTS, SYNTHESIZER_TYPES, SPECIAL_NODE_TYPES, ALL_AUDIO_GRAPH_TYPES, audio_effects_default;
+  var init_audio_effects = __esm({
+    "src/constants/audio-effects.js"() {
+      REVERB_EFFECTS = [
+        "Reverb",
+        "JCReverb",
+        "Freeverb"
+      ];
+      DELAY_EFFECTS = [
+        "Delay",
+        "FeedbackDelay",
+        "PingPongDelay"
+      ];
+      MODULATION_EFFECTS = [
+        "Chorus",
+        "Phaser",
+        "Tremolo",
+        "Vibrato",
+        "AutoWah"
+      ];
+      DISTORTION_EFFECTS = [
+        "Distortion",
+        "Chebyshev",
+        "BitCrusher"
+      ];
+      DYNAMICS_EFFECTS = [
+        "Compressor",
+        "Limiter",
+        "Gate",
+        "MidSideCompressor"
+      ];
+      FILTER_EFFECTS = [
+        "Filter",
+        "AutoFilter"
+      ];
+      ADVANCED_EFFECTS = [
+        "FrequencyShifter",
+        "PitchShift",
+        "StereoWidener"
+      ];
+      ALL_EFFECTS = [
+        ...REVERB_EFFECTS,
+        ...DELAY_EFFECTS,
+        ...MODULATION_EFFECTS,
+        ...DISTORTION_EFFECTS,
+        ...DYNAMICS_EFFECTS,
+        ...FILTER_EFFECTS,
+        ...ADVANCED_EFFECTS
+      ];
+      SYNTHESIZER_TYPES = [
+        "Synth",
+        "PolySynth",
+        "MonoSynth",
+        "AMSynth",
+        "FMSynth",
+        "DuoSynth",
+        "PluckSynth",
+        "NoiseSynth"
+      ];
+      SPECIAL_NODE_TYPES = [
+        "Sampler",
+        "Destination"
+      ];
+      ALL_AUDIO_GRAPH_TYPES = [
+        ...SYNTHESIZER_TYPES,
+        ...ALL_EFFECTS,
+        ...SPECIAL_NODE_TYPES
+      ];
+      audio_effects_default = {
+        REVERB_EFFECTS,
+        DELAY_EFFECTS,
+        MODULATION_EFFECTS,
+        DISTORTION_EFFECTS,
+        DYNAMICS_EFFECTS,
+        FILTER_EFFECTS,
+        ADVANCED_EFFECTS,
+        ALL_EFFECTS,
+        SYNTHESIZER_TYPES,
+        SPECIAL_NODE_TYPES,
+        ALL_AUDIO_GRAPH_TYPES
+      };
+    }
+  });
+
   // src/converters/wav.js
   function wav(composition, options = {}) {
     return {
@@ -2374,8 +2406,276 @@ var JmonStudio = (() => {
       notes: composition.tracks?.flatMap((t) => t.notes) || []
     };
   }
+  async function downloadWav(composition, Tone2, filename = "composition.wav", duration) {
+    const { normalizeAudioGraph: normalizeAudioGraph2 } = await Promise.resolve().then(() => (init_normalize(), normalize_exports));
+    normalizeAudioGraph2(composition);
+    const maxTime = composition.tracks?.reduce((max, track) => {
+      const trackMax = track.notes?.reduce((tMax, note) => {
+        const endTime = (note.time || 0) + (note.duration || 0);
+        return Math.max(tMax, endTime);
+      }, 0) || 0;
+      return Math.max(max, trackMax);
+    }, 0) || 4;
+    const tempo = composition.tempo || 120;
+    const secondsPerQuarterNote = 60 / tempo;
+    const calculatedDuration = maxTime * secondsPerQuarterNote + 1;
+    const finalDuration = duration || calculatedDuration;
+    const buffer = await Tone2.Offline(async ({ transport }) => {
+      transport.bpm.value = tempo;
+      const graphInstruments = await buildAudioGraphInstruments(composition, Tone2);
+      const tracks = composition.tracks || [];
+      tracks.forEach((track) => {
+        const notes = track.notes || [];
+        const synthRef = track.synthRef;
+        let synth = null;
+        if (synthRef && graphInstruments && graphInstruments[synthRef]) {
+          synth = graphInstruments[synthRef];
+        } else {
+          synth = new Tone2.PolySynth().toDestination();
+        }
+        notes.forEach((note) => {
+          const time = (note.time || 0) * secondsPerQuarterNote;
+          const noteDuration = (note.duration || 1) * secondsPerQuarterNote;
+          if (Array.isArray(note.pitch)) {
+            const noteNames = note.pitch.map(
+              (p) => typeof p === "number" ? Tone2.Frequency(p, "midi").toNote() : p
+            );
+            synth.triggerAttackRelease(
+              noteNames,
+              noteDuration,
+              time,
+              note.velocity || 0.8
+            );
+          } else {
+            const noteName = typeof note.pitch === "number" ? Tone2.Frequency(note.pitch, "midi").toNote() : note.pitch;
+            synth.triggerAttackRelease(
+              noteName,
+              noteDuration,
+              time,
+              note.velocity || 0.8
+            );
+          }
+        });
+      });
+      transport.start(0);
+    }, finalDuration);
+    const wavBlob = await audioBufferToWav(buffer);
+    const url = URL.createObjectURL(wavBlob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+  async function buildAudioGraphInstruments(composition, Tone2) {
+    if (!composition.audioGraph || !Array.isArray(composition.audioGraph)) {
+      return null;
+    }
+    const map = {};
+    const { SYNTHESIZER_TYPES: SYNTHESIZER_TYPES2, ALL_EFFECTS: ALL_EFFECTS2 } = await Promise.resolve().then(() => (init_audio_effects(), audio_effects_exports));
+    try {
+      composition.audioGraph.forEach((node) => {
+        const { id, type, options = {} } = node;
+        if (!id || !type)
+          return;
+        let instrument = null;
+        if (SYNTHESIZER_TYPES2.includes(type)) {
+          try {
+            instrument = new Tone2[type](options);
+          } catch (e) {
+            console.warn(`Failed to create ${type}, using PolySynth:`, e);
+            instrument = new Tone2.PolySynth();
+          }
+        } else if (ALL_EFFECTS2.includes(type)) {
+          try {
+            instrument = new Tone2[type](options);
+          } catch (e) {
+            console.warn(`Failed to create ${type} effect:`, e);
+            instrument = null;
+          }
+        } else if (type === "Destination") {
+          map[id] = Tone2.Destination;
+        }
+        if (instrument) {
+          map[id] = instrument;
+        }
+      });
+      composition.audioGraph.forEach((node) => {
+        const { id, target } = node;
+        if (!id || !map[id] || map[id] === Tone2.Destination)
+          return;
+        const currentNode = map[id];
+        if (target && map[target]) {
+          if (map[target] === Tone2.Destination) {
+            currentNode.toDestination();
+          } else {
+            currentNode.connect(map[target]);
+          }
+        } else {
+          currentNode.toDestination();
+        }
+      });
+      return map;
+    } catch (e) {
+      console.error("Failed building audioGraph instruments:", e);
+      return null;
+    }
+  }
+  async function audioBufferToWav(buffer) {
+    const numberOfChannels = buffer.numberOfChannels;
+    const sampleRate = buffer.sampleRate;
+    const length = buffer.length * numberOfChannels * 2;
+    const arrayBuffer = new ArrayBuffer(44 + length);
+    const view = new DataView(arrayBuffer);
+    const writeString = (offset2, string) => {
+      for (let i = 0; i < string.length; i++) {
+        view.setUint8(offset2 + i, string.charCodeAt(i));
+      }
+    };
+    writeString(0, "RIFF");
+    view.setUint32(4, 36 + length, true);
+    writeString(8, "WAVE");
+    writeString(12, "fmt ");
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true);
+    view.setUint16(22, numberOfChannels, true);
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate * numberOfChannels * 2, true);
+    view.setUint16(32, numberOfChannels * 2, true);
+    view.setUint16(34, 16, true);
+    writeString(36, "data");
+    view.setUint32(40, length, true);
+    const channels = [];
+    for (let i = 0; i < numberOfChannels; i++) {
+      channels.push(buffer.getChannelData(i));
+    }
+    let offset = 44;
+    for (let i = 0; i < buffer.length; i++) {
+      for (let channel = 0; channel < numberOfChannels; channel++) {
+        const sample = Math.max(-1, Math.min(1, channels[channel][i]));
+        view.setInt16(offset, sample < 0 ? sample * 32768 : sample * 32767, true);
+        offset += 2;
+      }
+    }
+    return new Blob([arrayBuffer], { type: "audio/wav" });
+  }
   var init_wav = __esm({
     "src/converters/wav.js"() {
+    }
+  });
+
+  // src/converters/abc.js
+  function midiToABC(midi2) {
+    if (typeof midi2 !== "number")
+      return "C";
+    const noteNames = ["C", "^C", "D", "^D", "E", "F", "^F", "G", "^G", "A", "^A", "B"];
+    const octave = Math.floor(midi2 / 12) - 1;
+    const noteName = noteNames[midi2 % 12];
+    if (octave === 4) {
+      return noteName;
+    } else if (octave === 5) {
+      return noteName.toLowerCase();
+    } else if (octave > 5) {
+      const ticks = "'".repeat(octave - 5);
+      return noteName.toLowerCase() + ticks;
+    } else if (octave === 3) {
+      return noteName;
+    } else {
+      const commas = ",".repeat(4 - octave);
+      return noteName + commas;
+    }
+  }
+  function durationToABC(duration) {
+    if (duration >= 4)
+      return "4";
+    if (duration >= 3)
+      return "3";
+    if (duration >= 2)
+      return "2";
+    if (duration >= 1.5)
+      return "3/2";
+    if (duration >= 1)
+      return "";
+    if (duration >= 0.75)
+      return "3/4";
+    if (duration >= 0.5)
+      return "/2";
+    if (duration >= 0.25)
+      return "/4";
+    return "/8";
+  }
+  function abc(composition) {
+    const lines = [];
+    lines.push("X:1");
+    const title = composition.title || composition.metadata?.title || "Untitled";
+    lines.push(`T:${title}`);
+    const tempo = composition.tempo || 120;
+    lines.push(`Q:1/4=${tempo}`);
+    const timeSignature = composition.timeSignature || "4/4";
+    lines.push(`M:${timeSignature}`);
+    lines.push("L:1/4");
+    const track = composition.tracks?.[0];
+    const keySignature = composition.keySignature || "C";
+    const clef = track?.clef || "treble";
+    const clefMap = {
+      "treble": "treble",
+      "bass": "bass",
+      "alto": "alto",
+      "tenor": "tenor",
+      "percussion": "perc"
+    };
+    const abcClef = clefMap[clef] || "treble";
+    lines.push(`K:${keySignature} clef=${abcClef}`);
+    if (!track?.notes?.length) {
+      lines.push("z4");
+      return lines.join("\n");
+    }
+    const [beatsPerMeasure, beatValue] = timeSignature.split("/").map(Number);
+    const measureDuration = beatsPerMeasure * (4 / beatValue);
+    const abcNotes = [];
+    let currentMeasureDuration = 0;
+    track.notes.forEach((note, index) => {
+      const duration = note.duration || 1;
+      const abcDuration = durationToABC(duration);
+      let abcNote;
+      if (Array.isArray(note.pitch)) {
+        const chordNotes = note.pitch.filter((p) => typeof p === "number").map((p) => midiToABC(p));
+        if (chordNotes.length > 1) {
+          abcNote = `[${chordNotes.join("")}]`;
+        } else if (chordNotes.length === 1) {
+          abcNote = chordNotes[0];
+        } else {
+          abcNote = "z";
+        }
+      } else if (note.pitch === null || note.pitch === void 0) {
+        abcNote = "z";
+      } else {
+        abcNote = midiToABC(note.pitch);
+      }
+      abcNotes.push(`${abcNote}${abcDuration}`);
+      currentMeasureDuration += duration;
+      if (currentMeasureDuration >= measureDuration) {
+        if (index < track.notes.length - 1) {
+          abcNotes.push("|");
+        }
+        currentMeasureDuration = 0;
+      }
+    });
+    lines.push(abcNotes.join(" "));
+    return lines.join("\n");
+  }
+  function downloadABC(composition, filename = "composition.abc") {
+    const abcText = abc(composition);
+    const blob = new Blob([abcText], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+  var init_abc = __esm({
+    "src/converters/abc.js"() {
     }
   });
 
@@ -2438,31 +2738,31 @@ var JmonStudio = (() => {
   }
   function mapToAbcDecorations(arts, options = {}) {
     const includeFermata = options.includeFermata !== false;
-    const abc = [];
+    const abc2 = [];
     const types = new Set(arts.map((a) => a.type));
     const resolved = resolveAccentPrecedence(types);
     if (resolved.staccato)
-      abc.push("!staccato!");
+      abc2.push("!staccato!");
     if (resolved.accent)
-      abc.push("!accent!");
+      abc2.push("!accent!");
     if (resolved.tenuto)
-      abc.push("!tenuto!");
+      abc2.push("!tenuto!");
     if (resolved.marcato)
-      abc.push("!marcato!");
+      abc2.push("!marcato!");
     const want = (t) => types.has(t);
     if (includeFermata && want("fermata"))
-      abc.push("!fermata!");
+      abc2.push("!fermata!");
     if (want("trill"))
-      abc.push("!trill!");
+      abc2.push("!trill!");
     if (want("mordent"))
-      abc.push("!mordent!");
+      abc2.push("!mordent!");
     if (want("turn"))
-      abc.push("!turn!");
+      abc2.push("!turn!");
     if (want("arpeggio"))
-      abc.push("!arpeggio!");
+      abc2.push("!arpeggio!");
     if (want("glissando") || want("portamento"))
-      abc.push("!slide!");
-    return abc;
+      abc2.push("!slide!");
+    return abc2;
   }
   function extractStrokeHint(arts) {
     const stroke = arts.find((a) => a.type === "stroke") || arts.find((a) => a.type === "arpeggio") || arts.find((a) => a.type === "arpeggiate");
@@ -2752,8 +3052,8 @@ var JmonStudio = (() => {
                 const candidates = [
                   VF,
                   VF && VF.default,
-                  typeof window !== "undefined" && (window.VF || window.VexFlow),
-                  typeof window !== "undefined" && window.Vex && (window.Vex.Flow || window.Vex)
+                  typeof globalThis.window !== "undefined" && (globalThis.window.VF || globalThis.window.VexFlow),
+                  typeof globalThis.window !== "undefined" && globalThis.window.Vex && (globalThis.window.Vex.Flow || globalThis.window.Vex)
                 ];
                 for (const c of candidates) {
                   if (c)
@@ -2927,7 +3227,7 @@ var JmonStudio = (() => {
                   (rendererConfig.width || 800) - left - right
                 );
                 const mCount = Math.max(1, measures.length);
-                const mWidth = Math.max(100, Math.floor(avail / mCount));
+                const mWidth = Math.max(300, Math.floor(avail / mCount));
                 const keyToMidi = (k) => {
                   const m = /^([a-g])(b|#)?\/(-?\d+)$/.exec(k);
                   if (!m)
@@ -3515,7 +3815,7 @@ var JmonStudio = (() => {
                   (rendererConfig.width || 800) - left - right
                 );
                 const mCount = Math.max(1, measures.length);
-                const mWidth = Math.max(100, Math.floor(avail / mCount));
+                const mWidth = Math.max(300, Math.floor(avail / mCount));
                 const fallbackKeyToMidi = (k) => {
                   const m = /^([a-g])(b|#)?\/(-?\d+)$/.exec(k);
                   if (!m)
@@ -3882,7 +4182,11 @@ var JmonStudio = (() => {
   var converters_exports = {};
   __export(converters_exports, {
     VexFlowConverter: () => VexFlowConverter,
+    abc: () => abc,
     convertToVexFlow: () => convertToVexFlow,
+    downloadABC: () => downloadABC,
+    downloadMidi: () => downloadMidi,
+    downloadWav: () => downloadWav,
     midi: () => midi,
     midiToJmon: () => midiToJmon,
     supercollider: () => supercollider,
@@ -3895,8 +4199,1972 @@ var JmonStudio = (() => {
       init_midi_to_jmon();
       init_tonejs();
       init_wav();
+      init_abc();
       init_supercollider();
       init_vexflow();
+    }
+  });
+
+  // src/utils/gm-instruments.js
+  var gm_instruments_exports = {};
+  __export(gm_instruments_exports, {
+    CDN_SOURCES: () => CDN_SOURCES,
+    GM_INSTRUMENTS: () => GM_INSTRUMENTS,
+    createGMInstrumentNode: () => createGMInstrumentNode,
+    findGMProgramByName: () => findGMProgramByName,
+    generateCompleteSamplerUrls: () => generateCompleteSamplerUrls,
+    generateSamplerUrls: () => generateSamplerUrls,
+    getPopularInstruments: () => getPopularInstruments
+  });
+  function generateSamplerUrls(gmProgram, baseUrl = CDN_SOURCES[0], noteRange = [21, 108], strategy = "complete") {
+    const instrument = GM_INSTRUMENTS[gmProgram];
+    if (!instrument) {
+      console.warn(
+        `GM program ${gmProgram} not found, using Acoustic Grand Piano`
+      );
+      return generateSamplerUrls(0, baseUrl, noteRange);
+    }
+    const urls = {};
+    const [minNote, maxNote] = noteRange;
+    let selectedMidis = [];
+    switch (strategy) {
+      case "minimal":
+        for (let midi2 = minNote; midi2 <= maxNote; midi2 += 12) {
+          selectedMidis.push(midi2);
+        }
+        selectedMidis.push(60);
+        break;
+      case "balanced":
+        for (let midi2 = minNote; midi2 <= maxNote; midi2 += 4) {
+          selectedMidis.push(midi2);
+        }
+        [60, 64, 67].forEach((key) => {
+          if (key >= minNote && key <= maxNote && !selectedMidis.includes(key)) {
+            selectedMidis.push(key);
+          }
+        });
+        break;
+      case "quality":
+        for (let midi2 = minNote; midi2 <= maxNote; midi2 += 3) {
+          selectedMidis.push(midi2);
+        }
+        break;
+      case "complete":
+        for (let midi2 = minNote; midi2 <= maxNote; midi2++) {
+          selectedMidis.push(midi2);
+        }
+        break;
+      default:
+        console.warn(`Unknown sampling strategy '${strategy}', using 'balanced'`);
+        return generateSamplerUrls(gmProgram, baseUrl, noteRange, "balanced");
+    }
+    selectedMidis = [...new Set(selectedMidis)].sort((a, b) => a - b);
+    for (const midi2 of selectedMidis) {
+      const noteName = midiToNoteName2(midi2);
+      urls[noteName] = generateFallbackUrl(instrument.folder, noteName, baseUrl);
+    }
+    console.log(
+      `[GM INSTRUMENT] Generated ${Object.keys(urls).length} sample URLs for ${instrument.name} (${strategy} strategy)`
+    );
+    return urls;
+  }
+  function generateFallbackUrl(folder, noteName, preferredBaseUrl) {
+    return `${preferredBaseUrl}/${folder}/${noteName}.mp3`;
+  }
+  function generateCompleteSamplerUrls(gmProgram, baseUrl = CDN_SOURCES[0], noteRange = [21, 108]) {
+    const instrument = GM_INSTRUMENTS[gmProgram];
+    if (!instrument) {
+      console.warn(
+        `GM program ${gmProgram} not found, using Acoustic Grand Piano`
+      );
+      return generateCompleteSamplerUrls(0, baseUrl, noteRange);
+    }
+    const urls = {};
+    const [minNote, maxNote] = noteRange;
+    for (let midi2 = minNote; midi2 <= maxNote; midi2++) {
+      const noteName = midiToNoteName2(midi2);
+      urls[noteName] = `${baseUrl}/${instrument.folder}/${noteName}.mp3`;
+    }
+    return urls;
+  }
+  function midiToNoteName2(midi2) {
+    const noteNames = [
+      "C",
+      "Db",
+      "D",
+      "Eb",
+      "E",
+      "F",
+      "Gb",
+      "G",
+      "Ab",
+      "A",
+      "Bb",
+      "B"
+    ];
+    const octave = Math.floor(midi2 / 12) - 1;
+    const noteIndex = midi2 % 12;
+    return `${noteNames[noteIndex]}${octave}`;
+  }
+  function findGMProgramByName(instrumentName) {
+    const searchName = instrumentName.toLowerCase().trim();
+    for (const [program, instrument] of Object.entries(GM_INSTRUMENTS)) {
+      if (instrument.name.toLowerCase() === searchName) {
+        return parseInt(program, 10);
+      }
+    }
+    for (const [program, instrument] of Object.entries(GM_INSTRUMENTS)) {
+      const instName = instrument.name.toLowerCase();
+      if (instName.includes(searchName) || searchName.includes(instName.split(" ")[0])) {
+        return parseInt(program, 10);
+      }
+    }
+    return null;
+  }
+  function createGMInstrumentNode(id, instrument, options = {}, target = "destination") {
+    let gmProgram;
+    if (typeof instrument === "string") {
+      gmProgram = findGMProgramByName(instrument);
+      if (gmProgram === null) {
+        console.warn(`GM instrument "${instrument}" not found. Available instruments:`);
+        const availableNames = Object.values(GM_INSTRUMENTS).map((inst) => inst.name).slice(0, 10);
+        console.warn(`Examples: ${availableNames.join(", ")}...`);
+        console.warn("Using Acoustic Grand Piano as fallback");
+        gmProgram = 0;
+      }
+    } else {
+      gmProgram = instrument;
+    }
+    const instrumentData = GM_INSTRUMENTS[gmProgram];
+    if (!instrumentData)
+      return null;
+    const {
+      baseUrl = CDN_SOURCES[0],
+      noteRange = [21, 108],
+      // Complete MIDI range for maximum quality
+      envelope = { attack: 0.1, release: 1 },
+      strategy = "complete"
+      // Use complete sampling by default
+    } = options;
+    return {
+      id,
+      type: "Sampler",
+      options: {
+        urls: generateSamplerUrls(gmProgram, baseUrl, noteRange, strategy),
+        baseUrl: "",
+        // URLs are already complete
+        envelope: {
+          enabled: true,
+          attack: envelope.attack,
+          release: envelope.release
+        }
+      },
+      target
+    };
+  }
+  function getPopularInstruments() {
+    return [
+      // Piano & Keys
+      { program: 0, name: "Acoustic Grand Piano", category: "Piano" },
+      { program: 1, name: "Bright Acoustic Piano", category: "Piano" },
+      { program: 4, name: "Electric Piano 1", category: "Piano" },
+      { program: 6, name: "Harpsichord", category: "Piano" },
+      // Strings
+      { program: 40, name: "Violin", category: "Strings" },
+      { program: 42, name: "Cello", category: "Strings" },
+      { program: 48, name: "String Ensemble 1", category: "Strings" },
+      // Brass
+      { program: 56, name: "Trumpet", category: "Brass" },
+      { program: 57, name: "Trombone", category: "Brass" },
+      // Woodwinds
+      { program: 65, name: "Alto Sax", category: "Woodwinds" },
+      { program: 71, name: "Clarinet", category: "Woodwinds" },
+      { program: 73, name: "Flute", category: "Woodwinds" },
+      // Guitar & Bass
+      { program: 24, name: "Acoustic Guitar (nylon)", category: "Guitar" },
+      { program: 25, name: "Acoustic Guitar (steel)", category: "Guitar" },
+      { program: 33, name: "Electric Bass (finger)", category: "Bass" },
+      // Organ & Accordion
+      { program: 16, name: "Drawbar Organ", category: "Organ" },
+      { program: 21, name: "Accordion", category: "Organ" }
+    ];
+  }
+  var GM_INSTRUMENTS, CDN_SOURCES;
+  var init_gm_instruments = __esm({
+    "src/utils/gm-instruments.js"() {
+      GM_INSTRUMENTS = {
+        // Piano Family
+        0: { name: "Acoustic Grand Piano", folder: "acoustic_grand_piano-mp3" },
+        1: { name: "Bright Acoustic Piano", folder: "bright_acoustic_piano-mp3" },
+        2: { name: "Electric Grand Piano", folder: "electric_grand_piano-mp3" },
+        3: { name: "Honky-tonk Piano", folder: "honkytonk_piano-mp3" },
+        4: { name: "Electric Piano 1", folder: "electric_piano_1-mp3" },
+        5: { name: "Electric Piano 2", folder: "electric_piano_2-mp3" },
+        6: { name: "Harpsichord", folder: "harpsichord-mp3" },
+        7: { name: "Clavinet", folder: "clavinet-mp3" },
+        // Chromatic Percussion
+        8: { name: "Celesta", folder: "celesta-mp3" },
+        9: { name: "Glockenspiel", folder: "glockenspiel-mp3" },
+        10: { name: "Music Box", folder: "music_box-mp3" },
+        11: { name: "Vibraphone", folder: "vibraphone-mp3" },
+        12: { name: "Marimba", folder: "marimba-mp3" },
+        13: { name: "Xylophone", folder: "xylophone-mp3" },
+        14: { name: "Tubular Bells", folder: "tubular_bells-mp3" },
+        15: { name: "Dulcimer", folder: "dulcimer-mp3" },
+        // Organ
+        16: { name: "Drawbar Organ", folder: "drawbar_organ-mp3" },
+        17: { name: "Percussive Organ", folder: "percussive_organ-mp3" },
+        18: { name: "Rock Organ", folder: "rock_organ-mp3" },
+        19: { name: "Church Organ", folder: "church_organ-mp3" },
+        20: { name: "Reed Organ", folder: "reed_organ-mp3" },
+        21: { name: "Accordion", folder: "accordion-mp3" },
+        22: { name: "Harmonica", folder: "harmonica-mp3" },
+        23: { name: "Tango Accordion", folder: "tango_accordion-mp3" },
+        // Guitar
+        24: { name: "Acoustic Guitar (nylon)", folder: "acoustic_guitar_nylon-mp3" },
+        25: { name: "Acoustic Guitar (steel)", folder: "acoustic_guitar_steel-mp3" },
+        26: { name: "Electric Guitar (jazz)", folder: "electric_guitar_jazz-mp3" },
+        27: { name: "Electric Guitar (clean)", folder: "electric_guitar_clean-mp3" },
+        28: { name: "Electric Guitar (muted)", folder: "electric_guitar_muted-mp3" },
+        29: { name: "Overdriven Guitar", folder: "overdriven_guitar-mp3" },
+        30: { name: "Distortion Guitar", folder: "distortion_guitar-mp3" },
+        31: { name: "Guitar Harmonics", folder: "guitar_harmonics-mp3" },
+        // Bass
+        32: { name: "Acoustic Bass", folder: "acoustic_bass-mp3" },
+        33: { name: "Electric Bass (finger)", folder: "electric_bass_finger-mp3" },
+        34: { name: "Electric Bass (pick)", folder: "electric_bass_pick-mp3" },
+        35: { name: "Fretless Bass", folder: "fretless_bass-mp3" },
+        36: { name: "Slap Bass 1", folder: "slap_bass_1-mp3" },
+        37: { name: "Slap Bass 2", folder: "slap_bass_2-mp3" },
+        38: { name: "Synth Bass 1", folder: "synth_bass_1-mp3" },
+        39: { name: "Synth Bass 2", folder: "synth_bass_2-mp3" },
+        // Strings
+        40: { name: "Violin", folder: "violin-mp3" },
+        41: { name: "Viola", folder: "viola-mp3" },
+        42: { name: "Cello", folder: "cello-mp3" },
+        43: { name: "Contrabass", folder: "contrabass-mp3" },
+        44: { name: "Tremolo Strings", folder: "tremolo_strings-mp3" },
+        45: { name: "Pizzicato Strings", folder: "pizzicato_strings-mp3" },
+        46: { name: "Orchestral Harp", folder: "orchestral_harp-mp3" },
+        47: { name: "Timpani", folder: "timpani-mp3" },
+        // Popular selections for common use
+        48: { name: "String Ensemble 1", folder: "string_ensemble_1-mp3" },
+        49: { name: "String Ensemble 2", folder: "string_ensemble_2-mp3" },
+        56: { name: "Trumpet", folder: "trumpet-mp3" },
+        57: { name: "Trombone", folder: "trombone-mp3" },
+        58: { name: "Tuba", folder: "tuba-mp3" },
+        64: { name: "Soprano Sax", folder: "soprano_sax-mp3" },
+        65: { name: "Alto Sax", folder: "alto_sax-mp3" },
+        66: { name: "Tenor Sax", folder: "tenor_sax-mp3" },
+        67: { name: "Baritone Sax", folder: "baritone_sax-mp3" },
+        68: { name: "Oboe", folder: "oboe-mp3" },
+        69: { name: "English Horn", folder: "english_horn-mp3" },
+        70: { name: "Bassoon", folder: "bassoon-mp3" },
+        71: { name: "Clarinet", folder: "clarinet-mp3" },
+        72: { name: "Piccolo", folder: "piccolo-mp3" },
+        73: { name: "Flute", folder: "flute-mp3" },
+        74: { name: "Recorder", folder: "recorder-mp3" }
+      };
+      CDN_SOURCES = [
+        "https://raw.githubusercontent.com/jmonlabs/midi-js-soundfonts/gh-pages/FluidR3_GM",
+        "https://cdn.jsdelivr.net/gh/gleitz/midi-js-soundfonts@gh-pages/FluidR3_GM"
+      ];
+    }
+  });
+
+  // src/constants/ui-constants.js
+  var PLAYER_DIMENSIONS, TIMELINE_CONFIG, COLORS;
+  var init_ui_constants = __esm({
+    "src/constants/ui-constants.js"() {
+      PLAYER_DIMENSIONS = {
+        MAX_WIDTH: 800,
+        MIN_WIDTH: 0,
+        MOBILE_MAX_WIDTH: "100vw",
+        PADDING: 16,
+        MOBILE_PADDING: 8,
+        BORDER_RADIUS: 12,
+        MOBILE_BORDER_RADIUS: 8
+      };
+      TIMELINE_CONFIG = {
+        MARGIN: "8px 0",
+        MOBILE_MARGIN: "6px 0",
+        GAP: 12,
+        MOBILE_GAP: 8,
+        UPDATE_INTERVAL: 100
+        // ms between timeline updates
+      };
+      COLORS = {
+        BACKGROUND: "#FFFFFF",
+        PRIMARY: "#333",
+        SECONDARY: "#F0F0F0",
+        ACCENT: "#333",
+        TEXT: "#000000",
+        LIGHT_TEXT: "#666666",
+        BORDER: "#CCCCCC"
+      };
+    }
+  });
+
+  // src/constants/player-constants.js
+  var AUDIO_CONFIG, ERROR_MESSAGES, LOG_PREFIXES;
+  var init_player_constants = __esm({
+    "src/constants/player-constants.js"() {
+      AUDIO_CONFIG = {
+        DEFAULT_TEMPO: 120,
+        MIN_TEMPO: 60,
+        MAX_TEMPO: 240,
+        DEFAULT_VELOCITY: 0.8,
+        GLISSANDO_MIN_STEPS: 3
+      };
+      ERROR_MESSAGES = {
+        INVALID_COMPOSITION: "Composition must be a valid JMON object",
+        NO_SEQUENCES_OR_TRACKS: "Composition must have sequences or tracks",
+        TRACKS_MUST_BE_ARRAY: "Tracks/sequences must be an array",
+        TONE_NOT_AVAILABLE: "Tone.js not available",
+        AUDIO_CONTEXT_FAILED: "Failed to start audio context",
+        iOS_AUDIO_HELP: "On iOS, please ensure your device isn't in silent mode and try again.",
+        GENERAL_AUDIO_HELP: "Please check your audio settings and try again."
+      };
+      LOG_PREFIXES = {
+        PLAYER: "[PLAYER]",
+        MULTIVOICE: "[MULTIVOICE]",
+        AUDIO_GRAPH: "[AUDIO_GRAPH]"
+      };
+    }
+  });
+
+  // src/browser/music-player.js
+  var music_player_exports = {};
+  __export(music_player_exports, {
+    createPlayer: () => createPlayer
+  });
+  function createPlayer(composition, options = {}) {
+    if (!composition || typeof composition !== "object") {
+      console.error(`${LOG_PREFIXES.PLAYER} Invalid composition:`, composition);
+      throw new Error(ERROR_MESSAGES.INVALID_COMPOSITION);
+    }
+    const {
+      autoplay = false,
+      showDebug = false,
+      customInstruments = {},
+      autoMultivoice = true,
+      maxVoices = 4,
+      Tone: externalTone = null,
+      preloadTone = false
+    } = options;
+    if (!composition.sequences && !composition.tracks) {
+      console.error(
+        `${LOG_PREFIXES.PLAYER} No sequences or tracks found in composition:`,
+        composition
+      );
+      throw new Error(ERROR_MESSAGES.NO_SEQUENCES_OR_TRACKS);
+    }
+    const tracks = composition.tracks || composition.sequences || [];
+    if (!Array.isArray(tracks)) {
+      console.error(
+        `${LOG_PREFIXES.PLAYER} Tracks/sequences must be an array:`,
+        tracks
+      );
+      throw new Error(ERROR_MESSAGES.TRACKS_MUST_BE_ARRAY);
+    }
+    const tempo = composition.tempo || composition.bpm || AUDIO_CONFIG.DEFAULT_TEMPO;
+    const conversionOptions = { autoMultivoice, maxVoices, showDebug };
+    const convertedData = tonejs(composition, conversionOptions);
+    const { tracks: convertedTracks, metadata } = convertedData;
+    let totalDuration = metadata.totalDuration;
+    const colors = COLORS;
+    const container = document.createElement("div");
+    container.style.cssText = `
+        font-family: 'PT Sans', sans-serif;
+        background-color: ${colors.background};
+        color: ${colors.text};
+        padding: 16px 16px 8px 16px;
+        border-radius: 12px;
+        width: 100%;
+        max-width: ${PLAYER_DIMENSIONS.MAX_WIDTH}px;
+        min-width: ${PLAYER_DIMENSIONS.MIN_WIDTH};
+        border: 1px solid ${colors.border};
+        box-shadow: 2px 2px 10px rgba(0, 0, 0, 0.1);
+        display: flex;
+        flex-direction: column;
+        box-sizing: border-box;
+    `;
+    const styleTag = document.createElement("style");
+    styleTag.textContent = `
+        /* iOS audio improvements */
+        .jmon-music-player-container {
+            -webkit-user-select: none;
+            -webkit-touch-callout: none;
+            -webkit-tap-highlight-color: transparent;
+            touch-action: manipulation;
+        }
+        .jmon-music-player-play {
+            -webkit-user-select: none;
+            -webkit-touch-callout: none;
+            -webkit-tap-highlight-color: transparent;
+            touch-action: manipulation;
+        }
+
+        /* Button hover effects */
+        .jmon-music-player-btn-vertical:hover {
+            background-color: #555555 !important;
+            transform: translateY(-1px);
+        }
+        .jmon-music-player-btn-vertical:active {
+            transform: translateY(0px);
+        }
+
+        /* Large screens: Show vertical downloads, hide horizontal ones, horizontal track layout */
+        @media (min-width: 600px) {
+            .jmon-music-player-downloads {
+                display: none !important;
+            }
+            .jmon-music-player-vertical-downloads {
+                display: flex !important;
+            }
+            .jmon-music-player-top {
+                gap: 32px !important;
+            }
+            .jmon-music-player-right {
+                min-width: 140px !important;
+                max-width: 160px !important;
+            }
+            .jmon-track-selector {
+                flex-direction: row !important;
+                align-items: center !important;
+                gap: 16px !important;
+            }
+            .jmon-track-selector label {
+                min-width: 120px !important;
+                margin-bottom: 0 !important;
+                flex-shrink: 0 !important;
+            }
+            .jmon-track-selector select {
+                flex: 1 !important;
+            }
+        }
+
+        /* Medium screens: Compact layout with horizontal track selectors */
+        @media (min-width: 481px) and (max-width: 799px) {
+            .jmon-music-player-downloads {
+                display: none !important;
+            }
+            .jmon-music-player-vertical-downloads {
+                display: flex !important;
+            }
+            .jmon-music-player-top {
+                gap: 20px !important;
+            }
+            .jmon-music-player-right {
+                min-width: 120px !important;
+                max-width: 140px !important;
+            }
+            .jmon-track-selector {
+                flex-direction: row !important;
+                align-items: center !important;
+                gap: 12px !important;
+            }
+            .jmon-track-selector label {
+                min-width: 100px !important;
+                margin-bottom: 0 !important;
+                flex-shrink: 0 !important;
+                font-size: 14px !important;
+            }
+            .jmon-track-selector select {
+                flex: 1 !important;
+            }
+        }
+
+        /* Small screens: Mobile layout */
+        @media (max-width: 480px) {
+            .jmon-music-player-downloads {
+                display: flex !important;
+            }
+            .jmon-music-player-vertical-downloads {
+                display: none !important;
+            }
+            .jmon-music-player-container {
+                padding: 8px !important;
+                border-radius: 8px !important;
+                max-width: 100vw !important;
+                min-width: 0 !important;
+                box-shadow: none !important;
+            }
+            .jmon-music-player-top {
+                flex-direction: column !important;
+                gap: 12px !important;
+                align-items: stretch !important;
+            }
+            .jmon-music-player-left, .jmon-music-player-right {
+                width: 100% !important;
+                min-width: 0 !important;
+                max-width: none !important;
+                flex: none !important;
+            }
+            .jmon-music-player-right {
+                gap: 12px !important;
+            }
+            .jmon-track-selector {
+                flex-direction: column !important;
+                align-items: stretch !important;
+                gap: 8px !important;
+            }
+            .jmon-track-selector label {
+                min-width: auto !important;
+                margin-bottom: 0 !important;
+            }
+            .jmon-track-selector select {
+                flex: none !important;
+            }
+            .jmon-music-player-timeline {
+                gap: 8px !important;
+                margin: 6px 0 !important;
+            }
+            .jmon-music-player-downloads {
+                flex-direction: column !important;
+                gap: 8px !important;
+                margin-top: 6px !important;
+            }
+            .jmon-music-player-btn {
+                min-height: 40px !important;
+                font-size: 14px !important;
+                padding: 10px 0 !important;
+            }
+            .jmon-music-player-play {
+                width: 40px !important;
+                height: 40px !important;
+                min-width: 40px !important;
+                max-width: 40px !important;
+                padding: 8px !important;
+                margin: 0 4px !important;
+                border-radius: 50% !important;
+                flex-shrink: 0 !important;
+            }
+            .jmon-music-player-stop {
+                width: 40px !important;
+                height: 40px !important;
+                min-width: 40px !important;
+                max-width: 40px !important;
+                padding: 8px !important;
+                margin: 0 4px !important;
+                flex-shrink: 0 !important;
+            }
+        }
+    `;
+    document.head.appendChild(styleTag);
+    container.classList.add("jmon-music-player-container");
+    const mainLayout = document.createElement("div");
+    mainLayout.style.cssText = `
+        display: grid;
+        grid-template-columns: 1fr;
+        grid-template-rows: auto auto auto auto;
+        gap: 12px;
+        margin-bottom: 0px;
+        font-family: 'PT Sans', sans-serif;
+    `;
+    mainLayout.classList.add("jmon-music-player-main");
+    const topContainer = document.createElement("div");
+    topContainer.style.cssText = `
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        font-family: 'PT Sans', sans-serif;
+        gap: 24px;
+        flex-wrap: wrap;
+    `;
+    topContainer.classList.add("jmon-music-player-top");
+    const leftColumn = document.createElement("div");
+    leftColumn.style.cssText = `
+        display: flex;
+        flex-direction: column;
+        flex: 1;
+        min-width: 0;
+        box-sizing: border-box;
+    `;
+    leftColumn.classList.add("jmon-music-player-left");
+    const instrumentsContainer = document.createElement("div");
+    instrumentsContainer.style.cssText = `
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    `;
+    const gmInstruments = getPopularInstruments();
+    const originalTracks = composition.tracks || [];
+    const synthSelectors = [];
+    originalTracks.forEach((track, index) => {
+      const trackAnalysis = convertedTracks.find(
+        (t) => t.originalTrackIndex === index
+      )?.analysis;
+      if (trackAnalysis?.hasGlissando) {
+        console.warn(
+          `Track ${track.label || track.name || index + 1} contient un glissando : la polyphonie sera d\xE9sactiv\xE9e pour cette piste.`
+        );
+      }
+      const synthSelectorItem = document.createElement("div");
+      synthSelectorItem.style.cssText = `
+            margin-bottom: 8px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        `;
+      synthSelectorItem.classList.add("jmon-track-selector");
+      const synthLabel = document.createElement("label");
+      synthLabel.textContent = track.label || `Track ${index + 1}`;
+      synthLabel.style.cssText = `
+            font-family: 'PT Sans', sans-serif;
+            font-size: 16px;
+            color: ${colors.text};
+            display: block;
+            margin-bottom: 0;
+            font-weight: normal;
+            flex-shrink: 0;
+        `;
+      const synthSelect = document.createElement("select");
+      synthSelect.style.cssText = `
+            padding: 4px;
+            border: 1px solid ${colors.secondary};
+            border-radius: 4px;
+            background-color: ${colors.background};
+            color: ${colors.text};
+            font-size: 12px;
+            width: 100%;
+            height: 28px;
+            box-sizing: border-box;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none;
+            margin: 0;
+            outline: none;
+        `;
+      const synthGroup = document.createElement("optgroup");
+      synthGroup.label = "Synthesizers";
+      const basicSynths = [
+        "PolySynth",
+        "Synth",
+        "AMSynth",
+        "DuoSynth",
+        "FMSynth",
+        "MembraneSynth",
+        "MetalSynth",
+        "MonoSynth",
+        "PluckSynth"
+      ];
+      const audioGraphNodes = composition.audioGraph || [];
+      if (Array.isArray(audioGraphNodes) && audioGraphNodes.length > 0) {
+        const trackSynthRef = composition.tracks?.[index]?.synthRef;
+        audioGraphNodes.forEach((node) => {
+          if (node.id && node.type && node.type !== "Destination") {
+            const option = document.createElement("option");
+            option.value = `AudioGraph: ${node.id}`;
+            option.textContent = node.id;
+            if (trackSynthRef === node.id) {
+              option.selected = true;
+            }
+            synthGroup.appendChild(option);
+          }
+        });
+      }
+      basicSynths.forEach((synthType) => {
+        const option = document.createElement("option");
+        option.value = synthType;
+        option.textContent = synthType;
+        if (trackAnalysis?.hasGlissando && synthType === "Synth") {
+          option.selected = true;
+        } else if (!trackAnalysis?.hasGlissando && !composition.tracks?.[index]?.synthRef && synthType === "PolySynth") {
+          option.selected = true;
+        }
+        if (trackAnalysis?.hasGlissando && (synthType === "PolySynth" || synthType === "DuoSynth")) {
+          option.disabled = true;
+          option.textContent += " (mono only for glissando)";
+        }
+        synthGroup.appendChild(option);
+      });
+      synthSelect.appendChild(synthGroup);
+      const gmGroup = document.createElement("optgroup");
+      gmGroup.label = "Sampled Instruments";
+      const instrumentsByCategory = {};
+      gmInstruments.forEach((instrument) => {
+        if (!instrumentsByCategory[instrument.category]) {
+          instrumentsByCategory[instrument.category] = [];
+        }
+        instrumentsByCategory[instrument.category].push(instrument);
+      });
+      Object.keys(instrumentsByCategory).sort().forEach((category) => {
+        const categoryGroup = document.createElement("optgroup");
+        categoryGroup.label = category;
+        instrumentsByCategory[category].forEach((instrument) => {
+          const option = document.createElement("option");
+          option.value = `GM: ${instrument.name}`;
+          option.textContent = instrument.name;
+          if (trackAnalysis?.hasGlissando) {
+            option.disabled = true;
+            option.textContent += " (not suitable for glissando)";
+          }
+          categoryGroup.appendChild(option);
+        });
+        synthSelect.appendChild(categoryGroup);
+      });
+      synthSelectors.push(synthSelect);
+      synthSelectorItem.append(synthLabel, synthSelect);
+      instrumentsContainer.appendChild(synthSelectorItem);
+    });
+    leftColumn.appendChild(instrumentsContainer);
+    const rightColumn = document.createElement("div");
+    rightColumn.style.cssText = `
+        display: flex;
+        flex-direction: column;
+        min-width: 120px;
+        max-width: 150px;
+        box-sizing: border-box;
+        gap: 16px;
+    `;
+    rightColumn.classList.add("jmon-music-player-right");
+    const bpmContainer = document.createElement("div");
+    bpmContainer.style.cssText = `
+        display: flex;
+        flex-direction: column;
+        width: 100%;
+        min-width: 0;
+        box-sizing: border-box;
+    `;
+    const bpmLabel = document.createElement("label");
+    bpmLabel.textContent = "Tempo";
+    bpmLabel.style.cssText = `
+        font-family: 'PT Sans', sans-serif;
+        font-size: 16px;
+        font-weight: normal;
+        margin-bottom: 8px;
+        color: ${colors.text};
+    `;
+    const bpmInput = document.createElement("input");
+    bpmInput.type = "number";
+    bpmInput.min = 60;
+    bpmInput.max = 240;
+    bpmInput.value = tempo;
+    bpmInput.style.cssText = `
+        padding: 4px;
+        border: 1px solid ${colors.secondary};
+        border-radius: 4px;
+        background-color: ${colors.background};
+        color: ${colors.text};
+        font-size: 12px;
+        text-align: center;
+        width: 100%;
+        height: 28px;
+        box-sizing: border-box;
+        -webkit-appearance: none;
+        -moz-appearance: none;
+        appearance: none;
+        margin: 0;
+        outline: none;
+    `;
+    bpmContainer.append(bpmLabel, bpmInput);
+    const verticalDownloads = document.createElement("div");
+    verticalDownloads.style.cssText = `
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        margin-top: 8px;
+    `;
+    verticalDownloads.classList.add("jmon-music-player-vertical-downloads");
+    const downloadMIDIButtonVertical = document.createElement("button");
+    downloadMIDIButtonVertical.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-keyboard-music" style="margin-right: 8px;"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="M6 8h4"/><path d="M14 8h.01"/><path d="M18 8h.01"/><path d="M2 12h20"/><path d="M6 12v4"/><path d="M10 12v4"/><path d="M14 12v4"/><path d="M18 12v4"/></svg><span>MIDI</span>`;
+    downloadMIDIButtonVertical.style.cssText = `
+        padding: 12px 16px;
+        border: none;
+        border-radius: 8px;
+        background-color: #333333;
+        color: white;
+        font-family: 'PT Sans', sans-serif;
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: background-color 0.3s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 44px;
+        box-sizing: border-box;
+    `;
+    downloadMIDIButtonVertical.classList.add("jmon-music-player-btn-vertical");
+    const downloadWavButtonVertical = document.createElement("button");
+    downloadWavButtonVertical.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-audio-lines" style="margin-right: 8px;"><path d="M2 10v3"/><path d="M6 6v11"/><path d="M10 3v18"/><path d="M14 8v7"/><path d="M18 5v13"/><path d="M22 10v3"/></svg><span>WAV</span>`;
+    downloadWavButtonVertical.style.cssText = `
+        padding: 12px 16px;
+        border: none;
+        border-radius: 8px;
+        background-color: #333333;
+        color: white;
+        font-family: 'PT Sans', sans-serif;
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: background-color 0.3s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 44px;
+        box-sizing: border-box;
+    `;
+    downloadWavButtonVertical.classList.add("jmon-music-player-btn-vertical");
+    verticalDownloads.append(
+      downloadMIDIButtonVertical,
+      downloadWavButtonVertical
+    );
+    verticalDownloads.style.display = "none";
+    rightColumn.append(bpmContainer, verticalDownloads);
+    const timelineContainer = document.createElement("div");
+    timelineContainer.style.cssText = `
+        position: relative;
+        width: 100%;
+        margin: ${TIMELINE_CONFIG.MARGIN};
+        display: flex;
+        align-items: center;
+        gap: ${TIMELINE_CONFIG.GAP}px;
+        min-width: 0;
+        box-sizing: border-box;
+    `;
+    timelineContainer.classList.add("jmon-music-player-timeline");
+    const currentTime = document.createElement("div");
+    currentTime.textContent = "0:00";
+    currentTime.style.cssText = `
+        font-family: 'PT Sans', sans-serif;
+        font-size: 14px;
+        color: ${colors.text};
+        min-width: 40px;
+        text-align: center;
+    `;
+    const totalTime = document.createElement("div");
+    totalTime.textContent = "0:00";
+    totalTime.style.cssText = `
+        font-family: 'PT Sans', sans-serif;
+        font-size: 14px;
+        color: ${colors.text};
+        min-width: 40px;
+        text-align: center;
+    `;
+    const timeline = document.createElement("input");
+    timeline.type = "range";
+    timeline.min = 0;
+    timeline.max = 100;
+    timeline.value = 0;
+    timeline.style.cssText = `
+        flex-grow: 1;
+        -webkit-appearance: none;
+        background: ${colors.secondary};
+        outline: none;
+        border-radius: 15px;
+        overflow: visible;
+        height: 8px;
+    `;
+    const timelineStyle = document.createElement("style");
+    timelineStyle.textContent = `
+        input[type="range"].jmon-timeline-slider {
+            background: ${colors.secondary} !important;
+            border: 1px solid ${colors.border} !important;
+            box-shadow: inset 0 1px 3px rgba(0,0,0,0.1) !important;
+        }
+        input[type="range"].jmon-timeline-slider::-webkit-slider-track {
+            background: ${colors.secondary} !important;
+            height: 8px !important;
+            border-radius: 15px !important;
+            border: 1px solid ${colors.border} !important;
+            box-shadow: inset 0 1px 3px rgba(0,0,0,0.1) !important;
+        }
+        input[type="range"].jmon-timeline-slider::-moz-range-track {
+            background: ${colors.secondary} !important;
+            height: 8px !important;
+            border-radius: 15px !important;
+            border: 1px solid ${colors.border} !important;
+            box-shadow: inset 0 1px 3px rgba(0,0,0,0.1) !important;
+        }
+        input[type="range"].jmon-timeline-slider::-webkit-slider-thumb {
+            -webkit-appearance: none !important;
+            appearance: none !important;
+            height: 20px !important;
+            width: 20px !important;
+            border-radius: 50% !important;
+            background: ${colors.primary} !important;
+            cursor: pointer !important;
+            border: 2px solid ${colors.background} !important;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.2) !important;
+        }
+        input[type="range"].jmon-timeline-slider::-moz-range-thumb {
+            height: 20px !important;
+            width: 20px !important;
+            border-radius: 50% !important;
+            background: ${colors.primary} !important;
+            cursor: pointer !important;
+            border: 2px solid ${colors.background} !important;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.2) !important;
+        }
+    `;
+    document.head.appendChild(timelineStyle);
+    timeline.classList.add("jmon-timeline-slider");
+    const playButton = document.createElement("button");
+    playButton.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-play"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg>`;
+    playButton.style.cssText = `
+        width: 40px;
+        height: 40px;
+        min-width: 40px;
+        max-width: 40px;
+        padding: 8px;
+        border: none;
+        border-radius: 50%;
+        background-color: ${colors.primary};
+        color: ${colors.background};
+        font-size: 16px;
+        cursor: pointer;
+        transition: background-color 0.3s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0px 5px 0px 10px;
+        box-sizing: border-box;
+        flex-shrink: 0;
+    `;
+    playButton.classList.add("jmon-music-player-play");
+    const stopButton = document.createElement("button");
+    stopButton.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-square"><rect width="18" height="18" x="3" y="3" rx="2"/></svg>`;
+    stopButton.style.cssText = `
+        width: 40px;
+        height: 40px;
+        min-width: 40px;
+        max-width: 40px;
+        padding: 8px;
+        border: none;
+        border-radius: 8px;
+        background-color: ${colors.secondary};
+        color: ${colors.text};
+        font-size: 14px;
+        cursor: pointer;
+        transition: background-color 0.3s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0px 5px 0px 0px;
+        box-sizing: border-box;
+        flex-shrink: 0;
+    `;
+    stopButton.classList.add("jmon-music-player-stop");
+    const timeDisplay = document.createElement("div");
+    timeDisplay.style.cssText = `
+        display: flex;
+        justify-content: space-between;
+        font-size: 12px;
+        color: ${colors.lightText};
+        margin: 0px 0px 0px 10px;
+    `;
+    const controlsContainer = document.createElement("div");
+    controlsContainer.style.cssText = `
+        display: flex;
+        align-items: center;
+        gap: 0px;
+    `;
+    controlsContainer.append(playButton, stopButton);
+    timelineContainer.append(currentTime, timeline, totalTime, controlsContainer);
+    const buttonContainer = document.createElement("div");
+    buttonContainer.style.cssText = `
+        display: flex;
+        justify-content: space-between;
+        margin-top: 8px;
+        gap: 10px;
+        min-width: 0;
+        box-sizing: border-box;
+    `;
+    buttonContainer.classList.add("jmon-music-player-downloads");
+    const downloadMIDIButton = document.createElement("button");
+    downloadMIDIButton.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-keyboard-music" style="margin-right: 5px;"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="M6 8h4"/><path d="M14 8h.01"/><path d="M18 8h.01"/><path d="M2 12h20"/><path d="M6 12v4"/><path d="M10 12v4"/><path d="M14 12v4"/><path d="M18 12v4"/></svg><span>MIDI</span>`;
+    downloadMIDIButton.style.cssText = `
+        padding: 15px 30px;
+        margin: 0 5px;
+        border: none;
+        border-radius: 8px;
+        background-color: #333333;
+        color: white;
+        font-family: 'PT Sans', sans-serif;
+        font-size: 16px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: background-color 0.3s ease;
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 50px;
+        min-width: 0;
+        box-sizing: border-box;
+    `;
+    downloadMIDIButton.classList.add("jmon-music-player-btn");
+    const downloadWavButton = document.createElement("button");
+    downloadWavButton.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-audio-lines" style="margin-right: 5px;"><path d="M2 10v3"/><path d="M6 6v11"/><path d="M10 3v18"/><path d="M14 8v7"/><path d="M18 5v13"/><path d="M22 10v3"/></svg><span>WAV</span>`;
+    downloadWavButton.style.cssText = `
+        padding: 15px 30px;
+        margin: 0 5px;
+        border: none;
+        border-radius: 8px;
+        background-color: #333333;
+        color: white;
+        font-family: 'PT Sans', sans-serif;
+        font-size: 16px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: background-color 0.3s ease;
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 50px;
+        min-width: 0;
+        box-sizing: border-box;
+    `;
+    downloadWavButton.classList.add("jmon-music-player-btn");
+    buttonContainer.append(downloadMIDIButton, downloadWavButton);
+    topContainer.append(leftColumn, rightColumn);
+    mainLayout.appendChild(topContainer);
+    mainLayout.appendChild(timelineContainer);
+    container.append(mainLayout, buttonContainer);
+    let Tone2, isPlaying = false, synths = [], parts = [];
+    let samplerLoadPromises = [];
+    let graphInstruments = null;
+    const originalTracksSource = composition.tracks || [];
+    const buildAudioGraphInstruments2 = () => {
+      if (!Tone2)
+        return null;
+      if (!composition.audioGraph || !Array.isArray(composition.audioGraph)) {
+        return null;
+      }
+      const map = {};
+      const normalizeUrlsToNoteNames = (urls) => {
+        const out = {};
+        Object.entries(urls || {}).forEach(([k, v]) => {
+          let noteKey = k;
+          if (typeof k === "number" || /^\d+$/.test(String(k))) {
+            try {
+              noteKey = Tone2.Frequency(parseInt(k, 10), "midi").toNote();
+            } catch (e) {
+            }
+          }
+          out[noteKey] = v;
+        });
+        return out;
+      };
+      try {
+        composition.audioGraph.forEach((node) => {
+          const { id, type, options: options2 = {}, target } = node;
+          if (!id || !type)
+            return;
+          let instrument = null;
+          if (type === "Sampler") {
+            const normalizedUrls = normalizeUrlsToNoteNames(options2.urls);
+            let resolveLoaded, rejectLoaded;
+            const loadPromise = new Promise((res, rej) => {
+              resolveLoaded = res;
+              rejectLoaded = rej;
+            });
+            const samplerOpts = {
+              urls: normalizedUrls,
+              onload: () => resolveLoaded && resolveLoaded(),
+              onerror: (e) => {
+                console.error(`[PLAYER] Sampler load error for ${id}:`, e);
+                rejectLoaded && rejectLoaded(e);
+              }
+            };
+            if (options2.baseUrl)
+              samplerOpts.baseUrl = options2.baseUrl;
+            try {
+              console.log(
+                `[PLAYER] Building Sampler ${id} with urls:`,
+                normalizedUrls,
+                "baseUrl:",
+                samplerOpts.baseUrl || "(none)"
+              );
+              instrument = new Tone2.Sampler(samplerOpts);
+            } catch (e) {
+              console.error("[PLAYER] Failed to create Sampler:", e);
+              instrument = null;
+            }
+            samplerLoadPromises.push(loadPromise);
+            if (instrument && options2.envelope && options2.envelope.enabled) {
+              if (typeof options2.envelope.attack === "number") {
+                instrument.attack = options2.envelope.attack;
+              }
+              if (typeof options2.envelope.release === "number") {
+                instrument.release = options2.envelope.release;
+              }
+            }
+          } else if (SYNTHESIZER_TYPES.includes(type)) {
+            try {
+              instrument = new Tone2[type](options2);
+            } catch (e) {
+              console.warn(
+                `[PLAYER] Failed to create ${type} from audioGraph, using PolySynth:`,
+                e
+              );
+              instrument = new Tone2.PolySynth();
+            }
+          } else if (ALL_EFFECTS.includes(type)) {
+            try {
+              instrument = new Tone2[type](options2);
+              console.log(
+                `[PLAYER] Created effect ${id} (${type}) with options:`,
+                options2
+              );
+            } catch (e) {
+              console.warn(`[PLAYER] Failed to create ${type} effect:`, e);
+              instrument = null;
+            }
+          } else if (type === "Destination") {
+            map[id] = Tone2.Destination;
+          }
+          if (instrument) {
+            map[id] = instrument;
+          }
+        });
+        if (Object.keys(map).length > 0) {
+          composition.audioGraph.forEach((node) => {
+            const { id, target } = node;
+            if (!id || !map[id])
+              return;
+            const currentNode = map[id];
+            if (currentNode === Tone2.Destination)
+              return;
+            if (target && map[target]) {
+              try {
+                if (map[target] === Tone2.Destination) {
+                  currentNode.toDestination();
+                  console.log(`[PLAYER] Connected ${id} -> Destination`);
+                } else {
+                  currentNode.connect(map[target]);
+                  console.log(`[PLAYER] Connected ${id} -> ${target}`);
+                }
+              } catch (e) {
+                console.warn(`[PLAYER] Failed to connect ${id} -> ${target}:`, e);
+                currentNode.toDestination();
+              }
+            } else {
+              currentNode.toDestination();
+              console.log(
+                `[PLAYER] Connected ${id} -> Destination (no target specified)`
+              );
+            }
+          });
+        }
+        return map;
+      } catch (e) {
+        console.error("[PLAYER] Failed building audioGraph instruments:", e);
+        return null;
+      }
+    };
+    const isIOS = () => {
+      return /iPad|iPhone|iPod/.test(navigator.userAgent) || navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1;
+    };
+    const formatTime = (seconds) => {
+      return `${Math.floor(seconds / 60)}:${Math.floor(seconds % 60).toString().padStart(2, "0")}`;
+    };
+    totalTime.textContent = formatTime(totalDuration);
+    const initializeTone = async () => {
+      if (typeof window !== "undefined") {
+        const existingTone = externalTone || window.Tone || (typeof Tone2 !== "undefined" ? Tone2 : null);
+        if (!existingTone) {
+          try {
+            if (typeof __require !== "undefined") {
+              console.log("[PLAYER] Loading Tone.js via require()...");
+              const ToneFromRequire = await __require("tone@14.8.49/build/Tone.js");
+              window.Tone = ToneFromRequire.default || ToneFromRequire.Tone || ToneFromRequire;
+            } else {
+              console.log("[PLAYER] Loading Tone.js via import()...");
+              const ToneModule = await import("https://esm.sh/tone@14.8.49");
+              window.Tone = ToneModule.default || ToneModule.Tone || ToneModule;
+            }
+            if (!window.Tone || typeof window.Tone !== "object" || !window.Tone.PolySynth) {
+              console.warn(
+                "[PLAYER] First load attempt failed, trying alternative CDN..."
+              );
+              try {
+                const ToneAlt = await import("https://cdn.skypack.dev/tone@14.8.49");
+                window.Tone = ToneAlt.default || ToneAlt.Tone || ToneAlt;
+                if (!window.Tone || !window.Tone.PolySynth) {
+                  throw new Error("Alternative CDN also failed");
+                }
+              } catch (altError) {
+                console.warn(
+                  "[PLAYER] Alternative CDN failed, trying jsdelivr..."
+                );
+                try {
+                  const ToneJsdelivr = await import("https://cdn.jsdelivr.net/npm/tone@14.8.49/build/Tone.js");
+                  window.Tone = ToneJsdelivr.default || ToneJsdelivr.Tone || ToneJsdelivr;
+                  if (!window.Tone || !window.Tone.PolySynth) {
+                    throw new Error("All CDN attempts failed");
+                  }
+                } catch (jsdelivrError) {
+                  throw new Error(
+                    "Loaded Tone.js but got invalid object from all CDNs"
+                  );
+                }
+              }
+            }
+            console.log(
+              "[PLAYER] Tone.js loaded successfully, version:",
+              window.Tone.version || "unknown"
+            );
+          } catch (error) {
+            console.warn("Could not auto-load Tone.js:", error.message);
+            console.log(
+              "To use the player, load Tone.js manually first using one of these methods:"
+            );
+            console.log(
+              'Method 1: Tone = await require("tone@14.8.49/build/Tone.js")'
+            );
+            console.log(
+              'Method 2: Tone = await import("https://esm.sh/tone@14.8.49").then(m => m.default)'
+            );
+            console.log(
+              'Method 3: Tone = await import("https://cdn.skypack.dev/tone@14.8.49").then(m => m.default)'
+            );
+            return false;
+          }
+        } else {
+          console.log(
+            "[PLAYER] Using existing Tone.js, version:",
+            existingTone.version || "unknown"
+          );
+          window.Tone = existingTone;
+        }
+        const toneInstance = window.Tone || existingTone;
+        if (toneInstance) {
+          Tone2 = toneInstance;
+          console.log("[PLAYER] Available Tone constructors:", {
+            PolySynth: typeof Tone2.PolySynth,
+            Synth: typeof Tone2.Synth,
+            Part: typeof Tone2.Part,
+            Transport: typeof Tone2.Transport,
+            start: typeof Tone2.start,
+            context: !!Tone2.context
+          });
+          console.log(
+            "[PLAYER] Tone.js initialized, context state:",
+            Tone2.context ? Tone2.context.state : "no context"
+          );
+          if (isIOS()) {
+            console.log(
+              "[PLAYER] iOS device detected - audio context will start on user interaction"
+            );
+          }
+          return true;
+        }
+      }
+      console.warn("Tone.js not available");
+      return false;
+    };
+    const setupAudio = () => {
+      if (!Tone2) {
+        console.warn("[PLAYER] Tone.js not available, cannot setup audio");
+        return;
+      }
+      const missingConstructors = [];
+      if (!Tone2.PolySynth)
+        missingConstructors.push("PolySynth");
+      if (!Tone2.Synth)
+        missingConstructors.push("Synth");
+      if (!Tone2.Part)
+        missingConstructors.push("Part");
+      if (!Tone2.Transport)
+        missingConstructors.push("Transport");
+      if (missingConstructors.length > 0) {
+        console.error(
+          "[PLAYER] Tone.js is missing required constructors:",
+          missingConstructors
+        );
+        console.error(
+          "[PLAYER] Available Tone properties:",
+          Object.keys(Tone2).filter((k) => typeof Tone2[k] === "function").slice(0, 20)
+        );
+        console.error("[PLAYER] Tone object:", Tone2);
+        console.error(
+          "[PLAYER] This usually means Tone.js did not load correctly. Try refreshing the page or loading Tone.js manually."
+        );
+        return;
+      }
+      Tone2.Transport.bpm.value = metadata.tempo;
+      console.log(
+        `[PLAYER] Set Transport BPM to ${metadata.tempo} before building instruments`
+      );
+      if (!graphInstruments) {
+        graphInstruments = buildAudioGraphInstruments2();
+        if (graphInstruments) {
+          const samplerIds = Object.keys(graphInstruments).filter(
+            (k) => graphInstruments[k] && graphInstruments[k].name === "Sampler"
+          );
+          if (samplerIds.length > 0) {
+            console.log(
+              "[PLAYER] Using audioGraph Samplers for tracks with synthRef:",
+              samplerIds
+            );
+          }
+        }
+      }
+      console.log("[PLAYER] Cleaning up existing audio...", {
+        synths: synths.length,
+        parts: parts.length
+      });
+      Tone2.Transport.stop();
+      Tone2.Transport.position = 0;
+      parts.forEach((p, index) => {
+        try {
+          p.stop();
+        } catch (e) {
+          console.warn(`[PLAYER] Failed to stop part ${index}:`, e);
+        }
+      });
+      parts.forEach((p, index) => {
+        try {
+          p.dispose();
+        } catch (e) {
+          console.warn(`[PLAYER] Failed to dispose part ${index}:`, e);
+        }
+      });
+      synths.forEach((s, index) => {
+        if (!graphInstruments || !Object.values(graphInstruments).includes(s)) {
+          try {
+            if (s.disconnect && typeof s.disconnect === "function") {
+              s.disconnect();
+            }
+            s.dispose();
+          } catch (e) {
+            console.warn(`[PLAYER] Failed to dispose synth ${index}:`, e);
+          }
+        }
+      });
+      synths = [];
+      parts = [];
+      console.log("[PLAYER] Audio cleanup completed");
+      console.log("[PLAYER] Converted tracks:", convertedTracks.length);
+      convertedTracks.forEach((trackConfig) => {
+        const {
+          originalTrackIndex,
+          voiceIndex,
+          totalVoices,
+          trackInfo,
+          synthConfig,
+          partEvents
+        } = trackConfig;
+        const originalTrack = originalTracksSource[originalTrackIndex] || {};
+        const synthRef = originalTrack.synthRef;
+        const secPerBeat = 60 / metadata.tempo;
+        const normalizedEvents = (partEvents || []).map((ev) => {
+          const time = typeof ev.time === "number" ? ev.time * secPerBeat : ev.time;
+          const duration = typeof ev.duration === "number" ? ev.duration * secPerBeat : ev.duration;
+          return { ...ev, time, duration };
+        });
+        let synth = null;
+        if (synthRef && graphInstruments && graphInstruments[synthRef]) {
+          synth = graphInstruments[synthRef];
+        } else {
+          const selectedSynth = synthSelectors[originalTrackIndex] ? synthSelectors[originalTrackIndex].value : synthConfig.type;
+          try {
+            if (selectedSynth.startsWith("AudioGraph: ")) {
+              const audioGraphId = selectedSynth.substring(12);
+              if (graphInstruments && graphInstruments[audioGraphId]) {
+                synth = graphInstruments[audioGraphId];
+                console.log(
+                  `[PLAYER] Using audioGraph instrument: ${audioGraphId}`
+                );
+              } else {
+                throw new Error(
+                  `AudioGraph instrument ${audioGraphId} not found`
+                );
+              }
+            } else if (selectedSynth.startsWith("GM: ")) {
+              const instrumentName = selectedSynth.substring(4);
+              const gmInstrument = gmInstruments.find(
+                (inst) => inst.name === instrumentName
+              );
+              if (gmInstrument) {
+                console.log(`[PLAYER] Loading GM instrument: ${instrumentName}`);
+                const samplerUrls = generateSamplerUrls(
+                  gmInstrument.program,
+                  CDN_SOURCES[0],
+                  [36, 84],
+                  "balanced"
+                );
+                console.log(
+                  `[PLAYER] Loading GM instrument ${instrumentName} with ${Object.keys(samplerUrls).length} samples`
+                );
+                console.log(
+                  `[PLAYER] Sample notes:`,
+                  Object.keys(samplerUrls).sort()
+                );
+                synth = new Tone2.Sampler({
+                  urls: samplerUrls,
+                  onload: () => console.log(
+                    `[PLAYER] GM instrument ${instrumentName} loaded successfully`
+                  ),
+                  onerror: (error) => {
+                    console.error(
+                      `[PLAYER] Failed to load GM instrument ${instrumentName}:`,
+                      error
+                    );
+                  }
+                }).toDestination();
+              } else {
+                throw new Error(`GM instrument ${instrumentName} not found`);
+              }
+            } else {
+              const synthType = synthConfig.reason === "glissando_compatibility" ? synthConfig.type : selectedSynth;
+              if (!Tone2[synthType] || typeof Tone2[synthType] !== "function") {
+                throw new Error(`Tone.${synthType} is not a constructor`);
+              }
+              synth = new Tone2[synthType]().toDestination();
+              if (synthConfig.reason === "glissando_compatibility" && voiceIndex === 0) {
+                console.warn(
+                  `[MULTIVOICE] Using ${synthType} instead of ${synthConfig.original} for glissando in ${trackInfo.label}`
+                );
+              }
+            }
+          } catch (error) {
+            console.warn(
+              `Failed to create ${selectedSynth}, using PolySynth:`,
+              error
+            );
+            try {
+              if (!Tone2.PolySynth || typeof Tone2.PolySynth !== "function") {
+                throw new Error("Tone.PolySynth is not available");
+              }
+              synth = new Tone2.PolySynth().toDestination();
+            } catch (fallbackError) {
+              console.error(
+                "Fatal: Cannot create any synth, Tone.js may not be properly loaded:",
+                fallbackError
+              );
+              return;
+            }
+          }
+        }
+        synths.push(synth);
+        if (totalVoices > 1) {
+          console.log(
+            `[MULTIVOICE] Track "${trackInfo.label}" voice ${voiceIndex + 1}: ${partEvents.length} notes`
+          );
+        }
+        const part = new Tone2.Part((time, note) => {
+          if (Array.isArray(note.pitch)) {
+            note.pitch.forEach((n) => {
+              let noteName = "C4";
+              if (typeof n === "number") {
+                noteName = Tone2.Frequency(n, "midi").toNote();
+              } else if (typeof n === "string") {
+                noteName = n;
+              } else if (Array.isArray(n) && typeof n[0] === "string") {
+                noteName = n[0];
+              }
+              synth.triggerAttackRelease(noteName, note.duration, time);
+            });
+          } else if (Array.isArray(note.modulations) && note.modulations.some(
+            (m) => m.type === "pitch" && (m.subtype === "glissando" || m.subtype === "portamento") && (m.to !== void 0 || m.target !== void 0)
+          )) {
+            let noteName = typeof note.pitch === "number" ? Tone2.Frequency(note.pitch, "midi").toNote() : note.pitch;
+            const gliss = note.modulations.find(
+              (m) => m.type === "pitch" && (m.subtype === "glissando" || m.subtype === "portamento") && (m.to !== void 0 || m.target !== void 0)
+            );
+            const glissTarget = gliss && (gliss.to !== void 0 ? gliss.to : gliss.target);
+            let targetName = typeof glissTarget === "number" ? Tone2.Frequency(glissTarget, "midi").toNote() : glissTarget;
+            console.log("[PLAYER] Glissando", {
+              fromNote: noteName,
+              toNote: targetName,
+              duration: note.duration,
+              time
+            });
+            console.log(
+              "[PLAYER] Glissando effect starting from",
+              noteName,
+              "to",
+              targetName
+            );
+            synth.triggerAttack(noteName, time, note.velocity || 0.8);
+            const startFreq = Tone2.Frequency(noteName).toFrequency();
+            const endFreq = Tone2.Frequency(targetName).toFrequency();
+            const totalCents = 1200 * Math.log2(endFreq / startFreq);
+            if (synth.detune && synth.detune.setValueAtTime && synth.detune.linearRampToValueAtTime) {
+              synth.detune.setValueAtTime(0, time);
+              synth.detune.linearRampToValueAtTime(
+                totalCents,
+                time + note.duration
+              );
+              console.log(
+                "[PLAYER] Applied detune glissando:",
+                totalCents,
+                "cents over",
+                note.duration,
+                "beats"
+              );
+            } else {
+              const startMidi = Tone2.Frequency(noteName).toMidi();
+              const endMidi = Tone2.Frequency(targetName).toMidi();
+              const steps = Math.max(3, Math.abs(endMidi - startMidi));
+              const stepDuration = note.duration / steps;
+              for (let i = 1; i < steps; i++) {
+                const ratio = i / (steps - 1);
+                const currentFreq = startFreq * Math.pow(endFreq / startFreq, ratio);
+                const currentNote = Tone2.Frequency(currentFreq).toNote();
+                const currentTime2 = time + i * stepDuration;
+                synth.triggerAttackRelease(
+                  currentNote,
+                  stepDuration * 0.8,
+                  currentTime2,
+                  (note.velocity || 0.8) * 0.7
+                );
+              }
+              console.log(
+                "[PLAYER] Applied chromatic glissando with",
+                steps,
+                "steps"
+              );
+            }
+            synth.triggerRelease(time + note.duration);
+          } else {
+            let noteName = "C4";
+            if (typeof note.pitch === "number") {
+              noteName = Tone2.Frequency(note.pitch, "midi").toNote();
+            } else if (typeof note.pitch === "string") {
+              noteName = note.pitch;
+            } else if (Array.isArray(note.pitch) && typeof note.pitch[0] === "string") {
+              noteName = note.pitch[0];
+            }
+            let noteDuration = note.duration;
+            let noteVelocity = note.velocity || 0.8;
+            const mods = Array.isArray(note.modulations) ? note.modulations : [];
+            const durScale = mods.find(
+              (m) => m.type === "durationScale" && typeof m.factor === "number"
+            );
+            if (durScale) {
+              noteDuration = note.duration * durScale.factor;
+            }
+            const velBoost = mods.find(
+              (m) => m.type === "velocityBoost" && typeof m.amountBoost === "number"
+            );
+            if (velBoost) {
+              noteVelocity = Math.min(noteVelocity + velBoost.amountBoost, 1);
+            }
+            synth.triggerAttackRelease(
+              noteName,
+              noteDuration,
+              time,
+              noteVelocity
+            );
+          }
+        }, normalizedEvents);
+        parts.push(part);
+      });
+      Tone2.Transport.loopEnd = totalDuration;
+      Tone2.Transport.loop = true;
+      Tone2.Transport.stop();
+      Tone2.Transport.position = 0;
+      totalTime.textContent = formatTime(totalDuration);
+    };
+    let lastTimelineUpdate = 0;
+    const TIMELINE_UPDATE_INTERVAL = TIMELINE_CONFIG.UPDATE_INTERVAL;
+    const updateTimeline = () => {
+      const now = performance.now();
+      const shouldUpdate = now - lastTimelineUpdate >= TIMELINE_UPDATE_INTERVAL;
+      if (Tone2 && isPlaying) {
+        const loopSeconds = typeof Tone2.Transport.loopEnd === "number" ? Tone2.Transport.loopEnd : Tone2.Time(Tone2.Transport.loopEnd).toSeconds();
+        if (shouldUpdate) {
+          const elapsed = Tone2.Transport.seconds % loopSeconds;
+          const progress = elapsed / loopSeconds * 100;
+          timeline.value = Math.min(progress, 100);
+          currentTime.textContent = formatTime(elapsed);
+          totalTime.textContent = formatTime(loopSeconds);
+          lastTimelineUpdate = now;
+        }
+        if (Tone2.Transport.state === "started" && isPlaying) {
+          requestAnimationFrame(updateTimeline);
+        } else if (Tone2.Transport.state === "stopped" || Tone2.Transport.state === "paused") {
+          if (shouldUpdate) {
+            const elapsed = Tone2.Transport.seconds % loopSeconds;
+            const progress = elapsed / loopSeconds * 100;
+            timeline.value = Math.min(progress, 100);
+            currentTime.textContent = formatTime(elapsed);
+            lastTimelineUpdate = now;
+          }
+          if (Tone2.Transport.state === "stopped") {
+            Tone2.Transport.seconds = 0;
+            timeline.value = 0;
+            currentTime.textContent = formatTime(0);
+            isPlaying = false;
+            playButton.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-play"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg>`;
+          }
+        }
+      }
+    };
+    playButton.addEventListener("click", async () => {
+      if (!Tone2) {
+        if (await initializeTone()) {
+          setupAudio();
+        } else {
+          console.error("[PLAYER] Failed to initialize Tone.js");
+          return;
+        }
+      }
+      if (isPlaying) {
+        console.log("[PLAYER] Pausing playback...");
+        Tone2.Transport.pause();
+        isPlaying = false;
+        playButton.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-play"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg>`;
+        console.log("[PLAYER] Playback paused");
+      } else {
+        if (!Tone2.context || Tone2.context.state !== "running") {
+          try {
+            await Tone2.start();
+            console.log(
+              "[PLAYER] Audio context started:",
+              Tone2.context ? Tone2.context.state : "unknown"
+            );
+            if (Tone2.context && typeof Tone2.context.resume === "function") {
+              await Tone2.context.resume();
+              console.log("[PLAYER] Audio context resumed for iOS compatibility");
+            }
+          } catch (error) {
+            console.error("[PLAYER] Failed to start audio context:", error);
+            let errorMsg = "Failed to start audio. ";
+            if (isIOS()) {
+              errorMsg += "On iOS, please ensure your device isn't in silent mode and try again.";
+            } else {
+              errorMsg += "Please check your audio settings and try again.";
+            }
+            alert(errorMsg);
+            return;
+          }
+        }
+        if (synths.length === 0) {
+          console.log("[PLAYER] No synths found, setting up audio...");
+          setupAudio();
+        }
+        if (Tone2.Transport.state !== "paused") {
+          Tone2.Transport.stop();
+          Tone2.Transport.position = 0;
+          console.log("[PLAYER] Starting from beginning");
+        } else {
+          console.log("[PLAYER] Resuming from paused position");
+        }
+        console.log(
+          "[PLAYER] Transport state before start:",
+          Tone2.Transport.state
+        );
+        console.log(
+          "[PLAYER] Transport position reset to:",
+          Tone2.Transport.position
+        );
+        console.log(
+          "[PLAYER] Audio context state:",
+          Tone2.context ? Tone2.context.state : "unknown"
+        );
+        console.log("[PLAYER] Parts count:", parts.length);
+        console.log("[PLAYER] Synths count:", synths.length);
+        if (graphInstruments) {
+          const samplers = Object.values(graphInstruments).filter(
+            (inst) => inst && inst.name === "Sampler"
+          );
+          if (samplers.length > 0 && samplerLoadPromises.length > 0) {
+            console.log(
+              `[PLAYER] Waiting for ${samplers.length} sampler(s) to load...`
+            );
+            try {
+              await Promise.all(samplerLoadPromises);
+              console.log("[PLAYER] All samplers loaded.");
+            } catch (e) {
+              console.warn("[PLAYER] Sampler load wait error:", e);
+              return;
+            }
+          }
+        }
+        if (parts.length === 0) {
+          console.error(
+            "[PLAYER] No parts available to start. This usually means setupAudio() failed."
+          );
+          console.error(
+            "[PLAYER] Try refreshing the page or check if Tone.js is properly loaded."
+          );
+          return;
+        }
+        if (Tone2.Transport.state !== "paused") {
+          parts.forEach((part, index) => {
+            if (!part || typeof part.start !== "function") {
+              console.error(`[PLAYER] Part ${index} is invalid:`, part);
+              return;
+            }
+            try {
+              part.start(0);
+            } catch (error) {
+              console.error(`[PLAYER] Failed to start part ${index}:`, error);
+            }
+          });
+        }
+        Tone2.Transport.start();
+        isPlaying = true;
+        playButton.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-pause"><circle cx="12" cy="12" r="10"/><line x1="10" x2="10" y1="15" y2="9"/><line x1="14" x2="14" y1="15" y2="9"/></svg>`;
+        updateTimeline();
+      }
+    });
+    stopButton.addEventListener("click", async () => {
+      if (!Tone2) {
+        return;
+      }
+      console.log("[PLAYER] Stopping playback completely...");
+      Tone2.Transport.stop();
+      Tone2.Transport.cancel();
+      Tone2.Transport.position = 0;
+      parts.forEach((part, index) => {
+        try {
+          part.stop();
+        } catch (e) {
+          console.warn(
+            `[PLAYER] Failed to stop part ${index} during complete stop:`,
+            e
+          );
+        }
+      });
+      isPlaying = false;
+      timeline.value = 0;
+      currentTime.textContent = formatTime(0);
+      playButton.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-play"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg>`;
+      console.log("[PLAYER] Playback stopped completely");
+    });
+    timeline.addEventListener("input", () => {
+      if (Tone2 && totalDuration > 0) {
+        const time = timeline.value / 100 * totalDuration;
+        const wasPlaying = isPlaying;
+        if (wasPlaying) {
+          Tone2.Transport.pause();
+        }
+        Tone2.Transport.seconds = time;
+        currentTime.textContent = formatTime(time);
+        if (wasPlaying) {
+          setTimeout(() => {
+            Tone2.Transport.start();
+          }, 50);
+        }
+      }
+    });
+    bpmInput.addEventListener("change", () => {
+      const newTempo = parseInt(bpmInput.value);
+      if (Tone2 && newTempo >= 60 && newTempo <= 240) {
+        console.log(`[PLAYER] Tempo changed to ${newTempo} BPM`);
+        Tone2.Transport.bpm.value = newTempo;
+        console.log(`[PLAYER] Tempo changed to ${newTempo} BPM`);
+      } else {
+        bpmInput.value = Tone2 ? Tone2.Transport.bpm.value : tempo;
+      }
+    });
+    synthSelectors.forEach((select) => {
+      select.addEventListener("change", () => {
+        if (Tone2 && synths.length > 0) {
+          console.log(
+            "[PLAYER] Synthesizer selection changed, reinitializing audio..."
+          );
+          const wasPlaying = isPlaying;
+          if (isPlaying) {
+            Tone2.Transport.stop();
+            isPlaying = false;
+          }
+          setupAudio();
+          if (wasPlaying) {
+            setTimeout(() => {
+              Tone2.Transport.start();
+              isPlaying = true;
+              playButton.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-pause"><circle cx="12" cy="12" r="10"/><line x1="10" x2="10" y1="15" y2="9"/><line x1="14" x2="14" y1="15" y2="9"/></svg>`;
+            }, 100);
+          } else {
+            playButton.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-play"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg>`;
+          }
+        }
+      });
+    });
+    const handleMIDIDownload = async () => {
+      try {
+        const { midi: midi2 } = await Promise.resolve().then(() => (init_converters(), converters_exports));
+        const midiData = midi2(composition);
+        let ToneMidi;
+        if (typeof __require !== "undefined") {
+          ToneMidi = await __require("https://esm.sh/@tonejs/midi@2.0.28");
+        } else {
+          const module = await import("https://esm.sh/@tonejs/midi@2.0.28");
+          ToneMidi = module.default || module;
+        }
+        const midiFile = new ToneMidi.Midi();
+        midiFile.header.setTempo(midiData.header.bpm);
+        midiData.tracks.forEach((trackData) => {
+          const track = midiFile.addTrack();
+          track.name = trackData.label || "Track";
+          trackData.notes.forEach((note) => {
+            track.addNote({
+              midi: typeof note.pitch === "number" ? note.pitch : 60,
+              time: note.time || 0,
+              duration: note.duration || 0.5,
+              velocity: note.velocity || 0.8
+            });
+          });
+        });
+        const blob = new Blob([midiFile.toArray()], { type: "audio/midi" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `${composition.metadata?.title || "composition"}.mid`;
+        a.click();
+        URL.revokeObjectURL(url);
+        console.log("\u2713 MIDI download complete");
+      } catch (error) {
+        console.error("MIDI download error:", error);
+        alert("Failed to download MIDI: " + error.message);
+      }
+    };
+    const handleWavDownload = async () => {
+      try {
+        const ToneLib = window.Tone;
+        if (!ToneLib || !ToneLib.Offline) {
+          alert(
+            "Tone.js not loaded - cannot generate WAV. Try playing the composition first."
+          );
+          return;
+        }
+        console.log("Rendering WAV offline...");
+        const buffer = await ToneLib.Offline(async ({ transport }) => {
+          transport.bpm.value = metadata.tempo;
+          const offlineSynths = [];
+          convertedTracks.forEach((trackConfig) => {
+            const { originalTrackIndex, partEvents } = trackConfig;
+            const originalTrack = originalTracksSource[originalTrackIndex] || {};
+            const synthRef = originalTrack.synthRef;
+            let synth = null;
+            if (synthRef && graphInstruments && graphInstruments[synthRef]) {
+              synth = graphInstruments[synthRef];
+            } else {
+              const selectedSynth = synthSelectors[originalTrackIndex]?.value || "PolySynth";
+              if (selectedSynth.startsWith("GM: ")) {
+                synth = new ToneLib.PolySynth().toDestination();
+              } else {
+                try {
+                  synth = new ToneLib[selectedSynth]().toDestination();
+                } catch {
+                  synth = new ToneLib.PolySynth().toDestination();
+                }
+              }
+            }
+            offlineSynths.push(synth);
+            partEvents.forEach((note) => {
+              const time = typeof note.time === "number" ? note.time * (60 / metadata.tempo) : note.time;
+              const duration = typeof note.duration === "number" ? note.duration * (60 / metadata.tempo) : note.duration;
+              if (Array.isArray(note.pitch)) {
+                const notes = note.pitch.map(
+                  (p) => typeof p === "number" ? ToneLib.Frequency(p, "midi").toNote() : p
+                );
+                synth.triggerAttackRelease(
+                  notes,
+                  duration,
+                  time,
+                  note.velocity || 0.8
+                );
+              } else {
+                const noteName = typeof note.pitch === "number" ? ToneLib.Frequency(note.pitch, "midi").toNote() : note.pitch;
+                synth.triggerAttackRelease(
+                  noteName,
+                  duration,
+                  time,
+                  note.velocity || 0.8
+                );
+              }
+            });
+          });
+          transport.start(0);
+        }, totalDuration + 1);
+        const wavBlob = await audioBufferToWav2(buffer);
+        const url = URL.createObjectURL(wavBlob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `${composition.metadata?.title || "composition"}.wav`;
+        a.click();
+        URL.revokeObjectURL(url);
+        console.log("\u2713 WAV download complete");
+      } catch (error) {
+        console.error("WAV download error:", error);
+        alert("Failed to download WAV: " + error.message);
+      }
+    };
+    function audioBufferToWav2(buffer) {
+      const numberOfChannels = buffer.numberOfChannels;
+      const sampleRate = buffer.sampleRate;
+      const length = buffer.length * numberOfChannels * 2;
+      const arrayBuffer = new ArrayBuffer(44 + length);
+      const view = new DataView(arrayBuffer);
+      writeString(view, 0, "RIFF");
+      view.setUint32(4, 36 + length, true);
+      writeString(view, 8, "WAVE");
+      writeString(view, 12, "fmt ");
+      view.setUint32(16, 16, true);
+      view.setUint16(20, 1, true);
+      view.setUint16(22, numberOfChannels, true);
+      view.setUint32(24, sampleRate, true);
+      view.setUint32(28, sampleRate * numberOfChannels * 2, true);
+      view.setUint16(32, numberOfChannels * 2, true);
+      view.setUint16(34, 16, true);
+      writeString(view, 36, "data");
+      view.setUint32(40, length, true);
+      let offset = 44;
+      for (let i = 0; i < buffer.length; i++) {
+        for (let channel = 0; channel < numberOfChannels; channel++) {
+          const sample = Math.max(
+            -1,
+            Math.min(1, buffer.getChannelData(channel)[i])
+          );
+          view.setInt16(offset, sample * 32767, true);
+          offset += 2;
+        }
+      }
+      return new Blob([arrayBuffer], { type: "audio/wav" });
+    }
+    function writeString(view, offset, string) {
+      for (let i = 0; i < string.length; i++) {
+        view.setUint8(offset + i, string.charCodeAt(i));
+      }
+    }
+    downloadMIDIButton.addEventListener("click", handleMIDIDownload);
+    downloadWavButton.addEventListener("click", handleWavDownload);
+    downloadMIDIButtonVertical.addEventListener("click", handleMIDIDownload);
+    downloadWavButtonVertical.addEventListener("click", handleWavDownload);
+    const initialTone = typeof window !== "undefined" && window.Tone || (typeof Tone2 !== "undefined" ? Tone2 : null);
+    if (initialTone || preloadTone) {
+      initializeTone().then(() => {
+        setupAudio();
+        if (autoplay) {
+          setTimeout(() => {
+            playButton.click();
+          }, 500);
+        }
+      });
+    }
+    if (autoplay && !initialTone && !preloadTone) {
+      const autoplayInterval = setInterval(() => {
+        const currentTone = typeof window !== "undefined" && window.Tone || (typeof Tone2 !== "undefined" ? Tone2 : null);
+        if (currentTone) {
+          clearInterval(autoplayInterval);
+          setTimeout(() => {
+            playButton.click();
+          }, 500);
+        }
+      }, 100);
+      setTimeout(() => {
+        clearInterval(autoplayInterval);
+      }, 1e4);
+    }
+    return container;
+  }
+  var init_music_player = __esm({
+    "src/browser/music-player.js"() {
+      init_tonejs();
+      init_gm_instruments();
+      init_audio_effects();
+      init_ui_constants();
+      init_player_constants();
     }
   });
 
@@ -3908,6 +6176,158 @@ var JmonStudio = (() => {
     jm: () => jm
   });
   init_jmon_validator_browser();
+
+  // src/algorithms/constants/ArticulationTypes.js
+  var ARTICULATION_TYPES = {
+    // Simple articulations
+    "staccato": {
+      complex: false,
+      description: "Shortens note duration to ~50%"
+    },
+    "accent": {
+      complex: false,
+      description: "Increases note velocity/emphasis"
+    },
+    "tenuto": {
+      complex: false,
+      description: "Holds note for full duration with emphasis"
+    },
+    "legato": {
+      complex: false,
+      description: "Smooth connection between notes"
+    },
+    "marcato": {
+      complex: false,
+      description: "Strong accent with slight separation"
+    },
+    // Complex articulations
+    "glissando": {
+      complex: true,
+      requiredParams: ["target"],
+      description: "Smooth slide from note to target pitch"
+    },
+    "portamento": {
+      complex: true,
+      requiredParams: ["target"],
+      optionalParams: ["curve", "speed"],
+      description: "Expressive slide between pitches"
+    },
+    "bend": {
+      complex: true,
+      requiredParams: ["amount"],
+      optionalParams: ["curve", "returnToOriginal"],
+      description: "Pitch bend up or down in cents"
+    },
+    "vibrato": {
+      complex: true,
+      optionalParams: ["rate", "depth", "delay"],
+      description: "Periodic pitch variation"
+    },
+    "tremolo": {
+      complex: true,
+      optionalParams: ["rate", "depth"],
+      description: "Rapid volume variation"
+    },
+    "crescendo": {
+      complex: true,
+      requiredParams: ["endVelocity"],
+      optionalParams: ["curve"],
+      description: "Gradual volume increase"
+    },
+    "diminuendo": {
+      complex: true,
+      requiredParams: ["endVelocity"],
+      optionalParams: ["curve"],
+      description: "Gradual volume decrease"
+    }
+  };
+
+  // src/algorithms/constants/OrnamentTypes.js
+  var ORNAMENT_TYPES = {
+    "grace_note": {
+      requiredParams: ["graceNoteType"],
+      optionalParams: ["gracePitches"],
+      conflicts: [],
+      description: "Single note before the main note",
+      defaultParams: {
+        graceNoteType: "acciaccatura"
+      },
+      validate: (note, params) => {
+        if (!["acciaccatura", "appoggiatura"].includes(params.graceNoteType)) {
+          return { valid: false, error: "graceNoteType must be either acciaccatura or appoggiatura" };
+        }
+        if (params.gracePitches && !Array.isArray(params.gracePitches)) {
+          return { valid: false, error: "gracePitches must be an array of pitches" };
+        }
+        return { valid: true };
+      }
+    },
+    "trill": {
+      requiredParams: [],
+      optionalParams: ["by", "trillRate"],
+      conflicts: ["mordent"],
+      minDuration: "8n",
+      description: "Rapid alternation between main note and auxiliary note",
+      defaultParams: {
+        by: 1,
+        trillRate: 0.125
+      },
+      validate: (note, params) => {
+        if (params.by && typeof params.by !== "number") {
+          return { valid: false, error: "trill step (by) must be a number" };
+        }
+        if (params.trillRate && typeof params.trillRate !== "number") {
+          return { valid: false, error: "trillRate must be a number" };
+        }
+        return { valid: true };
+      }
+    },
+    "mordent": {
+      requiredParams: [],
+      optionalParams: ["by"],
+      conflicts: ["trill"],
+      description: "Quick alternation with note above or below",
+      defaultParams: {
+        by: 1
+      },
+      validate: (note, params) => {
+        if (params.by && typeof params.by !== "number") {
+          return { valid: false, error: "mordent step (by) must be a number" };
+        }
+        return { valid: true };
+      }
+    },
+    "turn": {
+      requiredParams: [],
+      optionalParams: ["scale"],
+      conflicts: [],
+      description: "Melodic turn around the main note",
+      validate: (note, params) => {
+        if (params.scale && typeof params.scale !== "string") {
+          return { valid: false, error: "scale must be a string" };
+        }
+        return { valid: true };
+      }
+    },
+    "arpeggio": {
+      requiredParams: ["arpeggioDegrees"],
+      optionalParams: ["direction"],
+      conflicts: [],
+      description: "Notes played in sequence",
+      defaultParams: {
+        direction: "up"
+      },
+      validate: (note, params) => {
+        if (!Array.isArray(params.arpeggioDegrees)) {
+          return { valid: false, error: "arpeggioDegrees must be an array" };
+        }
+        if (params.direction && !["up", "down", "both"].includes(params.direction)) {
+          return { valid: false, error: "direction must be up, down, or both" };
+        }
+        return { valid: true };
+      }
+    }
+  };
 
   // src/algorithms/constants/MusicTheoryConstants.js
   var MusicTheoryConstants = class {
@@ -4415,22 +6835,33 @@ var JmonStudio = (() => {
   var Progression = class extends MusicTheoryConstants {
     /**
      * Initialize a Progression object
-     * @param {string} tonicPitch - The tonic pitch of the progression (default: 'C4')
-     * @param {string} circleOf - The interval to form the circle (default: 'P5')
+     * @param {string} tonicPitch - The tonic pitch or key of the progression (e.g., 'C4', 'C', 'D')
+     * @param {string} scaleOrCircleOf - The scale/mode ('major', 'minor') or interval to form the circle (default: 'P5')
      * @param {string} type - The type of progression ('chords' or 'pitches')
      * @param {Array} radius - Range for major, minor, and diminished chords [3, 3, 1]
      * @param {Array} weights - Weights for selecting chord types
      */
-    constructor(tonicPitch = "C4", circleOf = "P5", type = "chords", radius = [3, 3, 1], weights = null) {
+    constructor(tonicPitch = "C4", scaleOrCircleOf = "major", type = "chords", radius = [3, 3, 1], weights = null) {
       super();
-      this.tonicMidi = cdeToMidi(tonicPitch);
-      this.circleOf = circleOf;
+      if (tonicPitch.length <= 2) {
+        this.tonicMidi = cdeToMidi(tonicPitch + "4");
+        this.tonicNote = tonicPitch;
+      } else {
+        this.tonicMidi = cdeToMidi(tonicPitch);
+        this.tonicNote = tonicPitch.replace(/[0-9]/g, "");
+      }
+      if (scaleOrCircleOf === "major" || scaleOrCircleOf === "minor" || scaleOrCircleOf === "dorian" || scaleOrCircleOf === "lydian" || scaleOrCircleOf === "mixolydian" || scaleOrCircleOf === "aeolian" || scaleOrCircleOf === "locrian" || scaleOrCircleOf === "phrygian") {
+        this.scale = scaleOrCircleOf;
+        this.mode = scaleOrCircleOf;
+        this.circleOf = "P5";
+      } else {
+        this.circleOf = scaleOrCircleOf;
+        this.scale = "major";
+        this.mode = "major";
+      }
       this.type = type;
       this.radius = radius;
       this.weights = weights || radius;
-      if (!Object.keys(this.intervals).includes(this.circleOf)) {
-        throw new Error(`Select a circleOf among ${Object.keys(this.intervals).join(", ")}.`);
-      }
       if (!["chords", "pitches"].includes(this.type)) {
         throw new Error("Type must either be 'pitches' or 'chords'.");
       }
@@ -4440,7 +6871,7 @@ var JmonStudio = (() => {
      * @returns {Object} Object containing major, minor, and diminished chord roots
      */
     computeCircle() {
-      const nSemitones = this.intervals[this.circleOf];
+      const nSemitones = MusicTheoryConstants.intervals[this.circleOf];
       const circleNotes = [this.tonicMidi];
       for (let i = 0; i < Math.max(...this.radius); i++) {
         const nextNote = (circleNotes[circleNotes.length - 1] + nSemitones) % 12 + Math.floor(circleNotes[circleNotes.length - 1] / 12) * 12;
@@ -4470,11 +6901,15 @@ var JmonStudio = (() => {
     }
     /**
      * Generate a musical progression
-     * @param {number} length - The length of the progression in number of chords (default: 4)
+     * @param {number|Array} lengthOrNumerals - Either number of chords or array of roman numerals
      * @param {number} seed - The seed value for the random number generator
      * @returns {Array} Array of chord arrays representing the progression
      */
-    generate(length = 4, seed = null) {
+    generate(lengthOrNumerals = 4, seed = null) {
+      if (Array.isArray(lengthOrNumerals)) {
+        return this.generateFromRomanNumerals(lengthOrNumerals);
+      }
+      const length = lengthOrNumerals;
       if (seed !== null) {
         Math.seedrandom = seed;
       }
@@ -4491,6 +6926,92 @@ var JmonStudio = (() => {
           const chosenChord = this.generateChord(actualRoot, chordType);
           progression.push(chosenChord);
         }
+      }
+      return progression;
+    }
+    /**
+     * Generate chords from roman numerals (e.g., ['I', 'IV', 'V', 'I'])
+     * @param {Array} numerals - Array of roman numerals
+     * @returns {Array} Array of chord arrays
+     */
+    generateFromRomanNumerals(numerals) {
+      const progression = [];
+      const scaleDegreesMap = {
+        "major": [0, 2, 4, 5, 7, 9, 11],
+        // I, II, III, IV, V, VI, VII
+        "minor": [0, 2, 3, 5, 7, 8, 10],
+        // i, ii, III, iv, v, VI, VII
+        "dorian": [0, 2, 3, 5, 7, 9, 10],
+        "phrygian": [0, 1, 3, 5, 7, 8, 10],
+        "lydian": [0, 2, 4, 6, 7, 9, 11],
+        "mixolydian": [0, 2, 4, 5, 7, 9, 10],
+        "aeolian": [0, 2, 3, 5, 7, 8, 10],
+        "locrian": [0, 1, 3, 5, 6, 8, 10]
+      };
+      const scaleDegrees = scaleDegreesMap[this.scale] || scaleDegreesMap["major"];
+      const majorChordQualities = ["major", "minor", "minor", "major", "major", "minor", "diminished"];
+      const minorChordQualities = ["minor", "diminished", "major", "minor", "minor", "major", "major"];
+      const chordQualities = this.scale === "minor" ? minorChordQualities : majorChordQualities;
+      for (const numeral of numerals) {
+        const { degree, quality } = this.parseRomanNumeral(numeral);
+        if (degree < 1 || degree > 7) {
+          console.warn(`Invalid degree ${degree} in ${numeral}`);
+          continue;
+        }
+        const rootOffset = scaleDegrees[degree - 1];
+        const rootMidi = this.tonicMidi + rootOffset;
+        const chordType = quality || chordQualities[degree - 1];
+        const chord = this.generateChord(rootMidi, chordType);
+        progression.push(chord);
+      }
+      return progression;
+    }
+    /**
+     * Parse roman numeral to get degree and quality
+     * @param {string} numeral - Roman numeral (e.g., 'I', 'iv', 'V/V')
+     * @returns {Object} Object with degree and quality
+     */
+    parseRomanNumeral(numeral) {
+      if (numeral.includes("/")) {
+        const parts = numeral.split("/");
+        numeral = parts[0];
+      }
+      const isLowerCase = numeral === numeral.toLowerCase();
+      const cleanNumeral = numeral.replace(/[°+ᵒ#♭b]/g, "").toUpperCase();
+      const romanToNumber = {
+        "I": 1,
+        "II": 2,
+        "III": 3,
+        "IV": 4,
+        "V": 5,
+        "VI": 6,
+        "VII": 7
+      };
+      const degree = romanToNumber[cleanNumeral] || 1;
+      let quality = null;
+      if (numeral.includes("\xB0") || numeral.includes("\u1D52")) {
+        quality = "diminished";
+      } else if (numeral.includes("+")) {
+        quality = "augmented";
+      } else if (isLowerCase) {
+        quality = "minor";
+      } else {
+        quality = "major";
+      }
+      return { degree, quality };
+    }
+    /**
+     * Generate a circle of fifths progression
+     * @param {number} length - Number of chords in the progression
+     * @returns {Array} Array of chords
+     */
+    circleOfFifths(length = 4) {
+      const progression = [];
+      let currentRoot = this.tonicMidi;
+      for (let i = 0; i < length; i++) {
+        const chord = this.generateChord(currentRoot, "major");
+        progression.push(chord);
+        currentRoot = (currentRoot + 7) % 12 + Math.floor(currentRoot / 12) * 12;
       }
       return progression;
     }
@@ -4516,15 +7037,24 @@ var JmonStudio = (() => {
   var Voice = class extends MusicTheoryConstants {
     /**
      * Constructs all the necessary attributes for the voice object
-     * @param {string} mode - The type of the scale (default: 'major')
+     * @param {string|Object} modeOrOptions - The type of the scale or options object
      * @param {string} tonic - The tonic note of the scale (default: 'C')
      * @param {Array} degrees - Relative degrees for chord formation (default: [0, 2, 4])
      */
-    constructor(mode = "major", tonic = "C", degrees = [0, 2, 4]) {
+    constructor(modeOrOptions = "major", tonic = "C", degrees = [0, 2, 4]) {
       super();
-      this.tonic = tonic;
-      this.scale = new Scale(tonic, mode).generate();
-      this.degrees = degrees;
+      if (typeof modeOrOptions === "object" && modeOrOptions !== null) {
+        const options = modeOrOptions;
+        this.tonic = options.key || options.tonic || "C";
+        const mode = options.mode || "major";
+        this.voices = options.voices || 4;
+        this.degrees = options.degrees || [0, 2, 4];
+        this.scale = new Scale(this.tonic, mode).generate();
+      } else {
+        this.tonic = tonic;
+        this.scale = new Scale(tonic, modeOrOptions).generate();
+        this.degrees = degrees;
+      }
     }
     /**
      * Convert a MIDI note to a chord based on the scale using the specified degrees
@@ -4590,97 +7120,99 @@ var JmonStudio = (() => {
         return arpeggioNotes;
       }
     }
-  };
-
-  // src/algorithms/constants/OrnamentTypes.js
-  var ORNAMENT_TYPES = {
-    "grace_note": {
-      requiredParams: ["graceNoteType"],
-      optionalParams: ["gracePitches"],
-      conflicts: [],
-      description: "Single note before the main note",
-      defaultParams: {
-        graceNoteType: "acciaccatura"
-      },
-      validate: (note, params) => {
-        if (!["acciaccatura", "appoggiatura"].includes(params.graceNoteType)) {
-          return { valid: false, error: "graceNoteType must be either acciaccatura or appoggiatura" };
-        }
-        if (params.gracePitches && !Array.isArray(params.gracePitches)) {
-          return { valid: false, error: "gracePitches must be an array of pitches" };
-        }
-        return { valid: true };
+    /**
+     * Voice leading - smooth transition from one chord to another
+     * @param {Array} chord1 - First chord (array of MIDI notes)
+     * @param {Array} chord2 - Second chord (array of MIDI notes)
+     * @returns {Array} Voice-led chord2 (notes reordered/adjusted for smooth transition)
+     */
+    lead(chord1, chord2) {
+      if (!Array.isArray(chord1) || !Array.isArray(chord2)) {
+        return chord2;
       }
-    },
-    "trill": {
-      requiredParams: [],
-      optionalParams: ["by", "trillRate"],
-      conflicts: ["mordent"],
-      minDuration: "8n",
-      description: "Rapid alternation between main note and auxiliary note",
-      defaultParams: {
-        by: 1,
-        trillRate: 0.125
-      },
-      validate: (note, params) => {
-        if (params.by && typeof params.by !== "number") {
-          return { valid: false, error: "trill step (by) must be a number" };
+      const led = [];
+      const available = [...chord2];
+      for (const note1 of chord1) {
+        let minDistance = Infinity;
+        let closestNote = available[0];
+        let closestIndex = 0;
+        for (let i = 0; i < available.length; i++) {
+          const distance = Math.abs(available[i] - note1);
+          if (distance < minDistance) {
+            minDistance = distance;
+            closestNote = available[i];
+            closestIndex = i;
+          }
         }
-        if (params.trillRate && typeof params.trillRate !== "number") {
-          return { valid: false, error: "trillRate must be a number" };
+        led.push(closestNote);
+        available.splice(closestIndex, 1);
+        if (available.length === 0 && led.length < chord1.length) {
+          break;
         }
-        return { valid: true };
       }
-    },
-    "mordent": {
-      requiredParams: [],
-      optionalParams: ["by"],
-      conflicts: ["trill"],
-      description: "Quick alternation with note above or below",
-      defaultParams: {
-        by: 1
-      },
-      validate: (note, params) => {
-        if (params.by && typeof params.by !== "number") {
-          return { valid: false, error: "mordent step (by) must be a number" };
-        }
-        return { valid: true };
+      led.push(...available);
+      return led;
+    }
+    /**
+     * Harmonize a melody with chords
+     * @param {Array} melody - Array of MIDI pitches
+     * @param {Object} options - Harmonization options
+     * @returns {Array} Array of harmonized voices
+     */
+    harmonize(melody, options = {}) {
+      const { voices = this.voices || 4 } = options;
+      const harmonization = [];
+      for (let i = 0; i < voices; i++) {
+        harmonization.push([]);
       }
-    },
-    "turn": {
-      requiredParams: [],
-      optionalParams: ["scale"],
-      conflicts: [],
-      description: "Melodic turn around the main note",
-      validate: (note, params) => {
-        if (params.scale && typeof params.scale !== "string") {
-          return { valid: false, error: "scale must be a string" };
+      harmonization[0] = [...melody];
+      for (let noteIdx = 0; noteIdx < melody.length; noteIdx++) {
+        const pitch = melody[noteIdx];
+        const chord = this.pitchToChord(pitch);
+        for (let voiceIdx = 1; voiceIdx < voices && voiceIdx < chord.length + 1; voiceIdx++) {
+          const chordNoteIdx = voiceIdx - 1;
+          if (chordNoteIdx < chord.length) {
+            harmonization[voiceIdx].push(chord[chordNoteIdx]);
+          } else {
+            harmonization[voiceIdx].push(chord[chordNoteIdx % chord.length] - 12);
+          }
         }
-        return { valid: true };
       }
-    },
-    "arpeggio": {
-      requiredParams: ["arpeggioDegrees"],
-      optionalParams: ["direction"],
-      conflicts: [],
-      description: "Notes played in sequence",
-      defaultParams: {
-        direction: "up"
-      },
-      validate: (note, params) => {
-        if (!Array.isArray(params.arpeggioDegrees)) {
-          return { valid: false, error: "arpeggioDegrees must be an array" };
-        }
-        if (params.direction && !["up", "down", "both"].includes(params.direction)) {
-          return { valid: false, error: "direction must be up, down, or both" };
-        }
-        return { valid: true };
-      }
+      return harmonization;
     }
   };
 
   // src/algorithms/theory/harmony/Ornament.js
   var Ornament = class _Ornament {
+    /**
+     * Parse duration value to numeric (in quarter notes)
+     * Supports both numeric values and Tone.js notation (e.g., '4n', '8n', '2n')
+     * @param {number|string} duration - Duration value
+     * @returns {number} Duration in quarter notes
+     */
+    static parseDuration(duration) {
+      if (typeof duration === "number") {
+        return duration;
+      }
+      if (typeof duration === "string") {
+        const match = duration.match(/^(\d+)(n|t)(\.)?$/);
+        if (match) {
+          const value = parseInt(match[1], 10);
+          const noteType = match[2];
+          const isDotted = match[3] === ".";
+          let quarterNotes = 4 / value;
+          if (noteType === "t") {
+            quarterNotes *= 2 / 3;
+          }
+          if (isDotted) {
+            quarterNotes *= 1.5;
+          }
+          return quarterNotes;
+        }
+      }
+      console.warn(`Unable to parse duration: ${duration}, defaulting to 1 quarter note`);
+      return 1;
+    }
     /**
      * Validate ornament parameters and compatibility
      * @param {Object} note - The note to apply the ornament to
@@ -4708,7 +7240,14 @@ var JmonStudio = (() => {
         }
       }
       if (ornamentDef.minDuration) {
-        result.warnings.push(`Duration check not implemented for ${type}`);
+        const noteDuration = _Ornament.parseDuration(note.duration);
+        const minDuration = _Ornament.parseDuration(ornamentDef.minDuration);
+        if (noteDuration < minDuration) {
+          result.errors.push(
+            `Note duration (${note.duration}) is too short for ${type}. Minimum duration required: ${ornamentDef.minDuration}`
+          );
+          return result;
+        }
       }
       if (note.ornaments && ornamentDef.conflicts) {
         const existingConflicts = note.ornaments.filter((o) => ornamentDef.conflicts.includes(o.type)).map((o) => o.type);
@@ -4962,218 +7501,162 @@ var JmonStudio = (() => {
     }
   };
 
-  // src/algorithms/constants/ArticulationTypes.js
-  var ARTICULATION_TYPES = {
-    // Simple articulations
-    "staccato": {
-      complex: false,
-      description: "Shortens note duration to ~50%"
-    },
-    "accent": {
-      complex: false,
-      description: "Increases note velocity/emphasis"
-    },
-    "tenuto": {
-      complex: false,
-      description: "Holds note for full duration with emphasis"
-    },
-    "legato": {
-      complex: false,
-      description: "Smooth connection between notes"
-    },
-    "marcato": {
-      complex: false,
-      description: "Strong accent with slight separation"
-    },
-    // Complex articulations
-    "glissando": {
-      complex: true,
-      requiredParams: ["target"],
-      description: "Smooth slide from note to target pitch"
-    },
-    "portamento": {
-      complex: true,
-      requiredParams: ["target"],
-      optionalParams: ["curve", "speed"],
-      description: "Expressive slide between pitches"
-    },
-    "bend": {
-      complex: true,
-      requiredParams: ["amount"],
-      optionalParams: ["curve", "returnToOriginal"],
-      description: "Pitch bend up or down in cents"
-    },
-    "vibrato": {
-      complex: true,
-      optionalParams: ["rate", "depth", "delay"],
-      description: "Periodic pitch variation"
-    },
-    "tremolo": {
-      complex: true,
-      optionalParams: ["rate", "depth"],
-      description: "Rapid volume variation"
-    },
-    "crescendo": {
-      complex: true,
-      requiredParams: ["endVelocity"],
-      optionalParams: ["curve"],
-      description: "Gradual volume increase"
-    },
-    "diminuendo": {
-      complex: true,
-      requiredParams: ["endVelocity"],
-      optionalParams: ["curve"],
-      description: "Gradual volume decrease"
-    }
-  };
-
   // src/algorithms/theory/harmony/Articulation.js
   var Articulation = class {
     /**
-     * Add articulation to a note in a sequence
-     * @param {Array} sequence - The note sequence
+     * Apply articulation to notes array (returns new array, immutable)
+     * This API matches the Ornament pattern for consistency
+     * @param {Array} notes - The notes array
+     * @param {number|Array} noteIndex - Index of note to articulate, or array of indices
      * @param {string} articulationType - Type of articulation
-     * @param {number} noteIndex - Index of note to articulate
      * @param {Object} params - Parameters for complex articulations
-     * @returns {Object} Result with success status and any warnings
+     * @returns {Array} New notes array with articulation applied
      */
-    static addArticulation(sequence, articulationType, noteIndex, params = {}) {
-      const result = {
-        success: false,
-        warnings: [],
-        errors: []
-      };
-      if (!Array.isArray(sequence)) {
-        result.errors.push("Sequence must be an array");
+    static apply(notes, noteIndex, articulationType, params = {}) {
+      if (!Array.isArray(notes) || notes.length === 0) {
+        return notes;
+      }
+      if (Array.isArray(noteIndex)) {
+        let result = notes;
+        const sortedIndices = [...noteIndex].sort((a, b) => b - a);
+        for (const idx of sortedIndices) {
+          result = this.apply(result, idx, articulationType, params);
+        }
         return result;
       }
-      if (noteIndex < 0 || noteIndex >= sequence.length) {
-        result.errors.push(
-          `Note index ${noteIndex} out of bounds (sequence length: ${sequence.length})`
-        );
-        return result;
+      if (noteIndex < 0 || noteIndex >= notes.length) {
+        console.warn(`Note index ${noteIndex} out of bounds`);
+        return notes;
       }
       const articulationDef = ARTICULATION_TYPES[articulationType];
       if (!articulationDef) {
-        result.errors.push(`Unknown articulation type: ${articulationType}`);
-        return result;
+        console.warn(`Unknown articulation type: ${articulationType}`);
+        return notes;
       }
-      const note = sequence[noteIndex];
+      const note = notes[noteIndex];
       if (!note || typeof note !== "object") {
-        result.errors.push(`Invalid note at index ${noteIndex}`);
-        return result;
+        console.warn(`Invalid note at index ${noteIndex}`);
+        return notes;
       }
-      if (!articulationDef.complex) {
-        const arr = Array.isArray(note.articulations) ? note.articulations : [];
-        note.articulations = [...arr, articulationType];
-        result.success = true;
-        return result;
-      }
-      return this._addComplexArticulation(
-        note,
-        articulationType,
-        articulationDef,
-        params,
-        result
-      );
-    }
-    /**
-     * Add complex articulation with parameter validation and synchronization
-     */
-    static _addComplexArticulation(note, articulationType, articulationDef, params, result) {
-      if (articulationDef.requiredParams) {
-        for (const param of articulationDef.requiredParams) {
-          if (!(param in params)) {
-            result.errors.push(
-              `Missing required parameter '${param}' for ${articulationType}`
-            );
-            return result;
-          }
-        }
-      }
+      const newNotes = notes.slice();
       switch (articulationType) {
+        case "staccato":
+          return this._applyStaccato(newNotes, noteIndex);
+        case "staccatissimo":
+          return this._applyStaccatissimo(newNotes, noteIndex);
+        case "accent":
+        case "marcato":
+          return this._applyAccent(newNotes, noteIndex, articulationType);
+        case "tenuto":
+          return this._applyTenuto(newNotes, noteIndex);
+        case "legato":
+          return this._applyLegato(newNotes, noteIndex);
         case "glissando":
         case "portamento":
-          return this._applyGlissando(note, articulationType, params, result);
         case "bend":
-          return this._applyBend(note, params, result);
         case "vibrato":
-          return this._applyVibrato(note, params, result);
         case "tremolo":
-          return this._applyTremolo(note, params, result);
         case "crescendo":
         case "diminuendo":
-          return this._applyDynamicChange(note, articulationType, params, result);
+          return this._applyComplexArticulation(newNotes, noteIndex, articulationType, params);
         default:
-          result.errors.push(
-            `Complex articulation ${articulationType} not implemented`
-          );
-          return result;
+          return notes;
       }
     }
     /**
-     * Apply glissando/portamento articulation
+     * Apply staccato - shorten duration and insert rest
      */
-    static _applyGlissando(note, type, params, result) {
-      const arr = Array.isArray(note.articulations) ? note.articulations : [];
-      note.articulations = [...arr, { type, ...params }];
-      result.success = true;
-      return result;
-    }
-    /**
-     * Apply pitch bend articulation
-     */
-    static _applyBend(note, params, result) {
-      const arr = Array.isArray(note.articulations) ? note.articulations : [];
-      note.articulations = [...arr, { type: "bend", ...params }];
-      result.success = true;
-      return result;
-    }
-    /**
-     * Apply vibrato articulation
-     */
-    static _applyVibrato(note, params, result) {
-      const arr = Array.isArray(note.articulations) ? note.articulations : [];
-      note.articulations = [...arr, { type: "vibrato", ...params }];
-      result.success = true;
-      return result;
-    }
-    /**
-     * Apply tremolo articulation
-     */
-    static _applyTremolo(note, params, result) {
-      const arr = Array.isArray(note.articulations) ? note.articulations : [];
-      note.articulations = [...arr, { type: "tremolo", ...params }];
-      result.success = true;
-      return result;
-    }
-    /**
-     * Apply dynamic change (crescendo/diminuendo)
-     */
-    static _applyDynamicChange(note, type, params, result) {
-      const arr = Array.isArray(note.articulations) ? note.articulations : [];
-      note.articulations = [...arr, { type, ...params }];
-      result.success = true;
-      return result;
-    }
-    /**
-     * Remove articulation from a note
-     */
-    static removeArticulation(sequence, noteIndex) {
-      if (!Array.isArray(sequence) || noteIndex < 0 || noteIndex >= sequence.length) {
-        return { success: false, error: "Invalid sequence or note index" };
-      }
-      const note = sequence[noteIndex];
-      if (!note || typeof note !== "object") {
-        return { success: false, error: "Invalid note" };
-      }
-      const removed = Array.isArray(note.articulations) ? note.articulations.slice() : [];
-      note.articulations = [];
-      return {
-        success: true,
-        removed,
-        message: "Removed articulations from note"
+    static _applyStaccato(notes, noteIndex) {
+      const note = notes[noteIndex];
+      const originalDuration = note.duration;
+      const shortenedDuration = originalDuration * 0.5;
+      const restDuration = originalDuration - shortenedDuration;
+      const shortenedNote = {
+        ...note,
+        duration: shortenedDuration,
+        articulations: [...Array.isArray(note.articulations) ? note.articulations : [], "staccato"]
       };
+      const rest = {
+        pitch: null,
+        duration: restDuration,
+        time: note.time + shortenedDuration
+      };
+      notes[noteIndex] = shortenedNote;
+      notes.splice(noteIndex + 1, 0, rest);
+      return notes;
+    }
+    /**
+     * Apply staccatissimo - very short duration with rest
+     */
+    static _applyStaccatissimo(notes, noteIndex) {
+      const note = notes[noteIndex];
+      const originalDuration = note.duration;
+      const shortenedDuration = originalDuration * 0.25;
+      const restDuration = originalDuration - shortenedDuration;
+      const shortenedNote = {
+        ...note,
+        duration: shortenedDuration,
+        articulations: [...Array.isArray(note.articulations) ? note.articulations : [], "staccatissimo"]
+      };
+      const rest = {
+        pitch: null,
+        duration: restDuration,
+        time: note.time + shortenedDuration
+      };
+      notes[noteIndex] = shortenedNote;
+      notes.splice(noteIndex + 1, 0, rest);
+      return notes;
+    }
+    /**
+     * Apply accent or marcato - increase velocity
+     */
+    static _applyAccent(notes, noteIndex, type) {
+      const note = notes[noteIndex];
+      const multiplier = type === "marcato" ? 1.3 : 1.2;
+      const velocity = note.velocity !== void 0 ? note.velocity : 0.8;
+      notes[noteIndex] = {
+        ...note,
+        velocity: Math.min(1, velocity * multiplier),
+        articulations: [...Array.isArray(note.articulations) ? note.articulations : [], type]
+      };
+      return notes;
+    }
+    /**
+     * Apply tenuto - mark for full duration
+     */
+    static _applyTenuto(notes, noteIndex) {
+      const note = notes[noteIndex];
+      notes[noteIndex] = {
+        ...note,
+        articulations: [...Array.isArray(note.articulations) ? note.articulations : [], "tenuto"]
+      };
+      return notes;
+    }
+    /**
+     * Apply legato - extend duration slightly
+     */
+    static _applyLegato(notes, noteIndex) {
+      const note = notes[noteIndex];
+      notes[noteIndex] = {
+        ...note,
+        duration: note.duration * 1.05,
+        articulations: [...Array.isArray(note.articulations) ? note.articulations : [], "legato"]
+      };
+      return notes;
+    }
+    /**
+     * Apply complex articulation with parameters
+     */
+    static _applyComplexArticulation(notes, noteIndex, type, params) {
+      const note = notes[noteIndex];
+      notes[noteIndex] = {
+        ...note,
+        articulations: [
+          ...Array.isArray(note.articulations) ? note.articulations : [],
+          { type, ...params }
+        ]
+      };
+      return notes;
     }
     /**
      * Validate articulation consistency in a sequence
@@ -5226,63 +7709,14 @@ var JmonStudio = (() => {
       }));
     }
   };
-  function validateArticulations(sequence) {
-    return Articulation.validateSequence(sequence);
-  }
-  function addArticulation(notes, index, type, params = {}) {
-    if (!Array.isArray(notes))
-      return notes;
-    const next = notes.slice();
-    const src = notes[index];
-    if (!src || typeof src !== "object")
-      return next;
-    const isSimple = (t) => t === "staccato" || t === "accent" || t === "tenuto" || t === "marcato";
-    const articulations = Array.isArray(src.articulations) ? src.articulations.slice() : [];
-    if (isSimple(type)) {
-      articulations.push(type);
-    } else {
-      articulations.push({ type, ...params });
-    }
-    const updated = {
-      ...src,
-      articulations
-    };
-    next[index] = updated;
-    return next;
-  }
-  function removeArticulation(notes, index, predicate) {
-    if (!Array.isArray(notes))
-      return notes;
-    const next = notes.slice();
-    const src = notes[index];
-    if (!src || typeof src !== "object")
-      return next;
-    const shouldRemove = (t) => typeof predicate === "function" ? predicate(t) : true;
-    const arts = Array.isArray(src.articulations) ? src.articulations.filter((a) => {
-      const t = typeof a === "string" ? a : a.type;
-      return !shouldRemove(t);
-    }) : [];
-    const updated = { ...src, articulations: arts };
-    next[index] = updated;
-    return next;
-  }
 
   // src/algorithms/theory/harmony/index.js
-  var addOrnament = addArticulation;
-  var removeOrnament = removeArticulation;
   var harmony_default = {
     Scale,
     Progression,
     Voice,
     Ornament,
-    Articulation,
-    addArticulation,
-    addOrnament,
-    // Include the alias
-    removeArticulation,
-    removeOrnament,
-    // Include the alias
-    validateArticulations
+    Articulation
   };
 
   // src/algorithms/theory/rhythm/Rhythm.js
@@ -5848,6 +8282,69 @@ var JmonStudio = (() => {
     }
   };
 
+  // src/algorithms/generative/gaussian-processes/kernels/rbf.js
+  var RBF = class extends Kernel {
+    constructor(lengthScale = 1, variance = 1) {
+      super({ length_scale: lengthScale, variance });
+      this.lengthScale = lengthScale;
+      this.variance = variance;
+    }
+    compute(x1, x2) {
+      const distance = this.euclideanDistance(x1, x2);
+      return this.variance * Math.exp(-0.5 * Math.pow(distance / this.lengthScale, 2));
+    }
+    getParams() {
+      return {
+        length_scale: this.lengthScale,
+        variance: this.variance
+      };
+    }
+  };
+
+  // src/algorithms/generative/gaussian-processes/kernels/periodic.js
+  var Periodic = class extends Kernel {
+    constructor(lengthScale = 1, periodicity = 1, variance = 1) {
+      super({ length_scale: lengthScale, periodicity, variance });
+      this.lengthScale = lengthScale;
+      this.periodicity = periodicity;
+      this.variance = variance;
+    }
+    compute(x1, x2) {
+      const distance = this.euclideanDistance(x1, x2);
+      const sinTerm = Math.sin(Math.PI * distance / this.periodicity);
+      return this.variance * Math.exp(-2 * Math.pow(sinTerm / this.lengthScale, 2));
+    }
+    getParams() {
+      return {
+        length_scale: this.lengthScale,
+        periodicity: this.periodicity,
+        variance: this.variance
+      };
+    }
+  };
+
+  // src/algorithms/generative/gaussian-processes/kernels/rational-quadratic.js
+  var RationalQuadratic = class extends Kernel {
+    constructor(lengthScale = 1, alpha = 1, variance = 1) {
+      super({ length_scale: lengthScale, alpha, variance });
+      this.lengthScale = lengthScale;
+      this.alpha = alpha;
+      this.variance = variance;
+    }
+    compute(x1, x2) {
+      const distanceSquared = this.squaredEuclideanDistance(x1, x2);
+      const term = 1 + distanceSquared / (2 * this.alpha * Math.pow(this.lengthScale, 2));
+      return this.variance * Math.pow(term, -this.alpha);
+    }
+    getParams() {
+      return {
+        length_scale: this.lengthScale,
+        alpha: this.alpha,
+        variance: this.variance
+      };
+    }
+  };
+
   // src/algorithms/generative/gaussian-processes/GaussianProcessRegressor.js
   var GaussianProcessRegressor = class {
     kernel;
@@ -5856,9 +8353,44 @@ var JmonStudio = (() => {
     yTrain;
     L;
     alphaVector;
-    constructor(kernel, options = {}) {
-      this.kernel = kernel;
-      this.alpha = options.alpha || 1e-10;
+    isFitted;
+    constructor(kernelOrOptions, options = {}) {
+      this.isFitted = false;
+      if (kernelOrOptions instanceof Kernel) {
+        this.kernel = kernelOrOptions;
+        this.alpha = options.alpha || 1e-10;
+      } else if (typeof kernelOrOptions === "object" && kernelOrOptions.kernel) {
+        const opts = kernelOrOptions;
+        this.alpha = opts.alpha || 1e-10;
+        const kernelType = opts.kernel.toLowerCase();
+        switch (kernelType) {
+          case "rbf":
+            this.kernel = new RBF(
+              opts.lengthScale || 1,
+              opts.variance || 1
+            );
+            break;
+          case "periodic":
+            this.kernel = new Periodic(
+              opts.lengthScale || 1,
+              opts.periodLength || 1,
+              opts.variance || 1
+            );
+            break;
+          case "rational_quadratic":
+          case "rationalquadratic":
+            this.kernel = new RationalQuadratic(
+              opts.lengthScale || 1,
+              opts.alpha || 1,
+              opts.variance || 1
+            );
+            break;
+          default:
+            throw new Error(`Unknown kernel type: ${opts.kernel}. Supported: 'rbf', 'periodic', 'rational_quadratic'`);
+        }
+      } else {
+        throw new Error("First argument must be a Kernel instance or options object with kernel type");
+      }
     }
     fit(X, y) {
       this.XTrain = ensure2D(X);
@@ -5873,6 +8405,7 @@ var JmonStudio = (() => {
         throw new Error(`Failed to compute Cholesky decomposition: ${error instanceof Error ? error.message : "Unknown error"}`);
       }
       this.alphaVector = this.solveCholesky(this.L, this.yTrain);
+      this.isFitted = true;
     }
     predict(X, returnStd = false) {
       if (!this.XTrain || !this.yTrain || !this.L || !this.alphaVector) {
@@ -5887,12 +8420,41 @@ var JmonStudio = (() => {
           mean[i] += KStar.get(j, i) * this.alphaVector[j];
         }
       }
-      const result = { mean };
       if (returnStd) {
         const std = this.computeStd(XTest, KStar);
-        result.std = std;
+        return { mean, std };
       }
-      return result;
+      return mean;
+    }
+    /**
+     * Predict with uncertainty quantification
+     * @param {Array} X - Test points
+     * @returns {Object} Object with mean and std arrays
+     */
+    predictWithUncertainty(X) {
+      if (!this.XTrain || !this.yTrain || !this.L || !this.alphaVector) {
+        throw new Error("Model must be fitted before prediction");
+      }
+      const XTest = ensure2D(X);
+      const KStar = this.kernel.call(this.XTrain, XTest);
+      const mean = new Array(XTest.rows);
+      for (let i = 0; i < XTest.rows; i++) {
+        mean[i] = 0;
+        for (let j = 0; j < this.XTrain.rows; j++) {
+          mean[i] += KStar.get(j, i) * this.alphaVector[j];
+        }
+      }
+      const std = this.computeStd(XTest, KStar);
+      return { mean, std };
+    }
+    /**
+     * Generate random samples from the posterior distribution
+     * @param {Array} X - Test points
+     * @param {number} nSamples - Number of samples to generate
+     * @returns {Array} Array of sample arrays
+     */
+    sample(X, nSamples = 1) {
+      return this.sampleY(X, nSamples);
     }
     sampleY(X, nSamples = 1) {
       if (!this.XTrain || !this.yTrain || !this.L || !this.alphaVector) {
@@ -5979,25 +8541,6 @@ var JmonStudio = (() => {
       const u1 = Math.random();
       const u2 = Math.random();
       return Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
-    }
-  };
-
-  // src/algorithms/generative/gaussian-processes/kernels/rbf.js
-  var RBF = class extends Kernel {
-    constructor(lengthScale = 1, variance = 1) {
-      super({ length_scale: lengthScale, variance });
-      this.lengthScale = lengthScale;
-      this.variance = variance;
-    }
-    compute(x1, x2) {
-      const distance = this.euclideanDistance(x1, x2);
-      return this.variance * Math.exp(-0.5 * Math.pow(distance / this.lengthScale, 2));
-    }
-    getParams() {
-      return {
-        length_scale: this.lengthScale,
-        variance: this.variance
-      };
     }
   };
 
@@ -6605,6 +9148,45 @@ var JmonStudio = (() => {
       return new _Loop({ [track.label || "Track"]: track }, measureLength);
     }
     /**
+     * Create a loop from simple pitch/duration arrays
+     * @param {Array} pitches - Array of MIDI pitches (or null for rests)
+     * @param {Array} durations - Array of durations in beats
+     * @param {Object} options - Optional configuration (iterations, transpose, offset, label)
+     * @returns {Loop} A new Loop instance
+     */
+    static fromPattern(pitches, durations, options = {}) {
+      if (!Array.isArray(pitches) || !Array.isArray(durations)) {
+        throw new Error("pitches and durations must be arrays");
+      }
+      if (pitches.length === 0 || durations.length === 0) {
+        throw new Error("pitches and durations arrays cannot be empty");
+      }
+      const totalDuration = durations.reduce((sum, d) => sum + d, 0);
+      const iterations = options.iterations || 1;
+      const transpose = options.transpose || 0;
+      const offset = options.offset || 0;
+      const label = options.label || "Pattern";
+      const notes = [];
+      let currentTime = offset;
+      for (let iter = 0; iter < iterations; iter++) {
+        const transposition = transpose * iter;
+        for (let i = 0; i < pitches.length; i++) {
+          const pitch = pitches[i];
+          const duration = durations[i % durations.length];
+          notes.push({
+            pitch: pitch === null ? null : pitch + transposition,
+            duration,
+            time: currentTime,
+            velocity: 0.8
+          });
+          currentTime += duration;
+        }
+      }
+      return new _Loop({
+        [label]: { notes }
+      }, options.measureLength || 4);
+    }
+    /**
      * Create loop from Euclidean rhythm (JMON format)
      */
     static euclidean(beats, pulses, pitches = [60], label = null) {
@@ -7044,7 +9626,7 @@ var JmonStudio = (() => {
         }
       }
       while (population.length < this.populationSize) {
-        const randomPhrase = this.randomState.choice(this.initialPhrases);
+        const randomPhrase = this.initialPhrases[Math.floor(Math.random() * this.initialPhrases.length)];
         population.push(this.mutate(randomPhrase, 0));
       }
       return population;
@@ -7213,8 +9795,8 @@ var JmonStudio = (() => {
       this.bestScores.push(bestFitness);
       const newPopulation = [];
       while (newPopulation.length < this.populationSize) {
-        const parent1 = this.randomState.choice(selectedParents);
-        const parent2 = this.randomState.choice(selectedParents);
+        const parent1 = selectedParents[Math.floor(Math.random() * selectedParents.length)];
+        const parent2 = selectedParents[Math.floor(Math.random() * selectedParents.length)];
         const child = this.crossover([...parent1], [...parent2]);
         const mutatedChild = this.mutate(child);
         newPopulation.push(mutatedChild);
@@ -7725,11 +10307,11 @@ var JmonStudio = (() => {
      * Generate a sample from normal distribution
      */
     generateNormal(mean, std, randomFunc = Math.random) {
-      let u1, u2;
+      let u1;
       do {
         u1 = randomFunc();
       } while (u1 === 0);
-      u2 = randomFunc();
+      const u2 = randomFunc();
       const z = Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
       const result = mean + std * z;
       if (isNaN(result)) {
@@ -7951,6 +10533,12 @@ var JmonStudio = (() => {
       this.phasors.push(phasor);
     }
     /**
+     * Alias for addPhasor (for compatibility)
+     */
+    addPlanet(phasor) {
+      return this.addPhasor(phasor);
+    }
+    /**
      * Simulate all phasors and sub-phasors in the system
      */
     simulate(timeArray) {
@@ -8148,7 +10736,7 @@ var JmonStudio = (() => {
      * @returns {number} Number of iterations before escape
      */
     mandelbrotIterations(c) {
-      let z = { real: 0, imaginary: 0 };
+      const z = { real: 0, imaginary: 0 };
       for (let i = 0; i < this.maxIterations; i++) {
         const zReal = z.real * z.real - z.imaginary * z.imaginary + c.real;
         const zImaginary = 2 * z.real * z.imaginary + c.imaginary;
@@ -9155,6 +11743,366 @@ var JmonStudio = (() => {
   };
 
   // src/algorithms/index.js
+  init_CAVisualizer();
+
+  // src/algorithms/visualization/fractals/FractalVisualizer.js
+  init_PlotRenderer();
+  var FractalVisualizer = class {
+    /**
+     * Visualize logistic map bifurcation diagram
+     * @param {number} [rMin=2.8] - Minimum r value
+     * @param {number} [rMax=4.0] - Maximum r value
+     * @param {number} [rSteps=1000] - Number of r steps
+     * @param {number} [iterations=1000] - Iterations per r value
+     * @param {number} [skipTransient=500] - Transient iterations to skip
+     * @param {FractalVisualizationOptions} [options={}] - Visualization options
+     * @returns {Object} Plot data object
+     */
+    static plotLogisticMap(rMin = 2.8, rMax = 4, rSteps = 1e3, iterations = 1e3, skipTransient = 500, options = {}) {
+      const {
+        title = "Logistic Map Bifurcation",
+        width = 800,
+        height = 600,
+        colorScheme = "viridis"
+      } = options;
+      const plotData = [];
+      for (let i = 0; i < rSteps; i++) {
+        const r = rMin + i / rSteps * (rMax - rMin);
+        let x = 0.5;
+        for (let j = 0; j < skipTransient; j++) {
+          x = r * x * (1 - x);
+        }
+        const attractors = /* @__PURE__ */ new Set();
+        for (let j = 0; j < iterations; j++) {
+          x = r * x * (1 - x);
+          attractors.add(Math.round(x * 1e4) / 1e4);
+        }
+        attractors.forEach((value) => {
+          plotData.push({
+            x: r,
+            y: value,
+            color: this.getColorForValue(value, colorScheme)
+          });
+        });
+      }
+      const data = {
+        x: plotData.map((d) => d.x),
+        y: plotData.map((d) => d.y),
+        color: plotData.map((d) => d.color)
+      };
+      return PlotRenderer.scatter(data, {
+        title,
+        width,
+        height,
+        showAxis: true
+      });
+    }
+    /**
+     * Generate Mandelbrot set visualization
+     * @param {number} [xMin=-2.5] - Minimum x coordinate
+     * @param {number} [xMax=1.0] - Maximum x coordinate  
+     * @param {number} [yMin=-1.25] - Minimum y coordinate
+     * @param {number} [yMax=1.25] - Maximum y coordinate
+     * @param {number} [resolution=400] - Grid resolution
+     * @param {number} [maxIterations=100] - Maximum iterations
+     * @param {FractalVisualizationOptions} [options={}] - Visualization options
+     * @returns {Object} Plot data object
+     */
+    static plotMandelbrot(xMin = -2.5, xMax = 1, yMin = -1.25, yMax = 1.25, resolution = 400, maxIterations = 100, options = {}) {
+      const {
+        title = "Mandelbrot Set",
+        width = 600,
+        height = 600,
+        colorScheme = "plasma",
+        canvas = null
+      } = options;
+      if (canvas) {
+        return this.renderMandelbrotCanvas(
+          canvas,
+          xMin,
+          xMax,
+          yMin,
+          yMax,
+          resolution,
+          maxIterations,
+          colorScheme
+        );
+      }
+      const matrix = [];
+      const dx = (xMax - xMin) / resolution;
+      const dy = (yMax - yMin) / resolution;
+      for (let py = 0; py < resolution; py++) {
+        const row = [];
+        const y = yMin + py * dy;
+        for (let px = 0; px < resolution; px++) {
+          const x = xMin + px * dx;
+          const iterations = this.mandelbrotIterations(x, y, maxIterations);
+          row.push(iterations / maxIterations);
+        }
+        matrix.push(row);
+      }
+      return PlotRenderer.heatmap(matrix, {
+        title,
+        width,
+        height,
+        showAxis: false
+      });
+    }
+    /**
+     * Render Mandelbrot set directly to Canvas for better performance
+     * @param {HTMLCanvasElement} canvas - Canvas element
+     * @param {number} xMin - Minimum x coordinate
+     * @param {number} xMax - Maximum x coordinate
+     * @param {number} yMin - Minimum y coordinate
+     * @param {number} yMax - Maximum y coordinate
+     * @param {number} resolution - Grid resolution
+     * @param {number} maxIterations - Maximum iterations
+     * @param {string} colorScheme - Color scheme
+     * @returns {HTMLCanvasElement} The canvas element
+     */
+    static renderMandelbrotCanvas(canvas, xMin, xMax, yMin, yMax, resolution, maxIterations, colorScheme) {
+      const ctx = canvas.getContext("2d");
+      canvas.width = resolution;
+      canvas.height = resolution;
+      const imageData = ctx.createImageData(resolution, resolution);
+      const data = imageData.data;
+      const dx = (xMax - xMin) / resolution;
+      const dy = (yMax - yMin) / resolution;
+      for (let py = 0; py < resolution; py++) {
+        const y = yMin + py * dy;
+        for (let px = 0; px < resolution; px++) {
+          const x = xMin + px * dx;
+          const iterations = this.mandelbrotIterations(x, y, maxIterations);
+          const normalized = iterations / maxIterations;
+          const color = this.getColorComponents(normalized, colorScheme);
+          const index = (py * resolution + px) * 4;
+          data[index] = color.r;
+          data[index + 1] = color.g;
+          data[index + 2] = color.b;
+          data[index + 3] = 255;
+        }
+      }
+      ctx.putImageData(imageData, 0, 0);
+      return canvas;
+    }
+    /**
+     * Visualize cellular automata evolution
+     * @param {number[][]} history - CA evolution history
+     * @param {FractalVisualizationOptions} [options={}] - Visualization options
+     * @returns {Object} Plot data object
+     */
+    static plotCellularAutomata(history, options = {}) {
+      const {
+        title = "Cellular Automata Evolution",
+        width = 600,
+        height = 400,
+        canvas = null
+      } = options;
+      if (canvas) {
+        return this.renderCACanvas(canvas, history, options);
+      }
+      return PlotRenderer.matrix(history, {
+        title,
+        width,
+        height,
+        showAxis: false
+      });
+    }
+    /**
+     * Render cellular automata to Canvas
+     * @param {HTMLCanvasElement} canvas - Canvas element
+     * @param {number[][]} history - CA evolution history
+     * @param {FractalVisualizationOptions} options - Visualization options
+     * @returns {HTMLCanvasElement} The canvas element
+     */
+    static renderCACanvas(canvas, history, options = {}) {
+      const ctx = canvas.getContext("2d");
+      const cellSize = options.cellSize || 4;
+      canvas.width = history[0].length * cellSize;
+      canvas.height = history.length * cellSize;
+      ctx.fillStyle = "white";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = "black";
+      for (let y = 0; y < history.length; y++) {
+        for (let x = 0; x < history[y].length; x++) {
+          if (history[y][x] === 1) {
+            ctx.fillRect(
+              x * cellSize,
+              y * cellSize,
+              cellSize,
+              cellSize
+            );
+          }
+        }
+      }
+      return canvas;
+    }
+    /**
+     * Helper: Calculate Mandelbrot iterations
+     * @param {number} x - Real coordinate
+     * @param {number} y - Imaginary coordinate
+     * @param {number} maxIterations - Maximum iterations
+     * @returns {number} Number of iterations before escape
+     */
+    static mandelbrotIterations(x, y, maxIterations) {
+      let zx = 0;
+      let zy = 0;
+      let iteration = 0;
+      while (zx * zx + zy * zy < 4 && iteration < maxIterations) {
+        const temp = zx * zx - zy * zy + x;
+        zy = 2 * zx * zy + y;
+        zx = temp;
+        iteration++;
+      }
+      return iteration;
+    }
+    /**
+     * Helper: Get color for value based on color scheme
+     * @param {number} value - Normalized value (0-1)
+     * @param {string} scheme - Color scheme name
+     * @returns {string} CSS color string
+     */
+    static getColorForValue(value, scheme) {
+      const normalized = Math.max(0, Math.min(1, value));
+      switch (scheme) {
+        case "viridis":
+          return `hsl(${240 + normalized * 120}, 60%, ${30 + normalized * 40}%)`;
+        case "plasma":
+          return `hsl(${300 - normalized * 60}, 80%, ${20 + normalized * 60}%)`;
+        case "turbo":
+          return `hsl(${normalized * 360}, 70%, 50%)`;
+        case "heat":
+          return `hsl(${(1 - normalized) * 60}, 100%, 50%)`;
+        case "rainbow":
+          return `hsl(${normalized * 300}, 70%, 50%)`;
+        default:
+          return `hsl(${normalized * 240}, 70%, 50%)`;
+      }
+    }
+    /**
+     * Helper: Get RGB color components
+     * @param {number} value - Normalized value (0-1)
+     * @param {string} scheme - Color scheme name
+     * @returns {Object} RGB color object
+     */
+    static getColorComponents(value, scheme) {
+      const colorStr = this.getColorForValue(value, scheme);
+      if (colorStr.startsWith("hsl")) {
+        const matches = colorStr.match(/hsl\((\d+),\s*(\d+)%,\s*(\d+)%\)/);
+        if (matches) {
+          const h = parseInt(matches[1]) / 360;
+          const s = parseInt(matches[2]) / 100;
+          const l = parseInt(matches[3]) / 100;
+          return this.hslToRgb(h, s, l);
+        }
+      }
+      return { r: 0, g: 0, b: 0 };
+    }
+    /**
+     * Helper: Convert HSL to RGB
+     * @param {number} h - Hue (0-1)
+     * @param {number} s - Saturation (0-1)
+     * @param {number} l - Lightness (0-1)
+     * @returns {Object} RGB color object
+     */
+    static hslToRgb(h, s, l) {
+      let r, g, b;
+      if (s === 0) {
+        r = g = b = l;
+      } else {
+        const hue2rgb = (p2, q2, t) => {
+          if (t < 0)
+            t += 1;
+          if (t > 1)
+            t -= 1;
+          if (t < 1 / 6)
+            return p2 + (q2 - p2) * 6 * t;
+          if (t < 1 / 2)
+            return q2;
+          if (t < 2 / 3)
+            return p2 + (q2 - p2) * (2 / 3 - t) * 6;
+          return p2;
+        };
+        const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+        const p = 2 * l - q;
+        r = hue2rgb(p, q, h + 1 / 3);
+        g = hue2rgb(p, q, h);
+        b = hue2rgb(p, q, h - 1 / 3);
+      }
+      return {
+        r: Math.round(r * 255),
+        g: Math.round(g * 255),
+        b: Math.round(b * 255)
+      };
+    }
+    /**
+     * Helper: Create center initial state for CA
+     * @param {number} width - Width of the CA
+     * @returns {number[]} Initial state array
+     */
+    static createCenterInitialState(width) {
+      const state = new Array(width).fill(0);
+      state[Math.floor(width / 2)] = 1;
+      return state;
+    }
+    /**
+     * Extract strips from CA evolution for musical use
+     * @param {number[][]} history - CA evolution history
+     * @param {number[][]} stripRanges - Array of [start, end] strip ranges
+     * @returns {number[][][]} Extracted strips
+     */
+    static extractStrips(history, stripRanges) {
+      const strips = [];
+      for (const [start, end] of stripRanges) {
+        const strip = [];
+        for (const generation of history) {
+          strip.push(generation.slice(start, end + 1));
+        }
+        strips.push(strip);
+      }
+      return strips;
+    }
+    /**
+     * Convert strips to musical sequences
+     * @param {number[][][]} strips - Extracted strips
+     * @param {Object} options - Conversion options
+     * @returns {number[][]} Musical sequences
+     */
+    static stripsToSequences(strips, options = {}) {
+      const { values = null } = options;
+      return strips.map((strip) => {
+        const sequence = [];
+        for (const generation of strip) {
+          for (let i = 0; i < generation.length; i++) {
+            if (generation[i] === 1) {
+              sequence.push(values ? values[i % values.length] : i);
+            }
+          }
+        }
+        return sequence;
+      });
+    }
+    /**
+     * Generate Canvas element for visualization
+     * @param {number} width - Canvas width
+     * @param {number} height - Canvas height
+     * @returns {HTMLCanvasElement} Canvas element
+     */
+    static createCanvas(width, height) {
+      if (typeof window !== "undefined") {
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        return canvas;
+      } else {
+        console.warn("Canvas rendering not available in Node.js environment");
+        return null;
+      }
+    }
+  };
+
+  // src/algorithms/index.js
+  init_PlotRenderer();
   init_audio();
   var theory = {
     harmony: harmony_default,
@@ -9164,7 +12112,9 @@ var JmonStudio = (() => {
     }
   };
   var constants = {
-    theory: MusicTheoryConstants
+    theory: MusicTheoryConstants,
+    articulations: ARTICULATION_TYPES,
+    ornaments: ORNAMENT_TYPES
   };
   var generative = {
     gaussian: {
@@ -9198,6 +12148,11 @@ var JmonStudio = (() => {
   var analysis = {
     ...analysis_exports
   };
+  var visualization = {
+    CAVisualizer,
+    FractalVisualizer,
+    PlotRenderer
+  };
   var utils = {
     ...utils_exports
   };
@@ -9207,1756 +12162,172 @@ var JmonStudio = (() => {
     constants,
     generative,
     analysis,
+    visualization,
     audio,
     utils
   };
 
-  // src/browser/music-player.js
-  init_tonejs();
-  init_gm_instruments();
+  // src/index.js
+  init_converters();
 
-  // src/constants/audio-effects.js
-  var REVERB_EFFECTS = [
-    "Reverb",
-    "JCReverb",
-    "Freeverb"
-  ];
-  var DELAY_EFFECTS = [
-    "Delay",
-    "FeedbackDelay",
-    "PingPongDelay"
-  ];
-  var MODULATION_EFFECTS = [
-    "Chorus",
-    "Phaser",
-    "Tremolo",
-    "Vibrato",
-    "AutoWah"
-  ];
-  var DISTORTION_EFFECTS = [
-    "Distortion",
-    "Chebyshev",
-    "BitCrusher"
-  ];
-  var DYNAMICS_EFFECTS = [
-    "Compressor",
-    "Limiter",
-    "Gate",
-    "MidSideCompressor"
-  ];
-  var FILTER_EFFECTS = [
-    "Filter",
-    "AutoFilter"
-  ];
-  var ADVANCED_EFFECTS = [
-    "FrequencyShifter",
-    "PitchShift",
-    "StereoWidener"
-  ];
-  var ALL_EFFECTS = [
-    ...REVERB_EFFECTS,
-    ...DELAY_EFFECTS,
-    ...MODULATION_EFFECTS,
-    ...DISTORTION_EFFECTS,
-    ...DYNAMICS_EFFECTS,
-    ...FILTER_EFFECTS,
-    ...ADVANCED_EFFECTS
-  ];
-  var SYNTHESIZER_TYPES = [
-    "Synth",
-    "PolySynth",
-    "MonoSynth",
-    "AMSynth",
-    "FMSynth",
-    "DuoSynth",
-    "PluckSynth",
-    "NoiseSynth"
-  ];
-  var SPECIAL_NODE_TYPES = [
-    "Sampler",
-    "Destination"
-  ];
-  var ALL_AUDIO_GRAPH_TYPES = [
-    ...SYNTHESIZER_TYPES,
-    ...ALL_EFFECTS,
-    ...SPECIAL_NODE_TYPES
-  ];
-
-  // src/constants/ui-constants.js
-  var PLAYER_DIMENSIONS = {
-    MAX_WIDTH: 800,
-    MIN_WIDTH: 0,
-    MOBILE_MAX_WIDTH: "100vw",
-    PADDING: 16,
-    MOBILE_PADDING: 8,
-    BORDER_RADIUS: 12,
-    MOBILE_BORDER_RADIUS: 8
-  };
-  var TIMELINE_CONFIG = {
-    MARGIN: "8px 0",
-    MOBILE_MARGIN: "6px 0",
-    GAP: 12,
-    MOBILE_GAP: 8,
-    UPDATE_INTERVAL: 100
-    // ms between timeline updates
-  };
-  var COLORS = {
-    BACKGROUND: "#FFFFFF",
-    PRIMARY: "#333",
-    SECONDARY: "#F0F0F0",
-    ACCENT: "#333",
-    TEXT: "#000000",
-    LIGHT_TEXT: "#666666",
-    BORDER: "#CCCCCC"
-  };
-
-  // src/constants/player-constants.js
-  var AUDIO_CONFIG = {
-    DEFAULT_TEMPO: 120,
-    MIN_TEMPO: 60,
-    MAX_TEMPO: 240,
-    DEFAULT_VELOCITY: 0.8,
-    GLISSANDO_MIN_STEPS: 3
-  };
-  var ERROR_MESSAGES = {
-    INVALID_COMPOSITION: "Composition must be a valid JMON object",
-    NO_SEQUENCES_OR_TRACKS: "Composition must have sequences or tracks",
-    TRACKS_MUST_BE_ARRAY: "Tracks/sequences must be an array",
-    TONE_NOT_AVAILABLE: "Tone.js not available",
-    AUDIO_CONTEXT_FAILED: "Failed to start audio context",
-    iOS_AUDIO_HELP: "On iOS, please ensure your device isn't in silent mode and try again.",
-    GENERAL_AUDIO_HELP: "Please check your audio settings and try again."
-  };
-  var LOG_PREFIXES = {
-    PLAYER: "[PLAYER]",
-    MULTIVOICE: "[MULTIVOICE]",
-    AUDIO_GRAPH: "[AUDIO_GRAPH]"
-  };
-
-  // src/browser/music-player.js
-  function createPlayer(composition, options = {}) {
-    if (!composition || typeof composition !== "object") {
-      console.error(`${LOG_PREFIXES.PLAYER} Invalid composition:`, composition);
-      throw new Error(ERROR_MESSAGES.INVALID_COMPOSITION);
+  // src/browser/score-renderer.js
+  function jmonToABC(composition) {
+    const lines = [];
+    lines.push("X:1");
+    const title = composition.title || composition.metadata?.title || "Untitled";
+    lines.push(`T:${title}`);
+    const tempo = composition.tempo || 120;
+    lines.push(`Q:1/4=${tempo}`);
+    const timeSignature = composition.timeSignature || "4/4";
+    lines.push(`M:${timeSignature}`);
+    lines.push("L:1/4");
+    const track = composition.tracks?.[0];
+    const keySignature = composition.keySignature || "C";
+    const clef = track?.clef || "treble";
+    const clefMap = {
+      "treble": "treble",
+      "bass": "bass",
+      "alto": "alto",
+      "tenor": "tenor",
+      "percussion": "perc"
+    };
+    const abcClef = clefMap[clef] || "treble";
+    lines.push(`K:${keySignature} clef=${abcClef}`);
+    if (!track?.notes?.length) {
+      lines.push("z4");
+      return lines.join("\n");
     }
+    const [beatsPerMeasure, beatValue] = timeSignature.split("/").map(Number);
+    const measureDuration = beatsPerMeasure * (4 / beatValue);
+    const abcNotes = [];
+    let currentMeasureDuration = 0;
+    track.notes.forEach((note, index) => {
+      const duration = note.duration || 1;
+      const abcDuration = durationToABC2(duration);
+      let abcNote;
+      if (Array.isArray(note.pitch)) {
+        const chordNotes = note.pitch.filter((p) => typeof p === "number").map((p) => midiToABC2(p));
+        if (chordNotes.length > 1) {
+          abcNote = `[${chordNotes.join("")}]`;
+        } else if (chordNotes.length === 1) {
+          abcNote = chordNotes[0];
+        } else {
+          abcNote = "z";
+        }
+      } else if (note.pitch === null || note.pitch === void 0) {
+        abcNote = "z";
+      } else {
+        abcNote = midiToABC2(note.pitch);
+      }
+      abcNotes.push(`${abcNote}${abcDuration}`);
+      currentMeasureDuration += duration;
+      if (currentMeasureDuration >= measureDuration) {
+        if (index < track.notes.length - 1) {
+          abcNotes.push("|");
+        }
+        currentMeasureDuration = 0;
+      }
+    });
+    lines.push(abcNotes.join(" "));
+    return lines.join("\n");
+  }
+  function midiToABC2(midi2) {
+    if (typeof midi2 !== "number")
+      return "C";
+    const noteNames = ["C", "^C", "D", "^D", "E", "F", "^F", "G", "^G", "A", "^A", "B"];
+    const octave = Math.floor(midi2 / 12) - 1;
+    const noteName = noteNames[midi2 % 12];
+    if (octave === 4) {
+      return noteName;
+    } else if (octave === 5) {
+      return noteName.toLowerCase();
+    } else if (octave > 5) {
+      const ticks = "'".repeat(octave - 5);
+      return noteName.toLowerCase() + ticks;
+    } else if (octave === 3) {
+      return noteName;
+    } else {
+      const commas = ",".repeat(4 - octave);
+      return noteName + commas;
+    }
+  }
+  function durationToABC2(duration) {
+    if (duration >= 4)
+      return "4";
+    if (duration >= 3)
+      return "3";
+    if (duration >= 2)
+      return "2";
+    if (duration >= 1.5)
+      return "3/2";
+    if (duration >= 1)
+      return "";
+    if (duration >= 0.75)
+      return "3/4";
+    if (duration >= 0.5)
+      return "/2";
+    if (duration >= 0.25)
+      return "/4";
+    return "/8";
+  }
+  function score(composition, options = {}) {
     const {
-      autoplay = false,
-      showDebug = false,
-      customInstruments = {},
-      autoMultivoice = true,
-      maxVoices = 4,
-      Tone: externalTone = null,
-      preloadTone = false
+      ABCJS: abcjsLib,
+      width,
+      height = 300,
+      scale
     } = options;
-    if (!composition.sequences && !composition.tracks) {
-      console.error(
-        `${LOG_PREFIXES.PLAYER} No sequences or tracks found in composition:`,
-        composition
-      );
-      throw new Error(ERROR_MESSAGES.NO_SEQUENCES_OR_TRACKS);
-    }
-    const tracks = composition.tracks || composition.sequences || [];
-    if (!Array.isArray(tracks)) {
-      console.error(
-        `${LOG_PREFIXES.PLAYER} Tracks/sequences must be an array:`,
-        tracks
-      );
-      throw new Error(ERROR_MESSAGES.TRACKS_MUST_BE_ARRAY);
-    }
-    const tempo = composition.tempo || composition.bpm || AUDIO_CONFIG.DEFAULT_TEMPO;
-    const conversionOptions = { autoMultivoice, maxVoices, showDebug };
-    const convertedData = tonejs(composition, conversionOptions);
-    const { tracks: convertedTracks, metadata } = convertedData;
-    let totalDuration = metadata.totalDuration;
-    const colors = COLORS;
+    const useResponsive = width === void 0 && scale === void 0;
+    const finalWidth = width ?? 938;
+    const finalScale = scale ?? 1;
     const container = document.createElement("div");
-    container.style.cssText = `
-        font-family: 'PT Sans', sans-serif;
-        background-color: ${colors.background};
-        color: ${colors.text};
-        padding: 16px 16px 8px 16px;
-        border-radius: 12px;
-        width: 100%;
-        max-width: ${PLAYER_DIMENSIONS.MAX_WIDTH}px;
-        min-width: ${PLAYER_DIMENSIONS.MIN_WIDTH};
-        border: 1px solid ${colors.border};
-        box-shadow: 2px 2px 10px rgba(0, 0, 0, 0.1);
-        display: flex;
-        flex-direction: column;
-        box-sizing: border-box;
-    `;
-    const styleTag = document.createElement("style");
-    styleTag.textContent = `
-        /* iOS audio improvements */
-        .jmon-music-player-container {
-            -webkit-user-select: none;
-            -webkit-touch-callout: none;
-            -webkit-tap-highlight-color: transparent;
-            touch-action: manipulation;
-        }
-        .jmon-music-player-play {
-            -webkit-user-select: none;
-            -webkit-touch-callout: none;
-            -webkit-tap-highlight-color: transparent;
-            touch-action: manipulation;
-        }
-
-        /* Button hover effects */
-        .jmon-music-player-btn-vertical:hover {
-            background-color: #555555 !important;
-            transform: translateY(-1px);
-        }
-        .jmon-music-player-btn-vertical:active {
-            transform: translateY(0px);
-        }
-
-        /* Large screens: Show vertical downloads, hide horizontal ones, horizontal track layout */
-        @media (min-width: 600px) {
-            .jmon-music-player-downloads {
-                display: none !important;
-            }
-            .jmon-music-player-vertical-downloads {
-                display: flex !important;
-            }
-            .jmon-music-player-top {
-                gap: 32px !important;
-            }
-            .jmon-music-player-right {
-                min-width: 140px !important;
-                max-width: 160px !important;
-            }
-            .jmon-track-selector {
-                flex-direction: row !important;
-                align-items: center !important;
-                gap: 16px !important;
-            }
-            .jmon-track-selector label {
-                min-width: 120px !important;
-                margin-bottom: 0 !important;
-                flex-shrink: 0 !important;
-            }
-            .jmon-track-selector select {
-                flex: 1 !important;
-            }
-        }
-
-        /* Medium screens: Compact layout with horizontal track selectors */
-        @media (min-width: 481px) and (max-width: 799px) {
-            .jmon-music-player-downloads {
-                display: none !important;
-            }
-            .jmon-music-player-vertical-downloads {
-                display: flex !important;
-            }
-            .jmon-music-player-top {
-                gap: 20px !important;
-            }
-            .jmon-music-player-right {
-                min-width: 120px !important;
-                max-width: 140px !important;
-            }
-            .jmon-track-selector {
-                flex-direction: row !important;
-                align-items: center !important;
-                gap: 12px !important;
-            }
-            .jmon-track-selector label {
-                min-width: 100px !important;
-                margin-bottom: 0 !important;
-                flex-shrink: 0 !important;
-                font-size: 14px !important;
-            }
-            .jmon-track-selector select {
-                flex: 1 !important;
-            }
-        }
-
-        /* Small screens: Mobile layout */
-        @media (max-width: 480px) {
-            .jmon-music-player-downloads {
-                display: flex !important;
-            }
-            .jmon-music-player-vertical-downloads {
-                display: none !important;
-            }
-            .jmon-music-player-container {
-                padding: 8px !important;
-                border-radius: 8px !important;
-                max-width: 100vw !important;
-                min-width: 0 !important;
-                box-shadow: none !important;
-            }
-            .jmon-music-player-top {
-                flex-direction: column !important;
-                gap: 12px !important;
-                align-items: stretch !important;
-            }
-            .jmon-music-player-left, .jmon-music-player-right {
-                width: 100% !important;
-                min-width: 0 !important;
-                max-width: none !important;
-                flex: none !important;
-            }
-            .jmon-music-player-right {
-                gap: 12px !important;
-            }
-            .jmon-track-selector {
-                flex-direction: column !important;
-                align-items: stretch !important;
-                gap: 8px !important;
-            }
-            .jmon-track-selector label {
-                min-width: auto !important;
-                margin-bottom: 0 !important;
-            }
-            .jmon-track-selector select {
-                flex: none !important;
-            }
-            .jmon-music-player-timeline {
-                gap: 8px !important;
-                margin: 6px 0 !important;
-            }
-            .jmon-music-player-downloads {
-                flex-direction: column !important;
-                gap: 8px !important;
-                margin-top: 6px !important;
-            }
-            .jmon-music-player-btn {
-                min-height: 40px !important;
-                font-size: 14px !important;
-                padding: 10px 0 !important;
-            }
-            .jmon-music-player-play {
-                width: 40px !important;
-                height: 40px !important;
-                min-width: 40px !important;
-                max-width: 40px !important;
-                padding: 8px !important;
-                margin: 0 4px !important;
-                border-radius: 50% !important;
-                flex-shrink: 0 !important;
-            }
-            .jmon-music-player-stop {
-                width: 40px !important;
-                height: 40px !important;
-                min-width: 40px !important;
-                max-width: 40px !important;
-                padding: 8px !important;
-                margin: 0 4px !important;
-                flex-shrink: 0 !important;
-            }
-        }
-    `;
-    document.head.appendChild(styleTag);
-    container.classList.add("jmon-music-player-container");
-    const mainLayout = document.createElement("div");
-    mainLayout.style.cssText = `
-        display: grid;
-        grid-template-columns: 1fr;
-        grid-template-rows: auto auto auto auto;
-        gap: 12px;
-        margin-bottom: 0px;
-        font-family: 'PT Sans', sans-serif;
-    `;
-    mainLayout.classList.add("jmon-music-player-main");
-    const topContainer = document.createElement("div");
-    topContainer.style.cssText = `
-        display: flex;
-        justify-content: space-between;
-        align-items: flex-start;
-        font-family: 'PT Sans', sans-serif;
-        gap: 24px;
-        flex-wrap: wrap;
-    `;
-    topContainer.classList.add("jmon-music-player-top");
-    const leftColumn = document.createElement("div");
-    leftColumn.style.cssText = `
-        display: flex;
-        flex-direction: column;
-        flex: 1;
-        min-width: 0;
-        box-sizing: border-box;
-    `;
-    leftColumn.classList.add("jmon-music-player-left");
-    const instrumentsContainer = document.createElement("div");
-    instrumentsContainer.style.cssText = `
-        display: flex;
-        flex-direction: column;
-        gap: 6px;
-    `;
-    const gmInstruments = getPopularInstruments();
-    const originalTracks = composition.tracks || [];
-    const synthSelectors = [];
-    originalTracks.forEach((track, index) => {
-      const trackAnalysis = convertedTracks.find(
-        (t) => t.originalTrackIndex === index
-      )?.analysis;
-      if (trackAnalysis?.hasGlissando) {
-        console.warn(
-          `Track ${track.label || track.name || index + 1} contient un glissando : la polyphonie sera d\xE9sactiv\xE9e pour cette piste.`
-        );
+    if (useResponsive) {
+      container.style.width = "100%";
+      container.style.overflow = "visible";
+    } else {
+      const actualWidth = finalWidth * finalScale;
+      container.style.width = `${actualWidth}px`;
+      container.style.overflow = "visible";
+    }
+    const notationDiv = document.createElement("div");
+    notationDiv.id = `rendered-score-${Date.now()}`;
+    container.appendChild(notationDiv);
+    try {
+      const ABCJS = abcjsLib || typeof window !== "undefined" && window.ABCJS;
+      if (!ABCJS) {
+        notationDiv.innerHTML = '<p style="color:#ff6b6b">abcjs library not loaded</p>';
+        return container;
       }
-      const synthSelectorItem = document.createElement("div");
-      synthSelectorItem.style.cssText = `
-            margin-bottom: 8px;
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-        `;
-      synthSelectorItem.classList.add("jmon-track-selector");
-      const synthLabel = document.createElement("label");
-      synthLabel.textContent = track.label || `Track ${index + 1}`;
-      synthLabel.style.cssText = `
-            font-family: 'PT Sans', sans-serif;
-            font-size: 16px;
-            color: ${colors.text};
-            display: block;
-            margin-bottom: 0;
-            font-weight: normal;
-            flex-shrink: 0;
-        `;
-      const synthSelect = document.createElement("select");
-      synthSelect.style.cssText = `
-            padding: 4px;
-            border: 1px solid ${colors.secondary};
-            border-radius: 4px;
-            background-color: ${colors.background};
-            color: ${colors.text};
-            font-size: 12px;
-            width: 100%;
-            height: 28px;
-            box-sizing: border-box;
-            -webkit-appearance: none;
-            -moz-appearance: none;
-            appearance: none;
-            margin: 0;
-            outline: none;
-        `;
-      const synthGroup = document.createElement("optgroup");
-      synthGroup.label = "Synthesizers";
-      const basicSynths = [
-        "PolySynth",
-        "Synth",
-        "AMSynth",
-        "DuoSynth",
-        "FMSynth",
-        "MembraneSynth",
-        "MetalSynth",
-        "MonoSynth",
-        "PluckSynth"
-      ];
-      const audioGraphNodes = composition.audioGraph || [];
-      if (Array.isArray(audioGraphNodes) && audioGraphNodes.length > 0) {
-        const trackSynthRef = composition.tracks?.[index]?.synthRef;
-        audioGraphNodes.forEach((node) => {
-          if (node.id && node.type && node.type !== "Destination") {
-            const option = document.createElement("option");
-            option.value = `AudioGraph: ${node.id}`;
-            option.textContent = node.id;
-            if (trackSynthRef === node.id) {
-              option.selected = true;
-            }
-            synthGroup.appendChild(option);
-          }
-        });
-      }
-      basicSynths.forEach((synthType) => {
-        const option = document.createElement("option");
-        option.value = synthType;
-        option.textContent = synthType;
-        if (trackAnalysis?.hasGlissando && synthType === "Synth") {
-          option.selected = true;
-        } else if (!trackAnalysis?.hasGlissando && !composition.tracks?.[index]?.synthRef && synthType === "PolySynth") {
-          option.selected = true;
-        }
-        if (trackAnalysis?.hasGlissando && (synthType === "PolySynth" || synthType === "DuoSynth")) {
-          option.disabled = true;
-          option.textContent += " (mono only for glissando)";
-        }
-        synthGroup.appendChild(option);
-      });
-      synthSelect.appendChild(synthGroup);
-      const gmGroup = document.createElement("optgroup");
-      gmGroup.label = "Sampled Instruments";
-      const instrumentsByCategory = {};
-      gmInstruments.forEach((instrument) => {
-        if (!instrumentsByCategory[instrument.category]) {
-          instrumentsByCategory[instrument.category] = [];
-        }
-        instrumentsByCategory[instrument.category].push(instrument);
-      });
-      Object.keys(instrumentsByCategory).sort().forEach((category) => {
-        const categoryGroup = document.createElement("optgroup");
-        categoryGroup.label = category;
-        instrumentsByCategory[category].forEach((instrument) => {
-          const option = document.createElement("option");
-          option.value = `GM: ${instrument.name}`;
-          option.textContent = instrument.name;
-          if (trackAnalysis?.hasGlissando) {
-            option.disabled = true;
-            option.textContent += " (not suitable for glissando)";
-          }
-          categoryGroup.appendChild(option);
-        });
-        synthSelect.appendChild(categoryGroup);
-      });
-      synthSelectors.push(synthSelect);
-      synthSelectorItem.append(synthLabel, synthSelect);
-      instrumentsContainer.appendChild(synthSelectorItem);
-    });
-    leftColumn.appendChild(instrumentsContainer);
-    const rightColumn = document.createElement("div");
-    rightColumn.style.cssText = `
-        display: flex;
-        flex-direction: column;
-        min-width: 120px;
-        max-width: 150px;
-        box-sizing: border-box;
-        gap: 16px;
-    `;
-    rightColumn.classList.add("jmon-music-player-right");
-    const bpmContainer = document.createElement("div");
-    bpmContainer.style.cssText = `
-        display: flex;
-        flex-direction: column;
-        width: 100%;
-        min-width: 0;
-        box-sizing: border-box;
-    `;
-    const bpmLabel = document.createElement("label");
-    bpmLabel.textContent = "Tempo";
-    bpmLabel.style.cssText = `
-        font-family: 'PT Sans', sans-serif;
-        font-size: 16px;
-        font-weight: normal;
-        margin-bottom: 8px;
-        color: ${colors.text};
-    `;
-    const bpmInput = document.createElement("input");
-    bpmInput.type = "number";
-    bpmInput.min = 60;
-    bpmInput.max = 240;
-    bpmInput.value = tempo;
-    bpmInput.style.cssText = `
-        padding: 4px;
-        border: 1px solid ${colors.secondary};
-        border-radius: 4px;
-        background-color: ${colors.background};
-        color: ${colors.text};
-        font-size: 12px;
-        text-align: center;
-        width: 100%;
-        height: 28px;
-        box-sizing: border-box;
-        -webkit-appearance: none;
-        -moz-appearance: none;
-        appearance: none;
-        margin: 0;
-        outline: none;
-    `;
-    bpmContainer.append(bpmLabel, bpmInput);
-    const verticalDownloads = document.createElement("div");
-    verticalDownloads.style.cssText = `
-        display: flex;
-        flex-direction: column;
-        gap: 12px;
-        margin-top: 8px;
-    `;
-    verticalDownloads.classList.add("jmon-music-player-vertical-downloads");
-    const downloadMIDIButtonVertical = document.createElement("button");
-    downloadMIDIButtonVertical.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-keyboard-music" style="margin-right: 8px;"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="M6 8h4"/><path d="M14 8h.01"/><path d="M18 8h.01"/><path d="M2 12h20"/><path d="M6 12v4"/><path d="M10 12v4"/><path d="M14 12v4"/><path d="M18 12v4"/></svg><span>MIDI</span>`;
-    downloadMIDIButtonVertical.style.cssText = `
-        padding: 12px 16px;
-        border: none;
-        border-radius: 8px;
-        background-color: #333333;
-        color: white;
-        font-family: 'PT Sans', sans-serif;
-        font-size: 14px;
-        font-weight: 500;
-        cursor: pointer;
-        transition: background-color 0.3s ease;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        min-height: 44px;
-        box-sizing: border-box;
-    `;
-    downloadMIDIButtonVertical.classList.add("jmon-music-player-btn-vertical");
-    const downloadWavButtonVertical = document.createElement("button");
-    downloadWavButtonVertical.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-audio-lines" style="margin-right: 8px;"><path d="M2 10v3"/><path d="M6 6v11"/><path d="M10 3v18"/><path d="M14 8v7"/><path d="M18 5v13"/><path d="M22 10v3"/></svg><span>WAV</span>`;
-    downloadWavButtonVertical.style.cssText = `
-        padding: 12px 16px;
-        border: none;
-        border-radius: 8px;
-        background-color: #333333;
-        color: white;
-        font-family: 'PT Sans', sans-serif;
-        font-size: 14px;
-        font-weight: 500;
-        cursor: pointer;
-        transition: background-color 0.3s ease;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        min-height: 44px;
-        box-sizing: border-box;
-    `;
-    downloadWavButtonVertical.classList.add("jmon-music-player-btn-vertical");
-    verticalDownloads.append(
-      downloadMIDIButtonVertical,
-      downloadWavButtonVertical
-    );
-    verticalDownloads.style.display = "none";
-    rightColumn.append(bpmContainer, verticalDownloads);
-    const timelineContainer = document.createElement("div");
-    timelineContainer.style.cssText = `
-        position: relative;
-        width: 100%;
-        margin: ${TIMELINE_CONFIG.MARGIN};
-        display: flex;
-        align-items: center;
-        gap: ${TIMELINE_CONFIG.GAP}px;
-        min-width: 0;
-        box-sizing: border-box;
-    `;
-    timelineContainer.classList.add("jmon-music-player-timeline");
-    const currentTime = document.createElement("div");
-    currentTime.textContent = "0:00";
-    currentTime.style.cssText = `
-        font-family: 'PT Sans', sans-serif;
-        font-size: 14px;
-        color: ${colors.text};
-        min-width: 40px;
-        text-align: center;
-    `;
-    const totalTime = document.createElement("div");
-    totalTime.textContent = "0:00";
-    totalTime.style.cssText = `
-        font-family: 'PT Sans', sans-serif;
-        font-size: 14px;
-        color: ${colors.text};
-        min-width: 40px;
-        text-align: center;
-    `;
-    const timeline = document.createElement("input");
-    timeline.type = "range";
-    timeline.min = 0;
-    timeline.max = 100;
-    timeline.value = 0;
-    timeline.style.cssText = `
-        flex-grow: 1;
-        -webkit-appearance: none;
-        background: ${colors.secondary};
-        outline: none;
-        border-radius: 15px;
-        overflow: visible;
-        height: 8px;
-    `;
-    const timelineStyle = document.createElement("style");
-    timelineStyle.textContent = `
-        input[type="range"].jmon-timeline-slider {
-            background: ${colors.secondary} !important;
-            border: 1px solid ${colors.border} !important;
-            box-shadow: inset 0 1px 3px rgba(0,0,0,0.1) !important;
-        }
-        input[type="range"].jmon-timeline-slider::-webkit-slider-track {
-            background: ${colors.secondary} !important;
-            height: 8px !important;
-            border-radius: 15px !important;
-            border: 1px solid ${colors.border} !important;
-            box-shadow: inset 0 1px 3px rgba(0,0,0,0.1) !important;
-        }
-        input[type="range"].jmon-timeline-slider::-moz-range-track {
-            background: ${colors.secondary} !important;
-            height: 8px !important;
-            border-radius: 15px !important;
-            border: 1px solid ${colors.border} !important;
-            box-shadow: inset 0 1px 3px rgba(0,0,0,0.1) !important;
-        }
-        input[type="range"].jmon-timeline-slider::-webkit-slider-thumb {
-            -webkit-appearance: none !important;
-            appearance: none !important;
-            height: 20px !important;
-            width: 20px !important;
-            border-radius: 50% !important;
-            background: ${colors.primary} !important;
-            cursor: pointer !important;
-            border: 2px solid ${colors.background} !important;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.2) !important;
-        }
-        input[type="range"].jmon-timeline-slider::-moz-range-thumb {
-            height: 20px !important;
-            width: 20px !important;
-            border-radius: 50% !important;
-            background: ${colors.primary} !important;
-            cursor: pointer !important;
-            border: 2px solid ${colors.background} !important;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.2) !important;
-        }
-    `;
-    document.head.appendChild(timelineStyle);
-    timeline.classList.add("jmon-timeline-slider");
-    const playButton = document.createElement("button");
-    playButton.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-play"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg>`;
-    playButton.style.cssText = `
-        width: 40px;
-        height: 40px;
-        min-width: 40px;
-        max-width: 40px;
-        padding: 8px;
-        border: none;
-        border-radius: 50%;
-        background-color: ${colors.primary};
-        color: ${colors.background};
-        font-size: 16px;
-        cursor: pointer;
-        transition: background-color 0.3s ease;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        margin: 0px 5px 0px 10px;
-        box-sizing: border-box;
-        flex-shrink: 0;
-    `;
-    playButton.classList.add("jmon-music-player-play");
-    const stopButton = document.createElement("button");
-    stopButton.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-square"><rect width="18" height="18" x="3" y="3" rx="2"/></svg>`;
-    stopButton.style.cssText = `
-        width: 40px;
-        height: 40px;
-        min-width: 40px;
-        max-width: 40px;
-        padding: 8px;
-        border: none;
-        border-radius: 8px;
-        background-color: ${colors.secondary};
-        color: ${colors.text};
-        font-size: 14px;
-        cursor: pointer;
-        transition: background-color 0.3s ease;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        margin: 0px 5px 0px 0px;
-        box-sizing: border-box;
-        flex-shrink: 0;
-    `;
-    stopButton.classList.add("jmon-music-player-stop");
-    const timeDisplay = document.createElement("div");
-    timeDisplay.style.cssText = `
-        display: flex;
-        justify-content: space-between;
-        font-size: 12px;
-        color: ${colors.lightText};
-        margin: 0px 0px 0px 10px;
-    `;
-    const controlsContainer = document.createElement("div");
-    controlsContainer.style.cssText = `
-        display: flex;
-        align-items: center;
-        gap: 0px;
-    `;
-    controlsContainer.append(playButton, stopButton);
-    timelineContainer.append(currentTime, timeline, totalTime, controlsContainer);
-    const buttonContainer = document.createElement("div");
-    buttonContainer.style.cssText = `
-        display: flex;
-        justify-content: space-between;
-        margin-top: 8px;
-        gap: 10px;
-        min-width: 0;
-        box-sizing: border-box;
-    `;
-    buttonContainer.classList.add("jmon-music-player-downloads");
-    const downloadMIDIButton = document.createElement("button");
-    downloadMIDIButton.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-keyboard-music" style="margin-right: 5px;"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="M6 8h4"/><path d="M14 8h.01"/><path d="M18 8h.01"/><path d="M2 12h20"/><path d="M6 12v4"/><path d="M10 12v4"/><path d="M14 12v4"/><path d="M18 12v4"/></svg><span>MIDI</span>`;
-    downloadMIDIButton.style.cssText = `
-        padding: 15px 30px;
-        margin: 0 5px;
-        border: none;
-        border-radius: 8px;
-        background-color: #333333;
-        color: white;
-        font-family: 'PT Sans', sans-serif;
-        font-size: 16px;
-        font-weight: 500;
-        cursor: pointer;
-        transition: background-color 0.3s ease;
-        flex: 1;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        min-height: 50px;
-        min-width: 0;
-        box-sizing: border-box;
-    `;
-    downloadMIDIButton.classList.add("jmon-music-player-btn");
-    const downloadWavButton = document.createElement("button");
-    downloadWavButton.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-audio-lines" style="margin-right: 5px;"><path d="M2 10v3"/><path d="M6 6v11"/><path d="M10 3v18"/><path d="M14 8v7"/><path d="M18 5v13"/><path d="M22 10v3"/></svg><span>WAV</span>`;
-    downloadWavButton.style.cssText = `
-        padding: 15px 30px;
-        margin: 0 5px;
-        border: none;
-        border-radius: 8px;
-        background-color: #333333;
-        color: white;
-        font-family: 'PT Sans', sans-serif;
-        font-size: 16px;
-        font-weight: 500;
-        cursor: pointer;
-        transition: background-color 0.3s ease;
-        flex: 1;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        min-height: 50px;
-        min-width: 0;
-        box-sizing: border-box;
-    `;
-    downloadWavButton.classList.add("jmon-music-player-btn");
-    buttonContainer.append(downloadMIDIButton, downloadWavButton);
-    topContainer.append(leftColumn, rightColumn);
-    mainLayout.appendChild(topContainer);
-    mainLayout.appendChild(timelineContainer);
-    container.append(mainLayout, buttonContainer);
-    let Tone2, isPlaying = false, synths = [], parts = [];
-    let samplerLoadPromises = [];
-    let graphInstruments = null;
-    const originalTracksSource = composition.tracks || [];
-    const buildAudioGraphInstruments = () => {
-      if (!Tone2)
-        return null;
-      if (!composition.audioGraph || !Array.isArray(composition.audioGraph)) {
-        return null;
-      }
-      const map = {};
-      const normalizeUrlsToNoteNames = (urls) => {
-        const out = {};
-        Object.entries(urls || {}).forEach(([k, v]) => {
-          let noteKey = k;
-          if (typeof k === "number" || /^\d+$/.test(String(k))) {
-            try {
-              noteKey = Tone2.Frequency(parseInt(k, 10), "midi").toNote();
-            } catch (e) {
-            }
-          }
-          out[noteKey] = v;
-        });
-        return out;
+      const abcNotation = jmonToABC(composition);
+      const renderOptions = {
+        paddingtop: 0,
+        paddingbottom: 0,
+        paddingright: 10,
+        paddingleft: 10
       };
-      try {
-        composition.audioGraph.forEach((node) => {
-          const { id, type, options: options2 = {}, target } = node;
-          if (!id || !type)
-            return;
-          let instrument = null;
-          if (type === "Sampler") {
-            const normalizedUrls = normalizeUrlsToNoteNames(options2.urls);
-            let resolveLoaded, rejectLoaded;
-            const loadPromise = new Promise((res, rej) => {
-              resolveLoaded = res;
-              rejectLoaded = rej;
-            });
-            const samplerOpts = {
-              urls: normalizedUrls,
-              onload: () => resolveLoaded && resolveLoaded(),
-              onerror: (e) => {
-                console.error(`[PLAYER] Sampler load error for ${id}:`, e);
-                rejectLoaded && rejectLoaded(e);
-              }
-            };
-            if (options2.baseUrl)
-              samplerOpts.baseUrl = options2.baseUrl;
-            try {
-              console.log(
-                `[PLAYER] Building Sampler ${id} with urls:`,
-                normalizedUrls,
-                "baseUrl:",
-                samplerOpts.baseUrl || "(none)"
-              );
-              instrument = new Tone2.Sampler(samplerOpts);
-            } catch (e) {
-              console.error("[PLAYER] Failed to create Sampler:", e);
-              instrument = null;
-            }
-            samplerLoadPromises.push(loadPromise);
-            if (instrument && options2.envelope && options2.envelope.enabled) {
-              if (typeof options2.envelope.attack === "number") {
-                instrument.attack = options2.envelope.attack;
-              }
-              if (typeof options2.envelope.release === "number") {
-                instrument.release = options2.envelope.release;
-              }
-            }
-          } else if (SYNTHESIZER_TYPES.includes(type)) {
-            try {
-              instrument = new Tone2[type](options2);
-            } catch (e) {
-              console.warn(
-                `[PLAYER] Failed to create ${type} from audioGraph, using PolySynth:`,
-                e
-              );
-              instrument = new Tone2.PolySynth();
-            }
-          } else if (ALL_EFFECTS.includes(type)) {
-            try {
-              instrument = new Tone2[type](options2);
-              console.log(
-                `[PLAYER] Created effect ${id} (${type}) with options:`,
-                options2
-              );
-            } catch (e) {
-              console.warn(`[PLAYER] Failed to create ${type} effect:`, e);
-              instrument = null;
-            }
-          } else if (type === "Destination") {
-            map[id] = Tone2.Destination;
-          }
-          if (instrument) {
-            map[id] = instrument;
-          }
-        });
-        if (Object.keys(map).length > 0) {
-          composition.audioGraph.forEach((node) => {
-            const { id, target } = node;
-            if (!id || !map[id])
-              return;
-            const currentNode = map[id];
-            if (currentNode === Tone2.Destination)
-              return;
-            if (target && map[target]) {
-              try {
-                if (map[target] === Tone2.Destination) {
-                  currentNode.toDestination();
-                  console.log(`[PLAYER] Connected ${id} -> Destination`);
-                } else {
-                  currentNode.connect(map[target]);
-                  console.log(`[PLAYER] Connected ${id} -> ${target}`);
-                }
-              } catch (e) {
-                console.warn(`[PLAYER] Failed to connect ${id} -> ${target}:`, e);
-                currentNode.toDestination();
-              }
-            } else {
-              currentNode.toDestination();
-              console.log(
-                `[PLAYER] Connected ${id} -> Destination (no target specified)`
-              );
-            }
-          });
-        }
-        return map;
-      } catch (e) {
-        console.error("[PLAYER] Failed building audioGraph instruments:", e);
-        return null;
-      }
-    };
-    const isIOS = () => {
-      return /iPad|iPhone|iPod/.test(navigator.userAgent) || navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1;
-    };
-    const formatTime = (seconds) => {
-      return `${Math.floor(seconds / 60)}:${Math.floor(seconds % 60).toString().padStart(2, "0")}`;
-    };
-    totalTime.textContent = formatTime(totalDuration);
-    const initializeTone = async () => {
-      if (typeof window !== "undefined") {
-        const existingTone = externalTone || window.Tone || (typeof Tone2 !== "undefined" ? Tone2 : null);
-        if (!existingTone) {
-          try {
-            if (typeof __require !== "undefined") {
-              console.log("[PLAYER] Loading Tone.js via require()...");
-              const ToneFromRequire = await __require("tone@14.8.49/build/Tone.js");
-              window.Tone = ToneFromRequire.default || ToneFromRequire.Tone || ToneFromRequire;
-            } else {
-              console.log("[PLAYER] Loading Tone.js via import()...");
-              const ToneModule = await import("https://esm.sh/tone@14.8.49");
-              window.Tone = ToneModule.default || ToneModule.Tone || ToneModule;
-            }
-            if (!window.Tone || typeof window.Tone !== "object" || !window.Tone.PolySynth) {
-              console.warn(
-                "[PLAYER] First load attempt failed, trying alternative CDN..."
-              );
-              try {
-                const ToneAlt = await import("https://cdn.skypack.dev/tone@14.8.49");
-                window.Tone = ToneAlt.default || ToneAlt.Tone || ToneAlt;
-                if (!window.Tone || !window.Tone.PolySynth) {
-                  throw new Error("Alternative CDN also failed");
-                }
-              } catch (altError) {
-                console.warn(
-                  "[PLAYER] Alternative CDN failed, trying jsdelivr..."
-                );
-                try {
-                  const ToneJsdelivr = await import("https://cdn.jsdelivr.net/npm/tone@14.8.49/build/Tone.js");
-                  window.Tone = ToneJsdelivr.default || ToneJsdelivr.Tone || ToneJsdelivr;
-                  if (!window.Tone || !window.Tone.PolySynth) {
-                    throw new Error("All CDN attempts failed");
-                  }
-                } catch (jsdelivrError) {
-                  throw new Error(
-                    "Loaded Tone.js but got invalid object from all CDNs"
-                  );
-                }
-              }
-            }
-            console.log(
-              "[PLAYER] Tone.js loaded successfully, version:",
-              window.Tone.version || "unknown"
-            );
-          } catch (error) {
-            console.warn("Could not auto-load Tone.js:", error.message);
-            console.log(
-              "To use the player, load Tone.js manually first using one of these methods:"
-            );
-            console.log(
-              'Method 1: Tone = await require("tone@14.8.49/build/Tone.js")'
-            );
-            console.log(
-              'Method 2: Tone = await import("https://esm.sh/tone@14.8.49").then(m => m.default)'
-            );
-            console.log(
-              'Method 3: Tone = await import("https://cdn.skypack.dev/tone@14.8.49").then(m => m.default)'
-            );
-            return false;
-          }
-        } else {
-          console.log(
-            "[PLAYER] Using existing Tone.js, version:",
-            existingTone.version || "unknown"
-          );
-          window.Tone = existingTone;
-        }
-        const toneInstance = window.Tone || existingTone;
-        if (toneInstance) {
-          Tone2 = toneInstance;
-          console.log("[PLAYER] Available Tone constructors:", {
-            PolySynth: typeof Tone2.PolySynth,
-            Synth: typeof Tone2.Synth,
-            Part: typeof Tone2.Part,
-            Transport: typeof Tone2.Transport,
-            start: typeof Tone2.start,
-            context: !!Tone2.context
-          });
-          console.log(
-            "[PLAYER] Tone.js initialized, context state:",
-            Tone2.context ? Tone2.context.state : "no context"
-          );
-          if (isIOS()) {
-            console.log(
-              "[PLAYER] iOS device detected - audio context will start on user interaction"
-            );
-          }
-          return true;
-        }
-      }
-      console.warn("Tone.js not available");
-      return false;
-    };
-    const setupAudio = () => {
-      if (!Tone2) {
-        console.warn("[PLAYER] Tone.js not available, cannot setup audio");
-        return;
-      }
-      const missingConstructors = [];
-      if (!Tone2.PolySynth)
-        missingConstructors.push("PolySynth");
-      if (!Tone2.Synth)
-        missingConstructors.push("Synth");
-      if (!Tone2.Part)
-        missingConstructors.push("Part");
-      if (!Tone2.Transport)
-        missingConstructors.push("Transport");
-      if (missingConstructors.length > 0) {
-        console.error(
-          "[PLAYER] Tone.js is missing required constructors:",
-          missingConstructors
-        );
-        console.error(
-          "[PLAYER] Available Tone properties:",
-          Object.keys(Tone2).filter((k) => typeof Tone2[k] === "function").slice(0, 20)
-        );
-        console.error("[PLAYER] Tone object:", Tone2);
-        console.error(
-          "[PLAYER] This usually means Tone.js did not load correctly. Try refreshing the page or loading Tone.js manually."
-        );
-        return;
-      }
-      Tone2.Transport.bpm.value = metadata.tempo;
-      console.log(
-        `[PLAYER] Set Transport BPM to ${metadata.tempo} before building instruments`
-      );
-      if (!graphInstruments) {
-        graphInstruments = buildAudioGraphInstruments();
-        if (graphInstruments) {
-          const samplerIds = Object.keys(graphInstruments).filter(
-            (k) => graphInstruments[k] && graphInstruments[k].name === "Sampler"
-          );
-          if (samplerIds.length > 0) {
-            console.log(
-              "[PLAYER] Using audioGraph Samplers for tracks with synthRef:",
-              samplerIds
-            );
-          }
-        }
-      }
-      console.log("[PLAYER] Cleaning up existing audio...", {
-        synths: synths.length,
-        parts: parts.length
-      });
-      Tone2.Transport.stop();
-      Tone2.Transport.position = 0;
-      parts.forEach((p, index) => {
-        try {
-          p.stop();
-        } catch (e) {
-          console.warn(`[PLAYER] Failed to stop part ${index}:`, e);
-        }
-      });
-      parts.forEach((p, index) => {
-        try {
-          p.dispose();
-        } catch (e) {
-          console.warn(`[PLAYER] Failed to dispose part ${index}:`, e);
-        }
-      });
-      synths.forEach((s, index) => {
-        if (!graphInstruments || !Object.values(graphInstruments).includes(s)) {
-          try {
-            if (s.disconnect && typeof s.disconnect === "function") {
-              s.disconnect();
-            }
-            s.dispose();
-          } catch (e) {
-            console.warn(`[PLAYER] Failed to dispose synth ${index}:`, e);
-          }
-        }
-      });
-      synths = [];
-      parts = [];
-      console.log("[PLAYER] Audio cleanup completed");
-      console.log("[PLAYER] Converted tracks:", convertedTracks.length);
-      convertedTracks.forEach((trackConfig) => {
-        const {
-          originalTrackIndex,
-          voiceIndex,
-          totalVoices,
-          trackInfo,
-          synthConfig,
-          partEvents
-        } = trackConfig;
-        const originalTrack = originalTracksSource[originalTrackIndex] || {};
-        const synthRef = originalTrack.synthRef;
-        const secPerBeat = 60 / metadata.tempo;
-        const normalizedEvents = (partEvents || []).map((ev) => {
-          const time = typeof ev.time === "number" ? ev.time * secPerBeat : ev.time;
-          const duration = typeof ev.duration === "number" ? ev.duration * secPerBeat : ev.duration;
-          return { ...ev, time, duration };
-        });
-        let synth = null;
-        if (synthRef && graphInstruments && graphInstruments[synthRef]) {
-          synth = graphInstruments[synthRef];
-        } else {
-          const selectedSynth = synthSelectors[originalTrackIndex] ? synthSelectors[originalTrackIndex].value : synthConfig.type;
-          try {
-            if (selectedSynth.startsWith("AudioGraph: ")) {
-              const audioGraphId = selectedSynth.substring(12);
-              if (graphInstruments && graphInstruments[audioGraphId]) {
-                synth = graphInstruments[audioGraphId];
-                console.log(
-                  `[PLAYER] Using audioGraph instrument: ${audioGraphId}`
-                );
-              } else {
-                throw new Error(
-                  `AudioGraph instrument ${audioGraphId} not found`
-                );
-              }
-            } else if (selectedSynth.startsWith("GM: ")) {
-              const instrumentName = selectedSynth.substring(4);
-              const gmInstrument = gmInstruments.find(
-                (inst) => inst.name === instrumentName
-              );
-              if (gmInstrument) {
-                console.log(`[PLAYER] Loading GM instrument: ${instrumentName}`);
-                const samplerUrls = generateSamplerUrls(
-                  gmInstrument.program,
-                  CDN_SOURCES[0],
-                  [36, 84],
-                  "balanced"
-                );
-                console.log(
-                  `[PLAYER] Loading GM instrument ${instrumentName} with ${Object.keys(samplerUrls).length} samples`
-                );
-                console.log(
-                  `[PLAYER] Sample notes:`,
-                  Object.keys(samplerUrls).sort()
-                );
-                synth = new Tone2.Sampler({
-                  urls: samplerUrls,
-                  onload: () => console.log(
-                    `[PLAYER] GM instrument ${instrumentName} loaded successfully`
-                  ),
-                  onerror: (error) => {
-                    console.error(
-                      `[PLAYER] Failed to load GM instrument ${instrumentName}:`,
-                      error
-                    );
-                  }
-                }).toDestination();
-              } else {
-                throw new Error(`GM instrument ${instrumentName} not found`);
-              }
-            } else {
-              const synthType = synthConfig.reason === "glissando_compatibility" ? synthConfig.type : selectedSynth;
-              if (!Tone2[synthType] || typeof Tone2[synthType] !== "function") {
-                throw new Error(`Tone.${synthType} is not a constructor`);
-              }
-              synth = new Tone2[synthType]().toDestination();
-              if (synthConfig.reason === "glissando_compatibility" && voiceIndex === 0) {
-                console.warn(
-                  `[MULTIVOICE] Using ${synthType} instead of ${synthConfig.original} for glissando in ${trackInfo.label}`
-                );
-              }
-            }
-          } catch (error) {
-            console.warn(
-              `Failed to create ${selectedSynth}, using PolySynth:`,
-              error
-            );
-            try {
-              if (!Tone2.PolySynth || typeof Tone2.PolySynth !== "function") {
-                throw new Error("Tone.PolySynth is not available");
-              }
-              synth = new Tone2.PolySynth().toDestination();
-            } catch (fallbackError) {
-              console.error(
-                "Fatal: Cannot create any synth, Tone.js may not be properly loaded:",
-                fallbackError
-              );
-              return;
-            }
-          }
-        }
-        synths.push(synth);
-        if (totalVoices > 1) {
-          console.log(
-            `[MULTIVOICE] Track "${trackInfo.label}" voice ${voiceIndex + 1}: ${partEvents.length} notes`
-          );
-        }
-        const part = new Tone2.Part((time, note) => {
-          if (Array.isArray(note.pitch)) {
-            note.pitch.forEach((n) => {
-              let noteName = "C4";
-              if (typeof n === "number") {
-                noteName = Tone2.Frequency(n, "midi").toNote();
-              } else if (typeof n === "string") {
-                noteName = n;
-              } else if (Array.isArray(n) && typeof n[0] === "string") {
-                noteName = n[0];
-              }
-              synth.triggerAttackRelease(noteName, note.duration, time);
-            });
-          } else if (Array.isArray(note.modulations) && note.modulations.some(
-            (m) => m.type === "pitch" && (m.subtype === "glissando" || m.subtype === "portamento") && (m.to !== void 0 || m.target !== void 0)
-          )) {
-            let noteName = typeof note.pitch === "number" ? Tone2.Frequency(note.pitch, "midi").toNote() : note.pitch;
-            const gliss = note.modulations.find(
-              (m) => m.type === "pitch" && (m.subtype === "glissando" || m.subtype === "portamento") && (m.to !== void 0 || m.target !== void 0)
-            );
-            const glissTarget = gliss && (gliss.to !== void 0 ? gliss.to : gliss.target);
-            let targetName = typeof glissTarget === "number" ? Tone2.Frequency(glissTarget, "midi").toNote() : glissTarget;
-            console.log("[PLAYER] Glissando", {
-              fromNote: noteName,
-              toNote: targetName,
-              duration: note.duration,
-              time
-            });
-            console.log(
-              "[PLAYER] Glissando effect starting from",
-              noteName,
-              "to",
-              targetName
-            );
-            synth.triggerAttack(noteName, time, note.velocity || 0.8);
-            const startFreq = Tone2.Frequency(noteName).toFrequency();
-            const endFreq = Tone2.Frequency(targetName).toFrequency();
-            const totalCents = 1200 * Math.log2(endFreq / startFreq);
-            if (synth.detune && synth.detune.setValueAtTime && synth.detune.linearRampToValueAtTime) {
-              synth.detune.setValueAtTime(0, time);
-              synth.detune.linearRampToValueAtTime(
-                totalCents,
-                time + note.duration
-              );
-              console.log(
-                "[PLAYER] Applied detune glissando:",
-                totalCents,
-                "cents over",
-                note.duration,
-                "beats"
-              );
-            } else {
-              const startMidi = Tone2.Frequency(noteName).toMidi();
-              const endMidi = Tone2.Frequency(targetName).toMidi();
-              const steps = Math.max(3, Math.abs(endMidi - startMidi));
-              const stepDuration = note.duration / steps;
-              for (let i = 1; i < steps; i++) {
-                const ratio = i / (steps - 1);
-                const currentFreq = startFreq * Math.pow(endFreq / startFreq, ratio);
-                const currentNote = Tone2.Frequency(currentFreq).toNote();
-                const currentTime2 = time + i * stepDuration;
-                synth.triggerAttackRelease(
-                  currentNote,
-                  stepDuration * 0.8,
-                  currentTime2,
-                  (note.velocity || 0.8) * 0.7
-                );
-              }
-              console.log(
-                "[PLAYER] Applied chromatic glissando with",
-                steps,
-                "steps"
-              );
-            }
-            synth.triggerRelease(time + note.duration);
-          } else {
-            let noteName = "C4";
-            if (typeof note.pitch === "number") {
-              noteName = Tone2.Frequency(note.pitch, "midi").toNote();
-            } else if (typeof note.pitch === "string") {
-              noteName = note.pitch;
-            } else if (Array.isArray(note.pitch) && typeof note.pitch[0] === "string") {
-              noteName = note.pitch[0];
-            }
-            let noteDuration = note.duration;
-            let noteVelocity = note.velocity || 0.8;
-            const mods = Array.isArray(note.modulations) ? note.modulations : [];
-            const durScale = mods.find(
-              (m) => m.type === "durationScale" && typeof m.factor === "number"
-            );
-            if (durScale) {
-              noteDuration = note.duration * durScale.factor;
-            }
-            const velBoost = mods.find(
-              (m) => m.type === "velocityBoost" && typeof m.amountBoost === "number"
-            );
-            if (velBoost) {
-              noteVelocity = Math.min(noteVelocity + velBoost.amountBoost, 1);
-            }
-            synth.triggerAttackRelease(
-              noteName,
-              noteDuration,
-              time,
-              noteVelocity
-            );
-          }
-        }, normalizedEvents);
-        parts.push(part);
-      });
-      Tone2.Transport.loopEnd = totalDuration;
-      Tone2.Transport.loop = true;
-      Tone2.Transport.stop();
-      Tone2.Transport.position = 0;
-      totalTime.textContent = formatTime(totalDuration);
-    };
-    let lastTimelineUpdate = 0;
-    const TIMELINE_UPDATE_INTERVAL = TIMELINE_CONFIG.UPDATE_INTERVAL;
-    const updateTimeline = () => {
-      const now = performance.now();
-      const shouldUpdate = now - lastTimelineUpdate >= TIMELINE_UPDATE_INTERVAL;
-      if (Tone2 && isPlaying) {
-        const loopSeconds = typeof Tone2.Transport.loopEnd === "number" ? Tone2.Transport.loopEnd : Tone2.Time(Tone2.Transport.loopEnd).toSeconds();
-        if (shouldUpdate) {
-          const elapsed = Tone2.Transport.seconds % loopSeconds;
-          const progress = elapsed / loopSeconds * 100;
-          timeline.value = Math.min(progress, 100);
-          currentTime.textContent = formatTime(elapsed);
-          totalTime.textContent = formatTime(loopSeconds);
-          lastTimelineUpdate = now;
-        }
-        if (Tone2.Transport.state === "started" && isPlaying) {
-          requestAnimationFrame(updateTimeline);
-        } else if (Tone2.Transport.state === "stopped" || Tone2.Transport.state === "paused") {
-          if (shouldUpdate) {
-            const elapsed = Tone2.Transport.seconds % loopSeconds;
-            const progress = elapsed / loopSeconds * 100;
-            timeline.value = Math.min(progress, 100);
-            currentTime.textContent = formatTime(elapsed);
-            lastTimelineUpdate = now;
-          }
-          if (Tone2.Transport.state === "stopped") {
-            Tone2.Transport.seconds = 0;
-            timeline.value = 0;
-            currentTime.textContent = formatTime(0);
-            isPlaying = false;
-            playButton.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-play"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg>`;
-          }
-        }
-      }
-    };
-    playButton.addEventListener("click", async () => {
-      if (!Tone2) {
-        if (await initializeTone()) {
-          setupAudio();
-        } else {
-          console.error("[PLAYER] Failed to initialize Tone.js");
-          return;
-        }
-      }
-      if (isPlaying) {
-        console.log("[PLAYER] Pausing playback...");
-        Tone2.Transport.pause();
-        isPlaying = false;
-        playButton.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-play"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg>`;
-        console.log("[PLAYER] Playback paused");
+      if (useResponsive) {
+        renderOptions.responsive = "resize";
       } else {
-        if (!Tone2.context || Tone2.context.state !== "running") {
-          try {
-            await Tone2.start();
-            console.log(
-              "[PLAYER] Audio context started:",
-              Tone2.context ? Tone2.context.state : "unknown"
-            );
-            if (Tone2.context && typeof Tone2.context.resume === "function") {
-              await Tone2.context.resume();
-              console.log("[PLAYER] Audio context resumed for iOS compatibility");
-            }
-          } catch (error) {
-            console.error("[PLAYER] Failed to start audio context:", error);
-            let errorMsg = "Failed to start audio. ";
-            if (isIOS()) {
-              errorMsg += "On iOS, please ensure your device isn't in silent mode and try again.";
-            } else {
-              errorMsg += "Please check your audio settings and try again.";
-            }
-            alert(errorMsg);
-            return;
-          }
-        }
-        if (synths.length === 0) {
-          console.log("[PLAYER] No synths found, setting up audio...");
-          setupAudio();
-        }
-        if (Tone2.Transport.state !== "paused") {
-          Tone2.Transport.stop();
-          Tone2.Transport.position = 0;
-          console.log("[PLAYER] Starting from beginning");
-        } else {
-          console.log("[PLAYER] Resuming from paused position");
-        }
-        console.log(
-          "[PLAYER] Transport state before start:",
-          Tone2.Transport.state
-        );
-        console.log(
-          "[PLAYER] Transport position reset to:",
-          Tone2.Transport.position
-        );
-        console.log(
-          "[PLAYER] Audio context state:",
-          Tone2.context ? Tone2.context.state : "unknown"
-        );
-        console.log("[PLAYER] Parts count:", parts.length);
-        console.log("[PLAYER] Synths count:", synths.length);
-        if (graphInstruments) {
-          const samplers = Object.values(graphInstruments).filter(
-            (inst) => inst && inst.name === "Sampler"
-          );
-          if (samplers.length > 0 && samplerLoadPromises.length > 0) {
-            console.log(
-              `[PLAYER] Waiting for ${samplers.length} sampler(s) to load...`
-            );
-            try {
-              await Promise.all(samplerLoadPromises);
-              console.log("[PLAYER] All samplers loaded.");
-            } catch (e) {
-              console.warn("[PLAYER] Sampler load wait error:", e);
-              return;
-            }
-          }
-        }
-        if (parts.length === 0) {
-          console.error(
-            "[PLAYER] No parts available to start. This usually means setupAudio() failed."
-          );
-          console.error(
-            "[PLAYER] Try refreshing the page or check if Tone.js is properly loaded."
-          );
-          return;
-        }
-        if (Tone2.Transport.state !== "paused") {
-          parts.forEach((part, index) => {
-            if (!part || typeof part.start !== "function") {
-              console.error(`[PLAYER] Part ${index} is invalid:`, part);
-              return;
-            }
-            try {
-              part.start(0);
-            } catch (error) {
-              console.error(`[PLAYER] Failed to start part ${index}:`, error);
-            }
-          });
-        }
-        Tone2.Transport.start();
-        isPlaying = true;
-        playButton.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-pause"><circle cx="12" cy="12" r="10"/><line x1="10" x2="10" y1="15" y2="9"/><line x1="14" x2="14" y1="15" y2="9"/></svg>`;
-        updateTimeline();
+        renderOptions.staffwidth = finalWidth;
+        renderOptions.scale = finalScale;
       }
-    });
-    stopButton.addEventListener("click", async () => {
-      if (!Tone2) {
-        return;
-      }
-      console.log("[PLAYER] Stopping playback completely...");
-      Tone2.Transport.stop();
-      Tone2.Transport.cancel();
-      Tone2.Transport.position = 0;
-      parts.forEach((part, index) => {
-        try {
-          part.stop();
-        } catch (e) {
-          console.warn(
-            `[PLAYER] Failed to stop part ${index} during complete stop:`,
-            e
-          );
-        }
-      });
-      isPlaying = false;
-      timeline.value = 0;
-      currentTime.textContent = formatTime(0);
-      playButton.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-play"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg>`;
-      console.log("[PLAYER] Playback stopped completely");
-    });
-    timeline.addEventListener("input", () => {
-      if (Tone2 && totalDuration > 0) {
-        const time = timeline.value / 100 * totalDuration;
-        const wasPlaying = isPlaying;
-        if (wasPlaying) {
-          Tone2.Transport.pause();
-        }
-        Tone2.Transport.seconds = time;
-        currentTime.textContent = formatTime(time);
-        if (wasPlaying) {
-          setTimeout(() => {
-            Tone2.Transport.start();
-          }, 50);
-        }
-      }
-    });
-    bpmInput.addEventListener("change", () => {
-      const newTempo = parseInt(bpmInput.value);
-      if (Tone2 && newTempo >= 60 && newTempo <= 240) {
-        console.log(`[PLAYER] Tempo changed to ${newTempo} BPM`);
-        Tone2.Transport.bpm.value = newTempo;
-        console.log(`[PLAYER] Tempo changed to ${newTempo} BPM`);
-      } else {
-        bpmInput.value = Tone2 ? Tone2.Transport.bpm.value : tempo;
-      }
-    });
-    synthSelectors.forEach((select) => {
-      select.addEventListener("change", () => {
-        if (Tone2 && synths.length > 0) {
-          console.log(
-            "[PLAYER] Synthesizer selection changed, reinitializing audio..."
-          );
-          const wasPlaying = isPlaying;
-          if (isPlaying) {
-            Tone2.Transport.stop();
-            isPlaying = false;
-          }
-          setupAudio();
-          if (wasPlaying) {
-            setTimeout(() => {
-              Tone2.Transport.start();
-              isPlaying = true;
-              playButton.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-pause"><circle cx="12" cy="12" r="10"/><line x1="10" x2="10" y1="15" y2="9"/><line x1="14" x2="14" y1="15" y2="9"/></svg>`;
-            }, 100);
-          } else {
-            playButton.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-play"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg>`;
-          }
-        }
-      });
-    });
-    const handleMIDIDownload = async () => {
-      try {
-        const { midi: midi2 } = await Promise.resolve().then(() => (init_converters(), converters_exports));
-        const midiData = midi2(composition);
-        let ToneMidi;
-        if (typeof __require !== "undefined") {
-          ToneMidi = await __require("https://esm.sh/@tonejs/midi@2.0.28");
-        } else {
-          const module = await import("https://esm.sh/@tonejs/midi@2.0.28");
-          ToneMidi = module.default || module;
-        }
-        const midiFile = new ToneMidi.Midi();
-        midiFile.header.setTempo(midiData.header.bpm);
-        midiData.tracks.forEach((trackData) => {
-          const track = midiFile.addTrack();
-          track.name = trackData.label || "Track";
-          trackData.notes.forEach((note) => {
-            track.addNote({
-              midi: typeof note.pitch === "number" ? note.pitch : 60,
-              time: note.time || 0,
-              duration: note.duration || 0.5,
-              velocity: note.velocity || 0.8
-            });
-          });
-        });
-        const blob = new Blob([midiFile.toArray()], { type: "audio/midi" });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `${composition.metadata?.title || "composition"}.mid`;
-        a.click();
-        URL.revokeObjectURL(url);
-        console.log("\u2713 MIDI download complete");
-      } catch (error) {
-        console.error("MIDI download error:", error);
-        alert("Failed to download MIDI: " + error.message);
-      }
-    };
-    const handleWavDownload = async () => {
-      try {
-        const ToneLib = window.Tone;
-        if (!ToneLib || !ToneLib.Offline) {
-          alert(
-            "Tone.js not loaded - cannot generate WAV. Try playing the composition first."
-          );
-          return;
-        }
-        console.log("Rendering WAV offline...");
-        const buffer = await ToneLib.Offline(async ({ transport }) => {
-          transport.bpm.value = metadata.tempo;
-          const offlineSynths = [];
-          convertedTracks.forEach((trackConfig) => {
-            const { originalTrackIndex, partEvents } = trackConfig;
-            const originalTrack = originalTracksSource[originalTrackIndex] || {};
-            const synthRef = originalTrack.synthRef;
-            let synth = null;
-            if (synthRef && graphInstruments && graphInstruments[synthRef]) {
-              synth = graphInstruments[synthRef];
-            } else {
-              const selectedSynth = synthSelectors[originalTrackIndex]?.value || "PolySynth";
-              if (selectedSynth.startsWith("GM: ")) {
-                synth = new ToneLib.PolySynth().toDestination();
-              } else {
-                try {
-                  synth = new ToneLib[selectedSynth]().toDestination();
-                } catch {
-                  synth = new ToneLib.PolySynth().toDestination();
-                }
-              }
-            }
-            offlineSynths.push(synth);
-            partEvents.forEach((note) => {
-              const time = typeof note.time === "number" ? note.time * (60 / metadata.tempo) : note.time;
-              const duration = typeof note.duration === "number" ? note.duration * (60 / metadata.tempo) : note.duration;
-              if (Array.isArray(note.pitch)) {
-                const notes = note.pitch.map(
-                  (p) => typeof p === "number" ? ToneLib.Frequency(p, "midi").toNote() : p
-                );
-                synth.triggerAttackRelease(
-                  notes,
-                  duration,
-                  time,
-                  note.velocity || 0.8
-                );
-              } else {
-                const noteName = typeof note.pitch === "number" ? ToneLib.Frequency(note.pitch, "midi").toNote() : note.pitch;
-                synth.triggerAttackRelease(
-                  noteName,
-                  duration,
-                  time,
-                  note.velocity || 0.8
-                );
-              }
-            });
-          });
-          transport.start(0);
-        }, totalDuration + 1);
-        const wavBlob = await audioBufferToWav(buffer);
-        const url = URL.createObjectURL(wavBlob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `${composition.metadata?.title || "composition"}.wav`;
-        a.click();
-        URL.revokeObjectURL(url);
-        console.log("\u2713 WAV download complete");
-      } catch (error) {
-        console.error("WAV download error:", error);
-        alert("Failed to download WAV: " + error.message);
-      }
-    };
-    function audioBufferToWav(buffer) {
-      const numberOfChannels = buffer.numberOfChannels;
-      const sampleRate = buffer.sampleRate;
-      const length = buffer.length * numberOfChannels * 2;
-      const arrayBuffer = new ArrayBuffer(44 + length);
-      const view = new DataView(arrayBuffer);
-      writeString(view, 0, "RIFF");
-      view.setUint32(4, 36 + length, true);
-      writeString(view, 8, "WAVE");
-      writeString(view, 12, "fmt ");
-      view.setUint32(16, 16, true);
-      view.setUint16(20, 1, true);
-      view.setUint16(22, numberOfChannels, true);
-      view.setUint32(24, sampleRate, true);
-      view.setUint32(28, sampleRate * numberOfChannels * 2, true);
-      view.setUint16(32, numberOfChannels * 2, true);
-      view.setUint16(34, 16, true);
-      writeString(view, 36, "data");
-      view.setUint32(40, length, true);
-      let offset = 44;
-      for (let i = 0; i < buffer.length; i++) {
-        for (let channel = 0; channel < numberOfChannels; channel++) {
-          const sample = Math.max(
-            -1,
-            Math.min(1, buffer.getChannelData(channel)[i])
-          );
-          view.setInt16(offset, sample * 32767, true);
-          offset += 2;
-        }
-      }
-      return new Blob([arrayBuffer], { type: "audio/wav" });
-    }
-    function writeString(view, offset, string) {
-      for (let i = 0; i < string.length; i++) {
-        view.setUint8(offset + i, string.charCodeAt(i));
-      }
-    }
-    downloadMIDIButton.addEventListener("click", handleMIDIDownload);
-    downloadWavButton.addEventListener("click", handleWavDownload);
-    downloadMIDIButtonVertical.addEventListener("click", handleMIDIDownload);
-    downloadWavButtonVertical.addEventListener("click", handleWavDownload);
-    const initialTone = typeof window !== "undefined" && window.Tone || (typeof Tone2 !== "undefined" ? Tone2 : null);
-    if (initialTone || preloadTone) {
-      initializeTone().then(() => {
-        setupAudio();
-        if (autoplay) {
-          setTimeout(() => {
-            playButton.click();
-          }, 500);
-        }
-      });
-    }
-    if (autoplay && !initialTone && !preloadTone) {
-      const autoplayInterval = setInterval(() => {
-        const currentTone = typeof window !== "undefined" && window.Tone || (typeof Tone2 !== "undefined" ? Tone2 : null);
-        if (currentTone) {
-          clearInterval(autoplayInterval);
-          setTimeout(() => {
-            playButton.click();
-          }, 500);
-        }
-      }, 100);
-      setTimeout(() => {
-        clearInterval(autoplayInterval);
-      }, 1e4);
+      ABCJS.renderAbc(notationDiv, abcNotation, renderOptions);
+    } catch (error) {
+      console.error("[SCORE] Render error:", error);
+      notationDiv.innerHTML = `<p style="color:#ff6b6b">Error: ${error.message}</p>`;
     }
     return container;
   }
 
   // src/index.js
-  init_converters();
+  var createPlayer2;
+  async function __loadPlayer() {
+    if (!createPlayer2) {
+      const playerModule = await Promise.resolve().then(() => (init_music_player(), music_player_exports));
+      createPlayer2 = playerModule.createPlayer;
+    }
+    return createPlayer2;
+  }
   var GM_INSTRUMENTS2;
   var createGMInstrumentNode2;
   var findGMProgramByName2;
@@ -10983,194 +12354,44 @@ var JmonStudio = (() => {
     const validator = new JmonValidator();
     return validator.validateAndNormalize(obj);
   }
-  function render(jmonObj, options = {}) {
+  async function render(jmonObj, options = {}) {
     if (!jmonObj || typeof jmonObj !== "object") {
       throw new Error("render() requires a valid JMON object");
     }
-    return createPlayer(jmonObj, options);
+    const player = await __loadPlayer();
+    return player(jmonObj, options);
   }
   function play(jmonObj, options = {}) {
-    const playOptions = { autoplay: false, ...options };
-    return createPlayer(jmonObj, playOptions);
+    const { Tone: externalTone, autoplay = false, ...otherOptions } = options;
+    const playOptions = { Tone: externalTone, autoplay, ...otherOptions };
+    const toneAvailable = externalTone || typeof window !== "undefined" && window.Tone || (typeof globalThis.Tone !== "undefined" ? globalThis.Tone : null);
+    const needsAsync = !toneAvailable || autoplay || playOptions.preloadTone;
+    if (!needsAsync && toneAvailable) {
+      if (!createPlayer2) {
+        return (async () => {
+          const playerModule = await Promise.resolve().then(() => (init_music_player(), music_player_exports));
+          createPlayer2 = playerModule.createPlayer;
+          return createPlayer2(jmonObj, playOptions);
+        })();
+      }
+      return createPlayer2(jmonObj, playOptions);
+    }
+    return (async () => {
+      const player = await __loadPlayer();
+      return player(jmonObj, playOptions);
+    })();
   }
-  function score(jmonObj, renderingEngine = {}, options = {}) {
-    let engineType = "unknown";
-    let engineInstance = null;
-    if (renderingEngine && typeof renderingEngine === "string") {
-      engineType = renderingEngine.toLowerCase();
-    } else if (renderingEngine && (typeof renderingEngine === "object" || typeof renderingEngine === "function")) {
-      if (renderingEngine.Renderer || renderingEngine.Flow || renderingEngine.VF || renderingEngine.Factory || renderingEngine.Stave || renderingEngine.StaveNote || renderingEngine.Voice || renderingEngine.Formatter || renderingEngine.Vex && (renderingEngine.Vex.Flow || renderingEngine.Vex) || // Check for common VexFlow object patterns
-      renderingEngine.default && (renderingEngine.default.Renderer || renderingEngine.default.Stave || renderingEngine.default.VF)) {
-        engineType = "vexflow";
-        engineInstance = renderingEngine;
-      }
-    } else if (typeof window !== "undefined") {
-      if (window.VF || window.VexFlow || window.Vex && (window.Vex.Flow || window.Vex) || window.Flow && window.Flow.Factory) {
-        engineType = "vexflow";
-        engineInstance = window.VF || window.VexFlow || window.Vex && (window.Vex.Flow || window.Vex) || window;
-      }
+  function score2(jmonObj, options = {}) {
+    if (typeof document === "undefined") {
+      throw new Error("Score rendering requires a DOM environment.");
     }
-    if (engineType === "vexflow") {
-      console.log("VexFlow engine detected, proceeding with rendering");
-      const hasDocument = typeof document !== "undefined";
-      let container;
-      if (hasDocument) {
-        container = document.createElement("div");
-        const elementId = `vexflow-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-        container.id = elementId;
-        container.style.display = "block";
-        container.style.position = "static";
-        container.style.visibility = "visible";
-        container.style.width = "fit-content";
-        container.style.height = "fit-content";
-        try {
-          try {
-            const width2 = options.width || 800;
-            const height2 = options.height || 200;
-            const instructions = convertToVexFlow(jmonObj, { elementId, width: width2, height: height2 });
-            if (instructions && instructions.type === "vexflow" && typeof instructions.render === "function") {
-              if (instructions.config) {
-                instructions.config.element = container;
-              }
-              instructions.render(engineInstance);
-              if (options.outputType) {
-                const svg = container.querySelector("svg");
-                if (!svg)
-                  return container;
-                if (options.outputType === "svg") {
-                  return svg;
-                } else if (options.outputType === "clonedSvg") {
-                  const clonedSvg = svg.cloneNode(true);
-                  clonedSvg.style.display = "block";
-                  clonedSvg.style.maxWidth = "100%";
-                  clonedSvg.style.height = "auto";
-                  return clonedSvg;
-                } else if (options.outputType === "div") {
-                  return container;
-                }
-              }
-              return container;
-            }
-          } catch (e) {
-          }
-          const VF = engineInstance || typeof window !== "undefined" && (window.VF || window.VexFlow || window.Vex && (window.Vex.Flow || window.Vex));
-          if (!VF || !VF.Renderer) {
-            throw new Error("VexFlow not properly loaded");
-          }
-          const width = options.width || 800;
-          const height = options.height || 200;
-          const renderer = new VF.Renderer(container, VF.Renderer.Backends.SVG);
-          renderer.resize(width, height);
-          const context = renderer.getContext();
-          const stave = new VF.Stave(10, 40, width - 50);
-          stave.addClef("treble");
-          if (jmonObj.timeSignature) {
-            stave.addTimeSignature(jmonObj.timeSignature);
-          }
-          if (jmonObj.keySignature && jmonObj.keySignature !== "C") {
-            stave.addKeySignature(jmonObj.keySignature);
-          }
-          stave.setContext(context).draw();
-          const notes = (jmonObj.notes || []).map((note) => {
-            if (!note.pitch)
-              return null;
-            const midiToVF = (midi2) => {
-              const noteNames = ["c", "c#", "d", "d#", "e", "f", "f#", "g", "g#", "a", "a#", "b"];
-              const octave = Math.floor(midi2 / 12) - 1;
-              const noteIndex = midi2 % 12;
-              return noteNames[noteIndex].replace("#", "#") + "/" + octave;
-            };
-            const durationToVF = (duration) => {
-              if (duration >= 4)
-                return "w";
-              if (duration >= 2)
-                return "h";
-              if (duration >= 1)
-                return "q";
-              if (duration >= 0.5)
-                return "8";
-              return "16";
-            };
-            const keys = Array.isArray(note.pitch) ? note.pitch.map(midiToVF) : [midiToVF(note.pitch)];
-            return new VF.StaveNote({
-              keys,
-              duration: durationToVF(note.duration || 1)
-            });
-          }).filter(Boolean);
-          if (notes.length > 0) {
-            try {
-              const voice = new VF.Voice({
-                num_beats: 4,
-                beat_value: 4
-              });
-              if (typeof voice.setMode === "function" && VF.Voice && VF.Voice.Mode && VF.Voice.Mode.SOFT !== void 0) {
-                voice.setMode(VF.Voice.Mode.SOFT);
-              } else if (typeof voice.setStrict === "function") {
-                voice.setStrict(false);
-              }
-              if (typeof voice.addTickables === "function") {
-                voice.addTickables(notes);
-              }
-              const formatter = new VF.Formatter();
-              if (typeof formatter.joinVoices === "function" && typeof formatter.format === "function") {
-                formatter.joinVoices([voice]).format([voice], width - 80);
-              }
-              if (typeof voice.draw === "function") {
-                voice.draw(context, stave);
-              }
-            } catch (voiceError) {
-              console.warn("VexFlow voice/formatter error:", voiceError);
-              try {
-                let x = 60;
-                notes.forEach((n) => {
-                  if (typeof n.setStave === "function")
-                    n.setStave(stave);
-                  if (typeof n.setContext === "function")
-                    n.setContext(context);
-                  if (typeof n.preFormat === "function")
-                    n.preFormat();
-                  if (typeof n.setX === "function")
-                    n.setX(x);
-                  if (typeof n.draw === "function")
-                    n.draw();
-                  x += 40;
-                });
-              } catch (manualError) {
-                console.warn("Manual note drawing failed:", manualError);
-              }
-            }
-          }
-          if (options.outputType) {
-            const svg = container.querySelector("svg");
-            if (!svg)
-              return container;
-            if (options.outputType === "svg") {
-              return svg;
-            } else if (options.outputType === "clonedSvg") {
-              const clonedSvg = svg.cloneNode(true);
-              clonedSvg.style.display = "block";
-              clonedSvg.style.maxWidth = "100%";
-              clonedSvg.style.height = "auto";
-              return clonedSvg;
-            } else if (options.outputType === "div") {
-              return container;
-            }
-          }
-          return container;
-        } catch (error) {
-          throw new Error(`VexFlow rendering failed: ${error.message}. Please check your VexFlow instance.`);
-        }
-      } else {
-        throw new Error("VexFlow rendering requires a DOM environment. Use jm.converters.vexflow() for data conversion.");
-      }
-    }
-    throw new Error("Score rendering requires VexFlow. Please provide a VexFlow instance as the second parameter: jm.score(piece, vexflow)");
+    return score(jmonObj, options);
   }
   var jm = {
     // Core
     render,
     play,
-    score,
+    score: score2,
     validate: validateJmon,
     // Converters
     converters: {
