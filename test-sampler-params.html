@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Test Sampler Parameters</title>
+  <script src="https://cdn.jsdelivr.net/npm/tone@14.8.49/build/Tone.js"></script>
+</head>
+<body>
+  <h1>Testing Tone.Sampler Parameters</h1>
+  <button id="test">Test Sampler</button>
+  <pre id="output"></pre>
+
+  <script>
+    const output = document.getElementById('output');
+
+    document.getElementById('test').addEventListener('click', async () => {
+      await Tone.start();
+
+      // Create a simple sampler with just one note
+      const sampler = new Tone.Sampler({
+        urls: {
+          C4: "https://tonejs.github.io/audio/salamander/C4.mp3"
+        }
+      }).toDestination();
+
+      await Tone.loaded();
+
+      output.textContent = 'Sampler created. Checking parameters...\n\n';
+
+      // Check what parameters are available
+      output.textContent += `sampler.detune: ${sampler.detune}\n`;
+      output.textContent += `sampler.volume: ${sampler.volume}\n`;
+      output.textContent += `sampler.frequency: ${sampler.frequency}\n\n`;
+
+      // Check the voice structure
+      if (sampler._voices && sampler._voices.length > 0) {
+        const voice = sampler._voices[0];
+        output.textContent += `Voice structure:\n`;
+        output.textContent += `voice.source: ${voice.source}\n`;
+        output.textContent += `voice.detune: ${voice.detune}\n`;
+        output.textContent += `voice.volume: ${voice.volume}\n`;
+      }
+
+      // Try to play a note with detune
+      output.textContent += `\nPlaying C4 with detune automation...\n`;
+
+      const now = Tone.now();
+      sampler.triggerAttack('C4', now);
+
+      // Try to apply glissando with detune
+      if (sampler.detune) {
+        sampler.detune.setValueAtTime(0, now);
+        sampler.detune.linearRampToValueAtTime(200, now + 2);
+        output.textContent += `✓ Detune automation applied\n`;
+      } else {
+        output.textContent += `✗ No detune parameter on sampler\n`;
+      }
+
+      sampler.triggerRelease(now + 2);
+    });
+  </script>
+</body>
+</html>

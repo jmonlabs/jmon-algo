@@ -85,7 +85,7 @@
  */
 export function compilePerformanceTrack(track, options = {}) {
   const { timeSignature = "4/4", tempo = 120 } = options; // reserved for future use
-  const notes = Array.isArray(track?.notes) ? track.notes : [];
+  const notes = Array.isArray(track?.events) ? track.events : Array.isArray(track?.notes) ? track.notes : [];
 
   /** @type {Array<PerformanceModulation>} */
   const modulations = [];
@@ -165,7 +165,10 @@ export function compilePerformanceTrack(track, options = {}) {
         case "portamento": {
           if (isRest) break;
           const fromPitch = toMainPitch(n.pitch);
-          const toPitch = typeof art.target === "number" ? art.target : undefined;
+          // Accept both 'target' (standard) and 'to' (common mistake) for compatibility
+          const toPitch = typeof art.target === "number" ? art.target
+                        : typeof art.to === "number" ? art.to
+                        : undefined;
           if (typeof fromPitch !== "number" || typeof toPitch !== "number") break;
 
           modulations.push({

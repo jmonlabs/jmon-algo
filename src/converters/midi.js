@@ -23,12 +23,13 @@ export class Midi {
             },
             tracks: tracksArray.map(track => {
                 const label = track.label || track.name;
-                const notesSrc = Array.isArray(track.notes) ? track.notes
-                                : (Array.isArray(track) ? track : []);
+                const notesSrc = Array.isArray(track.events) ? track.events
+                                : (Array.isArray(track.notes) ? track.notes
+                                : (Array.isArray(track) ? track : []));
                 const safeNotes = Array.isArray(notesSrc) ? notesSrc : [];
 
                 // Compile performance modulations from declarative articulations
-                const perf = compileEvents({ notes: safeNotes }, { tempo: bpm, timeSignature });
+                const perf = compileEvents({ events: safeNotes }, { tempo: bpm, timeSignature });
 
                 // Flatten to MIDI-friendly note objects (no legacy note.articulation)
                 const notes = safeNotes.map(note => ({
