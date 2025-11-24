@@ -1,12 +1,5 @@
 var __defProp = Object.defineProperty;
 var __getOwnPropNames = Object.getOwnPropertyNames;
-var __require = /* @__PURE__ */ ((x) => typeof require !== "undefined" ? require : typeof Proxy !== "undefined" ? new Proxy(x, {
-  get: (a, b) => (typeof require !== "undefined" ? require : a)[b]
-}) : x)(function(x) {
-  if (typeof require !== "undefined")
-    return require.apply(this, arguments);
-  throw Error('Dynamic require of "' + x + '" is not supported');
-});
 var __esm = (fn, res) => function __init() {
   return fn && (res = (0, fn[__getOwnPropNames(fn)[0]])(fn = 0)), res;
 };
@@ -14,101 +7,6 @@ var __export = (target, all) => {
   for (var name in all)
     __defProp(target, name, { get: all[name], enumerable: true });
 };
-
-// src/utils/jmon-validator.browser.js
-var JmonValidator;
-var init_jmon_validator_browser = __esm({
-  "src/utils/jmon-validator.browser.js"() {
-    JmonValidator = class {
-      constructor() {
-        console.warn(
-          "[JMON] Using simplified browser validator. For full validation, use Node.js environment."
-        );
-      }
-      /**
-       * Basic validation and normalization for browser use
-       * @param {Object} obj - JMON object to validate
-       * @returns {Object} { valid, errors, normalized }
-       */
-      validateAndNormalize(obj) {
-        const errors = [];
-        let normalized = { ...obj };
-        try {
-          if (!obj || typeof obj !== "object") {
-            errors.push("Object must be a valid object");
-            return { valid: false, errors, normalized: null };
-          }
-          if (!normalized.tracks && !normalized.notes) {
-            if (Array.isArray(obj)) {
-              normalized = { tracks: [{ notes: obj }] };
-            } else {
-              normalized.tracks = normalized.tracks || [];
-            }
-          }
-          if (normalized.notes && !normalized.tracks) {
-            normalized.tracks = [{ notes: normalized.notes }];
-            delete normalized.notes;
-          }
-          if (!Array.isArray(normalized.tracks)) {
-            normalized.tracks = [normalized.tracks];
-          }
-          normalized.tracks.forEach((track, trackIndex) => {
-            if (!track.notes) {
-              errors.push(`Track ${trackIndex} missing notes array`);
-              return;
-            }
-            if (!Array.isArray(track.notes)) {
-              errors.push(`Track ${trackIndex} notes must be an array`);
-              return;
-            }
-            track.notes.forEach((note, noteIndex) => {
-              if (typeof note !== "object") {
-                errors.push(
-                  `Track ${trackIndex}, note ${noteIndex}: must be an object`
-                );
-                return;
-              }
-              if (note.pitch === void 0) {
-                note.pitch = null;
-              }
-              if (note.duration === void 0) {
-                note.duration = 1;
-              }
-              if (note.time === void 0) {
-                note.time = 0;
-              }
-            });
-          });
-          normalized.format = normalized.format || "jmon";
-          normalized.version = normalized.version || "1.0";
-          normalized.timeSignature = normalized.timeSignature || "4/4";
-          normalized.keySignature = normalized.keySignature || "C";
-          return {
-            valid: errors.length === 0,
-            errors,
-            normalized
-          };
-        } catch (error) {
-          errors.push(`Validation error: ${error.message}`);
-          return {
-            valid: false,
-            errors,
-            normalized: null
-          };
-        }
-      }
-      /**
-       * Simple validation without normalization
-       * @param {Object} obj - JMON object to validate
-       * @returns {boolean} true if valid
-       */
-      isValid(obj) {
-        const result = this.validateAndNormalize(obj);
-        return result.valid;
-      }
-    };
-  }
-});
 
 // src/algorithms/visualization/plots/PlotRenderer.js
 async function getPlotly() {
@@ -1135,7 +1033,7 @@ var init_LoopVisualizer = __esm({
 // src/algorithms/theory/harmony/PerformanceCompiler.js
 function compilePerformanceTrack(track, options = {}) {
   const { timeSignature = "4/4", tempo = 120 } = options;
-  const notes = Array.isArray(track?.notes) ? track.notes : [];
+  const notes = Array.isArray(track?.events) ? track.events : Array.isArray(track?.notes) ? track.notes : [];
   const modulations = [];
   for (let i = 0; i < notes.length; i++) {
     const n = notes[i];
@@ -1206,7 +1104,7 @@ function compilePerformanceTrack(track, options = {}) {
           if (isRest)
             break;
           const fromPitch = toMainPitch(n.pitch);
-          const toPitch = typeof art.target === "number" ? art.target : void 0;
+          const toPitch = typeof art.target === "number" ? art.target : typeof art.to === "number" ? art.to : void 0;
           if (typeof fromPitch !== "number" || typeof toPitch !== "number")
             break;
           modulations.push({
@@ -1367,720 +1265,7 @@ var init_audio = __esm({
   }
 });
 
-// src/converters/midi.js
-function midi(composition) {
-  return Midi.convert(composition);
-}
-async function downloadMidi(composition, ToneMidi, filename = "composition.mid") {
-  const midiData = Midi.convert(composition);
-  const midiFile = new ToneMidi.Midi();
-  midiFile.header.setTempo(midiData.header.bpm);
-  midiData.tracks.forEach((trackData) => {
-    const track = midiFile.addTrack();
-    track.name = trackData.label || "Track";
-    trackData.notes.forEach((note) => {
-      track.addNote({
-        midi: typeof note.pitch === "number" ? note.pitch : 60,
-        time: note.time || 0,
-        duration: note.duration || 0.5,
-        velocity: note.velocity || 0.8
-      });
-    });
-    if (Array.isArray(trackData.modulations)) {
-      trackData.modulations.forEach((mod) => {
-        if (mod.subtype === "vibrato") {
-          const rate = mod.rate || 5;
-          const depth = mod.depth || 50;
-          const start = mod.start || 0;
-          const end = mod.end || start + 1;
-          const ccValue = Math.min(127, Math.round(depth / 100 * 127));
-          track.addCC({ number: 1, value: ccValue, time: start });
-          track.addCC({ number: 1, value: 0, time: end });
-        }
-        if (mod.subtype === "tremolo") {
-          const rate = mod.rate || 8;
-          const depth = mod.depth || 0.3;
-          const start = mod.start || 0;
-          const end = mod.end || start + 1;
-          const ccValue = Math.min(127, Math.round(depth * 127));
-          track.addCC({ number: 11, value: 127 - ccValue, time: start });
-          track.addCC({ number: 11, value: 127, time: end });
-        }
-        if (mod.subtype === "crescendo" || mod.subtype === "diminuendo") {
-          const startV = mod.startVelocity || 0.8;
-          const endV = mod.endVelocity || 0.8;
-          const start = mod.start || 0;
-          const end = mod.end || start + 1;
-          const startCC = Math.round(startV * 127);
-          const endCC = Math.round(endV * 127);
-          track.addCC({ number: 7, value: startCC, time: start });
-          track.addCC({ number: 7, value: endCC, time: end });
-        }
-      });
-    }
-  });
-  const blob = new Blob([midiFile.toArray()], { type: "audio/midi" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
-}
-var Midi;
-var init_midi = __esm({
-  "src/converters/midi.js"() {
-    init_audio();
-    Midi = class _Midi {
-      static midiToNoteName(midi2) {
-        const noteNames = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
-        const octave = Math.floor(midi2 / 12) - 1;
-        const noteIndex = midi2 % 12;
-        return noteNames[noteIndex] + octave;
-      }
-      static convert(composition) {
-        const bpm = composition.tempo || composition.bpm || 120;
-        const timeSignature = composition.timeSignature || "4/4";
-        const rawTracks = composition.tracks || [];
-        const tracksArray = Array.isArray(rawTracks) ? rawTracks : rawTracks && typeof rawTracks === "object" ? Object.values(rawTracks) : [];
-        return {
-          header: {
-            bpm,
-            timeSignature
-          },
-          tracks: tracksArray.map((track) => {
-            const label = track.label || track.name;
-            const notesSrc = Array.isArray(track.notes) ? track.notes : Array.isArray(track) ? track : [];
-            const safeNotes = Array.isArray(notesSrc) ? notesSrc : [];
-            const perf = compileEvents({ notes: safeNotes }, { tempo: bpm, timeSignature });
-            const notes = safeNotes.map((note) => ({
-              pitch: note.pitch,
-              noteName: typeof note.pitch === "number" ? _Midi.midiToNoteName(note.pitch) : note.pitch,
-              time: note.time,
-              duration: note.duration,
-              velocity: note.velocity || 0.8
-            }));
-            return {
-              label,
-              notes,
-              modulations: perf && Array.isArray(perf.modulations) ? perf.modulations : []
-            };
-          })
-        };
-      }
-    };
-  }
-});
-
-// src/converters/midi-to-jmon.js
-async function midiToJmon(midiData, options = {}) {
-  const isArrayBuffer = typeof ArrayBuffer !== "undefined" && midiData instanceof ArrayBuffer;
-  const isUint8Array = typeof Uint8Array !== "undefined" && midiData instanceof Uint8Array;
-  if (!isArrayBuffer && !isUint8Array) {
-    throw new TypeError("midiToJmon: 'midiData' must be an ArrayBuffer or Uint8Array");
-  }
-  return await MidiToJmon.convert(midiData, options);
-}
-var MidiToJmon;
-var init_midi_to_jmon = __esm({
-  "src/converters/midi-to-jmon.js"() {
-    init_jmon_validator_browser();
-    MidiToJmon = class _MidiToJmon {
-      constructor(options = {}) {
-        this.options = {
-          Tone: null,
-          trackNaming: "auto",
-          // 'auto', 'numbered', 'channel', 'instrument'
-          mergeDrums: true,
-          quantize: null,
-          // e.g., 0.25 for 16th note quantization
-          includeModulations: true,
-          includeTempo: true,
-          includeKeySignature: true,
-          ...options
-        };
-      }
-      /**
-       * Static conversion method
-       * @param {ArrayBuffer|Uint8Array} midiData - MIDI file data
-       * @param {Object} options - Conversion options
-       * @returns {Promise<Object>} JMON composition
-       */
-      static async convert(midiData, options = {}) {
-        const converter = new _MidiToJmon(options);
-        return await converter.convertToJmon(midiData);
-      }
-      /**
-       * Main conversion method
-       * @param {ArrayBuffer|Uint8Array} midiData - MIDI file data
-       * @returns {Promise<Object>} JMON composition
-       */
-      async convertToJmon(midiData) {
-        const Tone2 = await this.initializeTone();
-        let parsed;
-        try {
-          parsed = new Tone2.Midi(midiData);
-        } catch (error) {
-          throw new Error(`Failed to parse MIDI file: ${error.message}`);
-        }
-        const composition = this.buildJmonComposition(parsed, Tone2);
-        const validator = new JmonValidator();
-        const { valid, normalized, errors } = validator.validateAndNormalize(
-          composition
-        );
-        if (!valid) {
-          console.warn("Generated JMON failed validation:", errors);
-        }
-        return valid ? normalized : composition;
-      }
-      /**
-       * Initialize Tone.js instance following music-player.js pattern
-       * @returns {Promise<Object>} Tone.js instance
-       */
-      async initializeTone() {
-        const externalTone = this.options.Tone;
-        if (typeof globalThis.window !== "undefined") {
-          const existingTone = externalTone || globalThis.window.Tone || (typeof Tone !== "undefined" ? Tone : null);
-          if (existingTone) {
-            return existingTone;
-          }
-          try {
-            const toneModule = await import("tone");
-            return toneModule.default || toneModule;
-          } catch (error) {
-            throw new Error(
-              "Tone.js not found. Please provide Tone instance or load Tone.js"
-            );
-          }
-        } else {
-          if (externalTone) {
-            return externalTone;
-          }
-          throw new Error("Tone instance required in Node.js environment");
-        }
-      }
-      /**
-       * Build JMON composition from parsed MIDI
-       * @param {Object} parsed - Parsed MIDI from Tone.js
-       * @param {Object} Tone - Tone.js instance
-       * @returns {Object} JMON composition
-       */
-      buildJmonComposition(parsed, Tone2) {
-        const composition = {
-          format: "jmon",
-          version: "1.0",
-          tempo: this.extractTempo(parsed),
-          tracks: this.convertTracks(parsed.tracks, Tone2, parsed)
-        };
-        const timeSignature = this.extractTimeSignature(parsed);
-        if (timeSignature) {
-          composition.timeSignature = timeSignature;
-        }
-        const keySignature = this.extractKeySignature(parsed);
-        if (keySignature) {
-          composition.keySignature = keySignature;
-        }
-        const metadata = this.extractMetadata(parsed);
-        if (Object.keys(metadata).length > 0) {
-          composition.metadata = metadata;
-        }
-        if (this.options.includeTempo && this.hasTempoChanges(parsed)) {
-          composition.tempoMap = this.extractTempoMap(parsed);
-        }
-        if (this.hasTimeSignatureChanges(parsed)) {
-          composition.timeSignatureMap = this.extractTimeSignatureMap(parsed);
-        }
-        return composition;
-      }
-      /**
-       * Convert MIDI tracks to JMON tracks
-       * @param {Array} tracks - MIDI tracks from Tone.js
-       * @param {Object} Tone - Tone.js instance
-       * @param {Object} parsed - Full parsed MIDI data
-       * @returns {Array} JMON tracks
-       */
-      convertTracks(tracks, Tone2, parsed) {
-        const jmonTracks = [];
-        let trackIndex = 0;
-        for (const track of tracks) {
-          if (!track.notes || track.notes.length === 0) {
-            continue;
-          }
-          const trackName = this.generateTrackName(track, trackIndex, parsed);
-          const isDrumTrack = this.isDrumTrack(track);
-          const notes = track.notes.map(
-            (note) => this.convertNote(note, Tone2, track)
-          );
-          const processedNotes = this.options.quantize ? this.quantizeNotes(notes, this.options.quantize) : notes;
-          const jmonTrack = {
-            label: trackName,
-            notes: processedNotes
-          };
-          if (track.channel !== void 0) {
-            jmonTrack.midiChannel = track.channel;
-          }
-          if (track.instrument) {
-            jmonTrack.synth = {
-              type: isDrumTrack ? "Sampler" : "PolySynth",
-              options: this.getInstrumentOptions(track.instrument, isDrumTrack)
-            };
-          }
-          if (this.options.includeModulations && track.controlChanges) {
-            const modulations = this.extractModulations(track.controlChanges);
-            if (modulations.length > 0) {
-              this.applyModulationsToTrack(jmonTrack, modulations);
-            }
-          }
-          jmonTracks.push(jmonTrack);
-          trackIndex++;
-        }
-        return jmonTracks;
-      }
-      /**
-       * Convert MIDI note to JMON note
-       * @param {Object} note - MIDI note from Tone.js
-       * @param {Object} Tone - Tone.js instance
-       * @param {Object} track - Parent track for context
-       * @returns {Object} JMON note
-       */
-      convertNote(note, Tone2, track) {
-        const jmonNote = {
-          pitch: note.midi,
-          // Use MIDI number as primary format
-          time: note.time,
-          // Tone.js already converts to seconds, we'll convert to quarters
-          duration: this.convertDurationToNoteValue(note.duration),
-          velocity: note.velocity
-        };
-        const bpm = note.tempo || 120;
-        jmonNote.time = this.convertSecondsToQuarterNotes(note.time, bpm);
-        if (this.options.includeModulations && note.controlChanges) {
-          const noteModulations = this.convertNoteModulations(note.controlChanges);
-          if (noteModulations.length > 0) {
-            jmonNote.modulations = noteModulations;
-          }
-        }
-        return jmonNote;
-      }
-      /**
-       * Generate track name based on naming strategy
-       * @param {Object} track - MIDI track
-       * @param {number} index - Track index
-       * @param {Object} parsed - Full parsed MIDI
-       * @returns {string} Track name
-       */
-      generateTrackName(track, index, parsed) {
-        switch (this.options.trackNaming) {
-          case "numbered":
-            return `Track ${index + 1}`;
-          case "channel":
-            return `Channel ${(track.channel || 0) + 1}`;
-          case "instrument":
-            if (track.instrument) {
-              return track.instrument.name || `Instrument ${track.instrument.number}`;
-            }
-            return `Track ${index + 1}`;
-          case "auto":
-          default:
-            if (track.name && track.name.trim()) {
-              return track.name.trim();
-            }
-            if (this.isDrumTrack(track)) {
-              return "Drums";
-            }
-            if (track.instrument && track.instrument.name) {
-              return track.instrument.name;
-            }
-            if (track.channel !== void 0) {
-              return track.channel === 9 ? "Drums" : `Channel ${track.channel + 1}`;
-            }
-            return `Track ${index + 1}`;
-        }
-      }
-      /**
-       * Check if track is a drum track (channel 10/9 in MIDI)
-       * @param {Object} track - MIDI track
-       * @returns {boolean} True if drum track
-       */
-      isDrumTrack(track) {
-        return track.channel === 9;
-      }
-      /**
-       * Get instrument options for synth configuration
-       * @param {Object} instrument - MIDI instrument info
-       * @param {boolean} isDrum - Whether this is a drum track
-       * @returns {Object} Synth options
-       */
-      getInstrumentOptions(instrument, isDrum) {
-        if (isDrum) {
-          return {
-            envelope: {
-              enabled: true,
-              attack: 0.02,
-              decay: 0.1,
-              sustain: 0.8,
-              release: 0.3
-            }
-          };
-        }
-        return {
-          oscillator: { type: "triangle" },
-          envelope: {
-            attack: 0.1,
-            decay: 0.2,
-            sustain: 0.7,
-            release: 1
-          }
-        };
-      }
-      /**
-       * Extract tempo from MIDI
-       * @param {Object} parsed - Parsed MIDI
-       * @returns {number} BPM
-       */
-      extractTempo(parsed) {
-        if (parsed.header && parsed.header.tempos && parsed.header.tempos.length > 0) {
-          return Math.round(parsed.header.tempos[0].bpm);
-        }
-        for (const track of parsed.tracks) {
-          if (track.tempoEvents && track.tempoEvents.length > 0) {
-            return Math.round(track.tempoEvents[0].bpm);
-          }
-        }
-        return 120;
-      }
-      /**
-       * Extract time signature from MIDI
-       * @param {Object} parsed - Parsed MIDI
-       * @returns {string|null} Time signature like "4/4"
-       */
-      extractTimeSignature(parsed) {
-        if (parsed.header && parsed.header.timeSignatures && parsed.header.timeSignatures.length > 0) {
-          const ts = parsed.header.timeSignatures[0];
-          return `${ts.numerator}/${ts.denominator}`;
-        }
-        for (const track of parsed.tracks) {
-          if (track.timeSignatureEvents && track.timeSignatureEvents.length > 0) {
-            const ts = track.timeSignatureEvents[0];
-            return `${ts.numerator}/${ts.denominator}`;
-          }
-        }
-        return null;
-      }
-      /**
-       * Extract key signature from MIDI
-       * @param {Object} parsed - Parsed MIDI
-       * @returns {string|null} Key signature like "C", "G", "Dm"
-       */
-      extractKeySignature(parsed) {
-        if (!this.options.includeKeySignature) {
-          return null;
-        }
-        let keySignature = null;
-        let earliestTime = Infinity;
-        if (parsed.header && parsed.header.keySignatures && parsed.header.keySignatures.length > 0) {
-          const ks = parsed.header.keySignatures[0];
-          keySignature = this.midiKeySignatureToString(ks.key, ks.scale);
-        }
-        for (const track of parsed.tracks) {
-          if (track.meta) {
-            for (const meta of track.meta) {
-              if (meta.type === "keySignature" && meta.time < earliestTime) {
-                earliestTime = meta.time;
-                keySignature = this.midiKeySignatureToString(meta.key, meta.scale);
-              }
-            }
-          }
-          if (track.keySignatures && track.keySignatures.length > 0) {
-            const ks = track.keySignatures[0];
-            if (ks.ticks < earliestTime) {
-              earliestTime = ks.ticks;
-              keySignature = this.midiKeySignatureToString(ks.key, ks.scale);
-            }
-          }
-        }
-        return keySignature;
-      }
-      /**
-       * Convert MIDI key signature to string representation
-       * @param {number} key - Number of sharps (positive) or flats (negative)
-       * @param {string|number} scale - 'major'/'minor' or 0/1 (0=major, 1=minor)
-       * @returns {string} Key signature like "C", "G", "Dm"
-       */
-      midiKeySignatureToString(key, scale) {
-        const isMinor = scale === "minor" || scale === 1 || scale === true;
-        const majorKeys = [
-          "C",
-          "G",
-          "D",
-          "A",
-          "E",
-          "B",
-          "F#",
-          "C#",
-          // Sharps
-          "C",
-          "F",
-          "Bb",
-          "Eb",
-          "Ab",
-          "Db",
-          "Gb",
-          "Cb"
-        ];
-        const minorKeys = [
-          "A",
-          "E",
-          "B",
-          "F#",
-          "C#",
-          "G#",
-          "D#",
-          "A#",
-          // Sharps
-          "A",
-          "D",
-          "G",
-          "C",
-          "F",
-          "Bb",
-          "Eb",
-          "Ab"
-        ];
-        let keyName;
-        if (key >= 0) {
-          const index = Math.min(key, 7);
-          keyName = isMinor ? minorKeys[index] : majorKeys[index];
-        } else {
-          const index = Math.min(Math.abs(key), 7);
-          keyName = isMinor ? minorKeys[8 + index] : majorKeys[8 + index];
-        }
-        return isMinor ? `${keyName}m` : keyName;
-      }
-      /**
-       * Extract metadata from MIDI
-       * @param {Object} parsed - Parsed MIDI
-       * @returns {Object} Metadata object
-       */
-      extractMetadata(parsed) {
-        const metadata = {};
-        for (const track of parsed.tracks) {
-          if (track.meta) {
-            for (const meta of track.meta) {
-              switch (meta.type) {
-                case "trackName":
-                case "text":
-                  if (!metadata.title && meta.text && meta.text.trim()) {
-                    metadata.title = meta.text.trim();
-                  }
-                  break;
-                case "copyright":
-                  if (meta.text && meta.text.trim()) {
-                    metadata.copyright = meta.text.trim();
-                  }
-                  break;
-                case "composer":
-                  if (meta.text && meta.text.trim()) {
-                    metadata.composer = meta.text.trim();
-                  }
-                  break;
-              }
-            }
-          }
-        }
-        return metadata;
-      }
-      /**
-       * Check if MIDI has tempo changes
-       * @param {Object} parsed - Parsed MIDI
-       * @returns {boolean} True if has tempo changes
-       */
-      hasTempoChanges(parsed) {
-        if (parsed.header && parsed.header.tempos && parsed.header.tempos.length > 1) {
-          return true;
-        }
-        for (const track of parsed.tracks) {
-          if (track.tempoEvents && track.tempoEvents.length > 1) {
-            return true;
-          }
-        }
-        return false;
-      }
-      /**
-       * Extract tempo map for tempo changes
-       * @param {Object} parsed - Parsed MIDI
-       * @returns {Array} Tempo map events
-       */
-      extractTempoMap(parsed) {
-        const tempoMap = [];
-        const allTempoEvents = [];
-        if (parsed.header && parsed.header.tempos) {
-          allTempoEvents.push(...parsed.header.tempos.map((t) => ({
-            time: t.time,
-            tempo: Math.round(t.bpm)
-          })));
-        }
-        for (const track of parsed.tracks) {
-          if (track.tempoEvents) {
-            allTempoEvents.push(...track.tempoEvents.map((t) => ({
-              time: t.time,
-              tempo: Math.round(t.bpm)
-            })));
-          }
-        }
-        allTempoEvents.sort((a, b) => a.time - b.time);
-        for (const event of allTempoEvents) {
-          tempoMap.push({
-            time: this.convertSecondsToQuarterNotes(event.time, event.tempo),
-            tempo: event.tempo
-          });
-        }
-        return tempoMap;
-      }
-      /**
-       * Check if MIDI has time signature changes
-       * @param {Object} parsed - Parsed MIDI
-       * @returns {boolean} True if has time signature changes
-       */
-      hasTimeSignatureChanges(parsed) {
-        if (parsed.header && parsed.header.timeSignatures && parsed.header.timeSignatures.length > 1) {
-          return true;
-        }
-        for (const track of parsed.tracks) {
-          if (track.timeSignatureEvents && track.timeSignatureEvents.length > 1) {
-            return true;
-          }
-        }
-        return false;
-      }
-      /**
-       * Extract time signature map for time signature changes
-       * @param {Object} parsed - Parsed MIDI
-       * @returns {Array} Time signature map events
-       */
-      extractTimeSignatureMap(parsed) {
-        const timeSignatureMap = [];
-        const allTSEvents = [];
-        if (parsed.header && parsed.header.timeSignatures) {
-          allTSEvents.push(...parsed.header.timeSignatures);
-        }
-        for (const track of parsed.tracks) {
-          if (track.timeSignatureEvents) {
-            allTSEvents.push(...track.timeSignatureEvents);
-          }
-        }
-        allTSEvents.sort((a, b) => a.time - b.time);
-        for (const event of allTSEvents) {
-          timeSignatureMap.push({
-            time: this.convertSecondsToQuarterNotes(event.time, 120),
-            // Use default tempo for conversion
-            timeSignature: `${event.numerator}/${event.denominator}`
-          });
-        }
-        return timeSignatureMap;
-      }
-      /**
-       * Convert seconds to quarter notes
-       * @param {number} seconds - Time in seconds
-       * @param {number} bpm - Beats per minute
-       * @returns {number} Time in quarter notes
-       */
-      convertSecondsToQuarterNotes(seconds, bpm) {
-        const quarterNoteLength = 60 / bpm;
-        return seconds / quarterNoteLength;
-      }
-      /**
-       * Convert duration to note value string
-       * @param {number} duration - Duration in seconds
-       * @returns {string} Note value like "4n", "8n"
-       */
-      convertDurationToNoteValue(duration) {
-        const quarterNote = 0.5;
-        const ratio = duration / quarterNote;
-        if (ratio >= 3.5)
-          return "1n";
-        if (ratio >= 1.75)
-          return "2n";
-        if (ratio >= 0.875)
-          return "4n";
-        if (ratio >= 0.4375)
-          return "8n";
-        if (ratio >= 0.21875)
-          return "16n";
-        if (ratio >= 0.109375)
-          return "32n";
-        return "16n";
-      }
-      /**
-       * Extract modulations from MIDI control changes
-       * @param {Object} controlChanges - MIDI CC events
-       * @returns {Array} Modulation events
-       */
-      extractModulations(controlChanges) {
-        const modulations = [];
-        for (const [cc, events] of Object.entries(controlChanges)) {
-          const ccNumber = parseInt(cc);
-          for (const event of events) {
-            const modulation = {
-              type: "cc",
-              controller: ccNumber,
-              value: event.value,
-              time: this.convertSecondsToQuarterNotes(event.time, 120)
-            };
-            modulations.push(modulation);
-          }
-        }
-        return modulations;
-      }
-      /**
-       * Convert note-level modulations
-       * @param {Object} controlChanges - Note-level CC events
-       * @returns {Array} Note modulation events
-       */
-      convertNoteModulations(controlChanges) {
-        return this.extractModulations(controlChanges);
-      }
-      /**
-       * Apply modulations to track
-       * @param {Object} track - JMON track
-       * @param {Array} modulations - Modulation events
-       */
-      applyModulationsToTrack(track, modulations) {
-        if (modulations.length > 0) {
-          track.automation = [{
-            id: "midi_cc",
-            target: "midi.cc1",
-            // Default to modulation wheel
-            anchorPoints: modulations.map((mod) => ({
-              time: mod.time,
-              value: mod.value
-            }))
-          }];
-        }
-      }
-      /**
-       * Quantize notes to grid
-       * @param {Array} notes - Notes to quantize
-       * @param {number} grid - Grid size in quarter notes
-       * @returns {Array} Quantized notes
-       */
-      quantizeNotes(notes, grid) {
-        return notes.map((note) => ({
-          ...note,
-          time: Math.round(note.time / grid) * grid
-        }));
-      }
-    };
-  }
-});
-
 // src/utils/normalize.js
-var normalize_exports = {};
-__export(normalize_exports, {
-  midiToNoteName: () => midiToNoteName,
-  normalizeAudioGraph: () => normalizeAudioGraph,
-  normalizeSamplerUrlsToNoteNames: () => normalizeSamplerUrlsToNoteNames
-});
 function midiToNoteName(midiLike) {
   const n = typeof midiLike === "string" ? parseInt(midiLike, 10) : midiLike;
   if (!Number.isFinite(n))
@@ -2262,7 +1447,7 @@ var init_tonejs = __esm({
           label: track.label,
           type: "PolySynth",
           // Default type for the current player
-          part: (track.notes || []).map((note) => ({
+          part: (track.events || track.notes || []).map((note) => ({
             time: note.time,
             pitch: note.pitch,
             duration: note.duration,
@@ -2271,1998 +1456,6 @@ var init_tonejs = __esm({
         }));
       }
     };
-  }
-});
-
-// src/constants/audio-effects.js
-var audio_effects_exports = {};
-__export(audio_effects_exports, {
-  ADVANCED_EFFECTS: () => ADVANCED_EFFECTS,
-  ALL_AUDIO_GRAPH_TYPES: () => ALL_AUDIO_GRAPH_TYPES,
-  ALL_EFFECTS: () => ALL_EFFECTS,
-  DELAY_EFFECTS: () => DELAY_EFFECTS,
-  DISTORTION_EFFECTS: () => DISTORTION_EFFECTS,
-  DYNAMICS_EFFECTS: () => DYNAMICS_EFFECTS,
-  FILTER_EFFECTS: () => FILTER_EFFECTS,
-  MODULATION_EFFECTS: () => MODULATION_EFFECTS,
-  REVERB_EFFECTS: () => REVERB_EFFECTS,
-  SPECIAL_NODE_TYPES: () => SPECIAL_NODE_TYPES,
-  SYNTHESIZER_TYPES: () => SYNTHESIZER_TYPES,
-  default: () => audio_effects_default
-});
-var REVERB_EFFECTS, DELAY_EFFECTS, MODULATION_EFFECTS, DISTORTION_EFFECTS, DYNAMICS_EFFECTS, FILTER_EFFECTS, ADVANCED_EFFECTS, ALL_EFFECTS, SYNTHESIZER_TYPES, SPECIAL_NODE_TYPES, ALL_AUDIO_GRAPH_TYPES, audio_effects_default;
-var init_audio_effects = __esm({
-  "src/constants/audio-effects.js"() {
-    REVERB_EFFECTS = [
-      "Reverb",
-      "JCReverb",
-      "Freeverb"
-    ];
-    DELAY_EFFECTS = [
-      "Delay",
-      "FeedbackDelay",
-      "PingPongDelay"
-    ];
-    MODULATION_EFFECTS = [
-      "Chorus",
-      "Phaser",
-      "Tremolo",
-      "Vibrato",
-      "AutoWah"
-    ];
-    DISTORTION_EFFECTS = [
-      "Distortion",
-      "Chebyshev",
-      "BitCrusher"
-    ];
-    DYNAMICS_EFFECTS = [
-      "Compressor",
-      "Limiter",
-      "Gate",
-      "MidSideCompressor"
-    ];
-    FILTER_EFFECTS = [
-      "Filter",
-      "AutoFilter"
-    ];
-    ADVANCED_EFFECTS = [
-      "FrequencyShifter",
-      "PitchShift",
-      "StereoWidener"
-    ];
-    ALL_EFFECTS = [
-      ...REVERB_EFFECTS,
-      ...DELAY_EFFECTS,
-      ...MODULATION_EFFECTS,
-      ...DISTORTION_EFFECTS,
-      ...DYNAMICS_EFFECTS,
-      ...FILTER_EFFECTS,
-      ...ADVANCED_EFFECTS
-    ];
-    SYNTHESIZER_TYPES = [
-      "Synth",
-      "PolySynth",
-      "MonoSynth",
-      "AMSynth",
-      "FMSynth",
-      "DuoSynth",
-      "PluckSynth",
-      "NoiseSynth"
-    ];
-    SPECIAL_NODE_TYPES = [
-      "Sampler",
-      "Destination"
-    ];
-    ALL_AUDIO_GRAPH_TYPES = [
-      ...SYNTHESIZER_TYPES,
-      ...ALL_EFFECTS,
-      ...SPECIAL_NODE_TYPES
-    ];
-    audio_effects_default = {
-      REVERB_EFFECTS,
-      DELAY_EFFECTS,
-      MODULATION_EFFECTS,
-      DISTORTION_EFFECTS,
-      DYNAMICS_EFFECTS,
-      FILTER_EFFECTS,
-      ADVANCED_EFFECTS,
-      ALL_EFFECTS,
-      SYNTHESIZER_TYPES,
-      SPECIAL_NODE_TYPES,
-      ALL_AUDIO_GRAPH_TYPES
-    };
-  }
-});
-
-// src/converters/wav.js
-function wav(composition, options = {}) {
-  return {
-    sampleRate: options.sampleRate || 44100,
-    duration: options.duration || 10,
-    channels: options.channels || 1,
-    tempo: composition.tempo || composition.bpm || 120,
-    notes: composition.tracks?.flatMap((t) => t.notes) || []
-  };
-}
-async function downloadWav(composition, Tone2, filename = "composition.wav", duration) {
-  const { normalizeAudioGraph: normalizeAudioGraph2 } = await Promise.resolve().then(() => (init_normalize(), normalize_exports));
-  normalizeAudioGraph2(composition);
-  const maxTime = composition.tracks?.reduce((max, track) => {
-    const trackMax = track.notes?.reduce((tMax, note) => {
-      const endTime = (note.time || 0) + (note.duration || 0);
-      return Math.max(tMax, endTime);
-    }, 0) || 0;
-    return Math.max(max, trackMax);
-  }, 0) || 4;
-  const tempo = composition.tempo || 120;
-  const secondsPerQuarterNote = 60 / tempo;
-  const calculatedDuration = maxTime * secondsPerQuarterNote + 1;
-  const finalDuration = duration || calculatedDuration;
-  const buffer = await Tone2.Offline(async ({ transport }) => {
-    transport.bpm.value = tempo;
-    const graphInstruments = await buildAudioGraphInstruments(composition, Tone2);
-    const compiledModulations = [];
-    const tracks = composition.tracks || [];
-    tracks.forEach((track, index) => {
-      try {
-        const compiled = compileEvents(track);
-        compiledModulations[index] = compiled.modulations || [];
-      } catch (e) {
-        console.warn(`[WAV] Failed to compile modulations for track ${index}:`, e);
-        compiledModulations[index] = [];
-      }
-    });
-    tracks.forEach((track, trackIndex) => {
-      const notes = track.notes || [];
-      const synthRef = track.synthRef;
-      const trackModulations = compiledModulations[trackIndex] || [];
-      let synth = null;
-      if (synthRef && graphInstruments && graphInstruments[synthRef]) {
-        synth = graphInstruments[synthRef];
-      } else {
-        synth = new Tone2.PolySynth().toDestination();
-      }
-      const vibratoMods = trackModulations.filter(
-        (m) => m.type === "pitch" && m.subtype === "vibrato"
-      );
-      const tremoloMods = trackModulations.filter(
-        (m) => m.type === "amplitude" && m.subtype === "tremolo"
-      );
-      let vibratoEffect = null;
-      let tremoloEffect = null;
-      if (vibratoMods.length > 0 || tremoloMods.length > 0) {
-        console.log(
-          `[WAV] Creating effect chain for track ${trackIndex} (${vibratoMods.length} vibrato, ${tremoloMods.length} tremolo)`
-        );
-        if (!synthRef || !graphInstruments?.[synthRef]) {
-          synth.disconnect();
-        }
-        if (vibratoMods.length > 0) {
-          const defaultVibrato = vibratoMods[0];
-          vibratoEffect = new Tone2.Vibrato({
-            frequency: defaultVibrato.rate || 5,
-            depth: (defaultVibrato.depth || 50) / 100
-          });
-          vibratoEffect.wet.value = 0;
-        }
-        if (tremoloMods.length > 0) {
-          const defaultTremolo = tremoloMods[0];
-          tremoloEffect = new Tone2.Tremolo({
-            frequency: defaultTremolo.rate || 8,
-            depth: defaultTremolo.depth || 0.3
-          }).start();
-          tremoloEffect.wet.value = 0;
-        }
-        if (vibratoEffect && tremoloEffect) {
-          synth.connect(vibratoEffect);
-          vibratoEffect.connect(tremoloEffect);
-          tremoloEffect.toDestination();
-        } else if (vibratoEffect) {
-          synth.connect(vibratoEffect);
-          vibratoEffect.toDestination();
-        } else if (tremoloEffect) {
-          synth.connect(tremoloEffect);
-          tremoloEffect.toDestination();
-        }
-        trackModulations.forEach((mod) => {
-          const startTime = mod.start * secondsPerQuarterNote;
-          const endTime = mod.end * secondsPerQuarterNote;
-          if (mod.type === "pitch" && mod.subtype === "vibrato" && vibratoEffect) {
-            const vibratoFreq = mod.rate || 5;
-            const vibratoDepth = (mod.depth || 50) / 100;
-            transport.schedule((time) => {
-              vibratoEffect.frequency.value = vibratoFreq;
-              vibratoEffect.depth.value = vibratoDepth;
-              vibratoEffect.wet.value = 1;
-            }, startTime);
-            transport.schedule((time) => {
-              vibratoEffect.wet.value = 0;
-            }, endTime);
-          }
-          if (mod.type === "amplitude" && mod.subtype === "tremolo" && tremoloEffect) {
-            const tremoloFreq = mod.rate || 8;
-            const tremoloDepth = mod.depth || 0.3;
-            transport.schedule((time) => {
-              tremoloEffect.frequency.value = tremoloFreq;
-              tremoloEffect.depth.value = tremoloDepth;
-              tremoloEffect.wet.value = 1;
-            }, startTime);
-            transport.schedule((time) => {
-              tremoloEffect.wet.value = 0;
-            }, endTime);
-          }
-        });
-      }
-      notes.forEach((note) => {
-        const time = (note.time || 0) * secondsPerQuarterNote;
-        const noteDuration = (note.duration || 1) * secondsPerQuarterNote;
-        if (Array.isArray(note.pitch)) {
-          const noteNames = note.pitch.map(
-            (p) => typeof p === "number" ? Tone2.Frequency(p, "midi").toNote() : p
-          );
-          synth.triggerAttackRelease(
-            noteNames,
-            noteDuration,
-            time,
-            note.velocity || 0.8
-          );
-        } else {
-          const noteName = typeof note.pitch === "number" ? Tone2.Frequency(note.pitch, "midi").toNote() : note.pitch;
-          synth.triggerAttackRelease(
-            noteName,
-            noteDuration,
-            time,
-            note.velocity || 0.8
-          );
-        }
-      });
-    });
-    transport.start(0);
-  }, finalDuration);
-  const wavBlob = await audioBufferToWav(buffer);
-  const url = URL.createObjectURL(wavBlob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
-}
-async function buildAudioGraphInstruments(composition, Tone2) {
-  if (!composition.audioGraph || !Array.isArray(composition.audioGraph)) {
-    return null;
-  }
-  const map = {};
-  const { SYNTHESIZER_TYPES: SYNTHESIZER_TYPES2, ALL_EFFECTS: ALL_EFFECTS2 } = await Promise.resolve().then(() => (init_audio_effects(), audio_effects_exports));
-  try {
-    composition.audioGraph.forEach((node) => {
-      const { id, type, options = {} } = node;
-      if (!id || !type)
-        return;
-      let instrument = null;
-      if (SYNTHESIZER_TYPES2.includes(type)) {
-        try {
-          instrument = new Tone2[type](options);
-        } catch (e) {
-          console.warn(`Failed to create ${type}, using PolySynth:`, e);
-          instrument = new Tone2.PolySynth();
-        }
-      } else if (ALL_EFFECTS2.includes(type)) {
-        try {
-          instrument = new Tone2[type](options);
-        } catch (e) {
-          console.warn(`Failed to create ${type} effect:`, e);
-          instrument = null;
-        }
-      } else if (type === "Destination") {
-        map[id] = Tone2.Destination;
-      }
-      if (instrument) {
-        map[id] = instrument;
-      }
-    });
-    composition.audioGraph.forEach((node) => {
-      const { id, target } = node;
-      if (!id || !map[id] || map[id] === Tone2.Destination)
-        return;
-      const currentNode = map[id];
-      if (target && map[target]) {
-        if (map[target] === Tone2.Destination) {
-          currentNode.toDestination();
-        } else {
-          currentNode.connect(map[target]);
-        }
-      } else {
-        currentNode.toDestination();
-      }
-    });
-    return map;
-  } catch (e) {
-    console.error("Failed building audioGraph instruments:", e);
-    return null;
-  }
-}
-async function audioBufferToWav(buffer) {
-  const numberOfChannels = buffer.numberOfChannels;
-  const sampleRate = buffer.sampleRate;
-  const length = buffer.length * numberOfChannels * 2;
-  const arrayBuffer = new ArrayBuffer(44 + length);
-  const view = new DataView(arrayBuffer);
-  const writeString = (offset2, string) => {
-    for (let i = 0; i < string.length; i++) {
-      view.setUint8(offset2 + i, string.charCodeAt(i));
-    }
-  };
-  writeString(0, "RIFF");
-  view.setUint32(4, 36 + length, true);
-  writeString(8, "WAVE");
-  writeString(12, "fmt ");
-  view.setUint32(16, 16, true);
-  view.setUint16(20, 1, true);
-  view.setUint16(22, numberOfChannels, true);
-  view.setUint32(24, sampleRate, true);
-  view.setUint32(28, sampleRate * numberOfChannels * 2, true);
-  view.setUint16(32, numberOfChannels * 2, true);
-  view.setUint16(34, 16, true);
-  writeString(36, "data");
-  view.setUint32(40, length, true);
-  const channels = [];
-  for (let i = 0; i < numberOfChannels; i++) {
-    channels.push(buffer.getChannelData(i));
-  }
-  let offset = 44;
-  for (let i = 0; i < buffer.length; i++) {
-    for (let channel = 0; channel < numberOfChannels; channel++) {
-      const sample = Math.max(-1, Math.min(1, channels[channel][i]));
-      view.setInt16(offset, sample < 0 ? sample * 32768 : sample * 32767, true);
-      offset += 2;
-    }
-  }
-  return new Blob([arrayBuffer], { type: "audio/wav" });
-}
-var init_wav = __esm({
-  "src/converters/wav.js"() {
-    init_audio();
-  }
-});
-
-// src/converters/abc.js
-function midiToABC(midi2) {
-  if (typeof midi2 !== "number")
-    return "C";
-  const noteNames = ["C", "^C", "D", "^D", "E", "F", "^F", "G", "^G", "A", "^A", "B"];
-  const octave = Math.floor(midi2 / 12) - 1;
-  const noteName = noteNames[midi2 % 12];
-  if (octave === 4) {
-    return noteName;
-  } else if (octave === 5) {
-    return noteName.toLowerCase();
-  } else if (octave > 5) {
-    const ticks = "'".repeat(octave - 5);
-    return noteName.toLowerCase() + ticks;
-  } else if (octave === 3) {
-    return noteName;
-  } else {
-    const commas = ",".repeat(4 - octave);
-    return noteName + commas;
-  }
-}
-function durationToABC(duration) {
-  if (duration >= 4)
-    return "4";
-  if (duration >= 3)
-    return "3";
-  if (duration >= 2)
-    return "2";
-  if (duration >= 1.5)
-    return "3/2";
-  if (duration >= 1)
-    return "";
-  if (duration >= 0.75)
-    return "3/4";
-  if (duration >= 0.5)
-    return "/2";
-  if (duration >= 0.25)
-    return "/4";
-  return "/8";
-}
-function abc(composition) {
-  const lines = [];
-  lines.push("X:1");
-  const title = composition.title || composition.metadata?.title || "Untitled";
-  lines.push(`T:${title}`);
-  const tempo = composition.tempo || 120;
-  lines.push(`Q:1/4=${tempo}`);
-  const timeSignature = composition.timeSignature || "4/4";
-  lines.push(`M:${timeSignature}`);
-  lines.push("L:1/4");
-  const track = composition.tracks?.[0];
-  const keySignature = composition.keySignature || "C";
-  const clef = track?.clef || "treble";
-  const clefMap = {
-    "treble": "treble",
-    "bass": "bass",
-    "alto": "alto",
-    "tenor": "tenor",
-    "percussion": "perc"
-  };
-  const abcClef = clefMap[clef] || "treble";
-  lines.push(`K:${keySignature} clef=${abcClef}`);
-  if (!track?.notes?.length) {
-    lines.push("z4");
-    return lines.join("\n");
-  }
-  const [beatsPerMeasure, beatValue] = timeSignature.split("/").map(Number);
-  const measureDuration = beatsPerMeasure * (4 / beatValue);
-  const abcNotes = [];
-  let currentMeasureDuration = 0;
-  track.notes.forEach((note, index) => {
-    const duration = note.duration || 1;
-    const abcDuration = durationToABC(duration);
-    let abcNote;
-    if (Array.isArray(note.pitch)) {
-      const chordNotes = note.pitch.filter((p) => typeof p === "number").map((p) => midiToABC(p));
-      if (chordNotes.length > 1) {
-        abcNote = `[${chordNotes.join("")}]`;
-      } else if (chordNotes.length === 1) {
-        abcNote = chordNotes[0];
-      } else {
-        abcNote = "z";
-      }
-    } else if (note.pitch === null || note.pitch === void 0) {
-      abcNote = "z";
-    } else {
-      abcNote = midiToABC(note.pitch);
-    }
-    abcNotes.push(`${abcNote}${abcDuration}`);
-    currentMeasureDuration += duration;
-    if (currentMeasureDuration >= measureDuration) {
-      if (index < track.notes.length - 1) {
-        abcNotes.push("|");
-      }
-      currentMeasureDuration = 0;
-    }
-  });
-  lines.push(abcNotes.join(" "));
-  return lines.join("\n");
-}
-function downloadABC(composition, filename = "composition.abc") {
-  const abcText = abc(composition);
-  const blob = new Blob([abcText], { type: "text/plain" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
-}
-var init_abc = __esm({
-  "src/converters/abc.js"() {
-  }
-});
-
-// src/converters/supercollider.js
-function supercollider(composition) {
-  return Supercollider.convert(composition);
-}
-var Supercollider;
-var init_supercollider = __esm({
-  "src/converters/supercollider.js"() {
-    Supercollider = class {
-      static convert(composition) {
-        const title = composition.metadata?.name || "Untitled";
-        let sc = `// SuperCollider script generated from JMON
-// Title: ${title}
-`;
-        const notes = composition.tracks?.[0]?.notes || [];
-        notes.forEach((note) => {
-          sc += `Synth("default", ["freq", ${note.pitch}, "dur", ${note.duration}]);
-`;
-        });
-        return sc;
-      }
-    };
-  }
-});
-
-// src/utils/notation/deriveVisualFromArticulations.js
-function normalizeArticulations2(articulations) {
-  const out = [];
-  if (!Array.isArray(articulations))
-    return out;
-  for (const a of articulations) {
-    if (typeof a === "string") {
-      out.push({ type: a });
-    } else if (a && typeof a === "object" && typeof a.type === "string") {
-      out.push({ ...a });
-    }
-  }
-  return out;
-}
-function resolveAccentPrecedence(types) {
-  const staccato = types.has("staccato");
-  const marcato = types.has("marcato");
-  const tenuto = types.has("tenuto");
-  const accent = !marcato && types.has("accent");
-  return { staccato, accent, tenuto, marcato };
-}
-function mapToVexFlowArticulationCodes(resolved) {
-  const codes = [];
-  if (resolved.staccato)
-    codes.push("a.");
-  if (resolved.accent)
-    codes.push("a>");
-  if (resolved.tenuto)
-    codes.push("a-");
-  if (resolved.marcato)
-    codes.push("a^");
-  return codes;
-}
-function mapToAbcDecorations(arts, options = {}) {
-  const includeFermata = options.includeFermata !== false;
-  const abc2 = [];
-  const types = new Set(arts.map((a) => a.type));
-  const resolved = resolveAccentPrecedence(types);
-  if (resolved.staccato)
-    abc2.push("!staccato!");
-  if (resolved.accent)
-    abc2.push("!accent!");
-  if (resolved.tenuto)
-    abc2.push("!tenuto!");
-  if (resolved.marcato)
-    abc2.push("!marcato!");
-  const want = (t) => types.has(t);
-  if (includeFermata && want("fermata"))
-    abc2.push("!fermata!");
-  if (want("trill"))
-    abc2.push("!trill!");
-  if (want("mordent"))
-    abc2.push("!mordent!");
-  if (want("turn"))
-    abc2.push("!turn!");
-  if (want("arpeggio"))
-    abc2.push("!arpeggio!");
-  if (want("glissando") || want("portamento"))
-    abc2.push("!slide!");
-  return abc2;
-}
-function extractStrokeHint(arts) {
-  const stroke = arts.find((a) => a.type === "stroke") || arts.find((a) => a.type === "arpeggio") || arts.find((a) => a.type === "arpeggiate");
-  if (!stroke)
-    return null;
-  const dir = typeof stroke.direction === "string" && stroke.direction.toLowerCase() === "down" ? "down" : "up";
-  const style = typeof stroke.style === "string" && stroke.style.toLowerCase() === "brush" ? "brush" : "roll";
-  return { direction: dir, style };
-}
-function extractGlissHint(arts) {
-  const a = arts.find((x) => x.type === "glissando" || x.type === "portamento");
-  if (!a)
-    return null;
-  const text = a.type === "portamento" ? "port." : "gliss.";
-  const out = { type: a.type, text };
-  if (typeof a.target === "number")
-    out.target = a.target;
-  if (typeof a.curve === "string")
-    out.curve = a.curve;
-  return out;
-}
-function deriveVisualFromArticulations(articulations, options = {}) {
-  const arts = normalizeArticulations2(articulations);
-  const has = new Set(arts.map((a) => a.type));
-  const resolved = resolveAccentPrecedence(has);
-  const abcDecorations = mapToAbcDecorations(arts, options.abc);
-  const vfArticulations = mapToVexFlowArticulationCodes(resolved);
-  const vfStroke = extractStrokeHint(arts);
-  const vfGliss = extractGlissHint(arts);
-  return {
-    has,
-    abc: { decorations: abcDecorations },
-    vexflow: {
-      articulations: vfArticulations,
-      stroke: vfStroke,
-      gliss: vfGliss
-    }
-  };
-}
-var init_deriveVisualFromArticulations = __esm({
-  "src/utils/notation/deriveVisualFromArticulations.js"() {
-  }
-});
-
-// src/converters/vexflow.js
-function convertToVexFlow(composition, options = {}) {
-  const converter = new VexFlowConverter();
-  const vexFlowData = converter.convertToVexFlow(composition);
-  if (options.elementId) {
-    const rendererConfig = converter.createRenderer(
-      options.elementId,
-      options.width,
-      options.height
-    );
-    return converter.generateRenderingInstructions(vexFlowData, rendererConfig);
-  }
-  return vexFlowData;
-}
-var VexFlowConverter;
-var init_vexflow = __esm({
-  "src/converters/vexflow.js"() {
-    init_deriveVisualFromArticulations();
-    VexFlowConverter = class {
-      constructor() {
-        this.noteMap = {
-          60: "C/4",
-          61: "C#/4",
-          62: "D/4",
-          63: "D#/4",
-          64: "E/4",
-          65: "F/4",
-          66: "F#/4",
-          67: "G/4",
-          68: "G#/4",
-          69: "A/4",
-          70: "A#/4",
-          71: "B/4",
-          72: "C/5",
-          73: "C#/5",
-          74: "D/5",
-          75: "D#/5",
-          76: "E/5",
-          77: "F/5",
-          78: "F#/5",
-          79: "G/5",
-          80: "G#/5",
-          81: "A/5",
-          82: "A#/5",
-          83: "B/5"
-        };
-      }
-      /**
-       * Convert MIDI note number to VexFlow pitch notation
-       */
-      midiToVexFlow(midiNote) {
-        if (this.noteMap[midiNote]) {
-          return this.noteMap[midiNote];
-        }
-        const octave = Math.floor(midiNote / 12) - 1;
-        const noteNames = [
-          "C",
-          "C#",
-          "D",
-          "D#",
-          "E",
-          "F",
-          "F#",
-          "G",
-          "G#",
-          "A",
-          "A#",
-          "B"
-        ];
-        const noteName = noteNames[midiNote % 12];
-        return `${noteName}/${octave}`;
-      }
-      /**
-       * Convert duration to VexFlow duration string
-       */
-      durationToVexFlow(duration) {
-        if (duration >= 4)
-          return "w";
-        if (duration >= 2)
-          return "h";
-        if (duration >= 1)
-          return "q";
-        if (duration >= 0.5)
-          return "8";
-        if (duration >= 0.25)
-          return "16";
-        return "32";
-      }
-      /**
-       * Convert JMON composition to VexFlow format
-       */
-      convertToVexFlow(composition) {
-        const result = {
-          timeSignature: composition.timeSignature || "4/4",
-          keySignature: composition.keySignature || "C",
-          clef: composition.clef,
-          metadata: composition.metadata || {},
-          tempo: composition.tempo ?? composition.bpm ?? null,
-          tracks: []
-        };
-        let tracks = [];
-        if (Array.isArray(composition.tracks)) {
-          tracks = composition.tracks.map((t, i) => ({
-            name: t.name || `Track ${i + 1}`,
-            notes: t.notes || t,
-            clef: t.clef
-          }));
-        } else if (composition.tracks && typeof composition.tracks === "object") {
-          tracks = Object.entries(composition.tracks).map(([name, notes], i) => ({
-            name: name || `Track ${i + 1}`,
-            notes,
-            clef: notes && notes.clef || void 0
-          }));
-        } else if (composition.notes) {
-          tracks = [{
-            name: composition.name || "Track 1",
-            notes: composition.notes,
-            clef: composition.clef
-          }];
-        } else {
-          tracks = [{
-            name: "Track 1",
-            notes: composition,
-            clef: composition.clef
-          }];
-        }
-        tracks.forEach((track, trackIndex) => {
-          const notes = track.notes || track;
-          const vexFlowNotes = [];
-          if (Array.isArray(notes)) {
-            notes.forEach((note) => {
-              const pitches = Array.isArray(note.pitch) ? note.pitch : note.pitch !== null && note.pitch !== void 0 ? [note.pitch] : [];
-              if (pitches.length > 0) {
-                const vexFlowNote = {
-                  keys: pitches.map(
-                    (p) => String(this.midiToVexFlow(p)).toLowerCase()
-                  ),
-                  duration: this.durationToVexFlow(note.duration || 1),
-                  time: note.time ?? 0
-                };
-                if (note.articulation || Array.isArray(note.articulations) && note.articulations.length) {
-                  if (note.articulation && typeof note.articulation === "string") {
-                    vexFlowNote.articulations = [note.articulation];
-                  } else if (Array.isArray(note.articulations) && note.articulations.length) {
-                    const hints = deriveVisualFromArticulations(note.articulations);
-                    if (hints && hints.vexflow) {
-                      if (Array.isArray(hints.vexflow.articulations) && hints.vexflow.articulations.length) {
-                        vexFlowNote.vfArticulations = hints.vexflow.articulations.slice();
-                      }
-                      if (hints.vexflow.stroke) {
-                        vexFlowNote.stroke = { ...hints.vexflow.stroke };
-                      }
-                      if (hints.vexflow.gliss) {
-                        const g = hints.vexflow.gliss;
-                        try {
-                          vexFlowNote.gliss = {
-                            type: g.type,
-                            targetKey: typeof g.target === "number" ? String(this.midiToVexFlow(g.target)).toLowerCase() : void 0,
-                            curve: g.curve || "linear",
-                            text: g.text || (g.type === "portamento" ? "port." : "gliss.")
-                          };
-                        } catch (_) {
-                        }
-                      }
-                    }
-                  }
-                }
-                if (Array.isArray(note.ornaments) && note.ornaments.length) {
-                  vexFlowNote.ornaments = note.ornaments.map((ornament) => {
-                    const processedOrnament = { type: ornament.type };
-                    if (ornament.parameters) {
-                      processedOrnament.parameters = { ...ornament.parameters };
-                      if (ornament.type === "grace_note" && ornament.parameters.gracePitches) {
-                        processedOrnament.parameters.gracePitches = ornament.parameters.gracePitches.map((pitch) => {
-                          if (typeof pitch === "number") {
-                            return this.midiToVexFlow(pitch);
-                          }
-                          return pitch;
-                        });
-                      }
-                    }
-                    return processedOrnament;
-                  });
-                }
-                vexFlowNotes.push(vexFlowNote);
-              } else {
-                vexFlowNotes.push({
-                  keys: [],
-                  duration: this.durationToVexFlow(note.duration || 1),
-                  time: note.time ?? 0,
-                  isRest: true
-                });
-              }
-            });
-          }
-          result.tracks.push({
-            name: track.name || `Track ${trackIndex + 1}`,
-            notes: vexFlowNotes,
-            clef: track.clef
-          });
-        });
-        return result;
-      }
-      /**
-       * Create VexFlow renderer configuration
-       */
-      createRenderer(elementId, width = 800, height = 200) {
-        return {
-          elementId,
-          width,
-          height,
-          renderer: "svg",
-          // or 'canvas'
-          scale: 1
-        };
-      }
-      /**
-       * Generate VexFlow rendering instructions
-       */
-      generateRenderingInstructions(vexFlowData, rendererConfig) {
-        return {
-          type: "vexflow",
-          data: vexFlowData,
-          config: rendererConfig,
-          render: function(VF) {
-            const targetEl = rendererConfig.element && rendererConfig.element.nodeType === 1 ? rendererConfig.element : rendererConfig.elementId ? document.getElementById(rendererConfig.elementId) : null;
-            let div = targetEl;
-            const root = document.body || document.documentElement;
-            if (!div) {
-              div = document.createElement("div");
-              div.id = rendererConfig.elementId || `vexflow-${Date.now()}`;
-              root.appendChild(div);
-            } else {
-              if (!div.id) {
-                div.id = rendererConfig.elementId || `vexflow-${Date.now()}`;
-              }
-              if (!root.contains(div)) {
-                root.appendChild(div);
-              }
-            }
-            rendererConfig.elementId = div.id;
-            const VFNS = (() => {
-              const candidates = [
-                VF,
-                VF && VF.default,
-                typeof globalThis.window !== "undefined" && (globalThis.window.VF || globalThis.window.VexFlow),
-                typeof globalThis.window !== "undefined" && globalThis.window.Vex && (globalThis.window.Vex.Flow || globalThis.window.Vex)
-              ];
-              for (const c of candidates) {
-                if (c)
-                  return c;
-              }
-              return null;
-            })();
-            try {
-              const FactoryCtor = VFNS && (VFNS.Factory || VFNS.Flow && VFNS.Flow.Factory || VFNS.VF && VFNS.VF.Factory);
-              if (!FactoryCtor) {
-                throw new Error("VexFlow Factory API not available on this build");
-              }
-              const factory = new FactoryCtor({
-                renderer: {
-                  // Use elementId for VexFlow Factory (falls back to generated div id)
-                  elementId: rendererConfig.elementId || div.id,
-                  width: rendererConfig.width,
-                  height: rendererConfig.height
-                }
-              });
-              const context = factory.getContext();
-              const Flow = VFNS && (VFNS.Flow || VFNS) || {};
-              const accMode = rendererConfig.accidentalsMode || "auto";
-              const getKeyAccidentalMap = (key) => {
-                const k = (key || "C").trim();
-                const majorSharps = {
-                  C: 0,
-                  G: 1,
-                  D: 2,
-                  A: 3,
-                  E: 4,
-                  B: 5,
-                  "F#": 6,
-                  "C#": 7
-                };
-                const majorFlats = {
-                  C: 0,
-                  F: 1,
-                  Bb: 2,
-                  Eb: 3,
-                  Ab: 4,
-                  Db: 5,
-                  Gb: 6,
-                  Cb: 7
-                };
-                const minorSharps = {
-                  A: 0,
-                  E: 1,
-                  B: 2,
-                  "F#": 3,
-                  "C#": 4,
-                  "G#": 5,
-                  "D#": 6,
-                  "A#": 7
-                };
-                const minorFlats = {
-                  A: 0,
-                  D: 1,
-                  G: 2,
-                  C: 3,
-                  F: 4,
-                  Bb: 5,
-                  Eb: 6,
-                  Ab: 7
-                };
-                const orderSharps = ["f", "c", "g", "d", "a", "e", "b"];
-                const orderFlats = ["b", "e", "a", "d", "g", "c", "f"];
-                const isMinor = /m(in)?$/i.test(k);
-                const base = k.replace(/m(in)?$/i, "");
-                let count = 0;
-                let type = "natural";
-                if (isMinor && minorSharps[base] !== void 0) {
-                  count = minorSharps[base];
-                  type = "sharp";
-                } else if (isMinor && minorFlats[base] !== void 0) {
-                  count = minorFlats[base];
-                  type = "flat";
-                } else if (majorSharps[base] !== void 0) {
-                  count = majorSharps[base];
-                  type = "sharp";
-                } else if (majorFlats[base] !== void 0) {
-                  count = majorFlats[base];
-                  type = "flat";
-                }
-                const map = {
-                  a: "natural",
-                  b: "natural",
-                  c: "natural",
-                  d: "natural",
-                  e: "natural",
-                  f: "natural",
-                  g: "natural"
-                };
-                if (type === "sharp") {
-                  for (let i = 0; i < count; i++)
-                    map[orderSharps[i]] = "sharp";
-                }
-                if (type === "flat") {
-                  for (let i = 0; i < count; i++)
-                    map[orderFlats[i]] = "flat";
-                }
-                return map;
-              };
-              const keyAccMap = getKeyAccidentalMap(vexFlowData.keySignature);
-              const durToTicks = (d) => {
-                const s = String(d).replace(/r/g, "");
-                const map = { w: 32, h: 16, q: 8, "8": 4, "16": 2, "32": 1 };
-                return map[s] || 0;
-              };
-              const parseTS = (ts2) => {
-                const [n, d] = (ts2 || "4/4").split("/").map((x) => parseInt(x, 10));
-                return { n: n || 4, d: d || 4 };
-              };
-              const ts = parseTS(vexFlowData.timeSignature);
-              const measureCapacity = Math.max(1, Math.round(32 * ts.n / ts.d));
-              const ticksToDur = (ticks) => {
-                const inv = { 32: "w", 16: "h", 8: "q", 4: "8", 2: "16", 1: "32" };
-                return inv[ticks] || "q";
-              };
-              const measures = [];
-              let cur = [];
-              let acc = (() => {
-                const notes = vexFlowData.tracks[0].notes || [];
-                const minTime = notes.reduce(
-                  (m, n) => Math.min(m, n.time ?? 0),
-                  Number.POSITIVE_INFINITY
-                );
-                const base = minTime === Number.POSITIVE_INFINITY ? 0 : minTime;
-                return Math.round(base * 8 % measureCapacity);
-              })();
-              const originalNotes = vexFlowData.tracks[0].notes;
-              const graceBuf = [];
-              for (const nd of originalNotes) {
-                const ticks = durToTicks(nd.duration);
-                const isGrace = !!nd.grace;
-                if (isGrace) {
-                  graceBuf.push(nd);
-                  continue;
-                }
-                let t = ticks;
-                let firstPart = true;
-                while (t > 0) {
-                  const remaining = measureCapacity - acc;
-                  const slice = Math.min(t, remaining);
-                  const part = { ...nd, duration: ticksToDur(slice) };
-                  if (firstPart && graceBuf.length) {
-                    part.graceNotes = graceBuf.splice(0, graceBuf.length);
-                  }
-                  if (!firstPart)
-                    part.tieFromPrev = true;
-                  if (slice < t)
-                    part.tieToNext = true;
-                  cur.push(part);
-                  acc += slice;
-                  t -= slice;
-                  firstPart = false;
-                  if (acc >= measureCapacity) {
-                    measures.push(cur);
-                    cur = [];
-                    acc = 0;
-                  }
-                }
-              }
-              if (cur.length)
-                measures.push(cur);
-              const left = 10;
-              const right = 10;
-              const top = 40;
-              const avail = Math.max(
-                100,
-                (rendererConfig.width || 800) - left - right
-              );
-              const mCount = Math.max(1, measures.length);
-              const mWidth = Math.max(300, Math.floor(avail / mCount));
-              const keyToMidi = (k) => {
-                const m = /^([a-g])(b|#)?\/(-?\d+)$/.exec(k);
-                if (!m)
-                  return 60;
-                const letters = { c: 0, d: 2, e: 4, f: 5, g: 7, a: 9, b: 11 };
-                const letter = letters[m[1]];
-                const acc2 = m[2] === "#" ? 1 : m[2] === "b" ? -1 : 0;
-                const octave = parseInt(m[3], 10);
-                return (octave + 1) * 12 + letter + acc2;
-              };
-              const allPitches = [];
-              measures.forEach((ms) => {
-                ms.forEach((n) => {
-                  if (n && !n.isRest && Array.isArray(n.keys) && n.keys[0]) {
-                    allPitches.push(keyToMidi(String(n.keys[0]).toLowerCase()));
-                  }
-                });
-              });
-              const median = allPitches.length ? (() => {
-                const arr = [...allPitches].sort((a, b) => a - b);
-                const mid = arr.length / 2;
-                return arr.length % 2 ? arr[Math.floor(mid)] : (arr[mid - 1] + arr[mid]) / 2;
-              })() : 60;
-              const detectedClef = median < 60 ? "bass" : "treble";
-              const measuresPerLine = rendererConfig.measuresPerLine && rendererConfig.measuresPerLine > 0 ? Math.max(1, Math.floor(rendererConfig.measuresPerLine)) : Math.max(
-                1,
-                Math.floor(
-                  avail / Math.max(120, Math.floor(avail / Math.max(1, mCount)))
-                )
-              );
-              const lines = [];
-              for (let i = 0; i < measures.length; i += measuresPerLine) {
-                lines.push(measures.slice(i, i + measuresPerLine));
-              }
-              const systemGap = 80;
-              const allBeams = [];
-              const createdNotes = [];
-              lines.forEach((lineMeasures, sysIndex) => {
-                const y = top + sysIndex * systemGap;
-                const stave = new Flow.Stave(left, y, avail);
-                const normalizeClef = (c) => {
-                  const m = (c || "").toString().toLowerCase();
-                  const map = {
-                    g: "treble",
-                    treble: "treble",
-                    f: "bass",
-                    bass: "bass",
-                    c: "alto",
-                    alto: "alto",
-                    tenor: "tenor",
-                    "treble-8vb": "treble-8vb",
-                    "treble-8va": "treble-8va",
-                    "bass-8vb": "bass-8vb"
-                  };
-                  return map[m] || "treble";
-                };
-                const clefToUse = normalizeClef(
-                  vexFlowData.clef || vexFlowData.tracks && vexFlowData.tracks[0] && vexFlowData.tracks[0].clef || detectedClef
-                );
-                stave.addClef(clefToUse);
-                if (vexFlowData.timeSignature && sysIndex === 0) {
-                  stave.addTimeSignature(vexFlowData.timeSignature);
-                }
-                if (vexFlowData.keySignature && vexFlowData.keySignature !== "C" && sysIndex === 0) {
-                  stave.addKeySignature(vexFlowData.keySignature);
-                }
-                stave.setContext(context).draw();
-                if (sysIndex === 0) {
-                  try {
-                    const title = vexFlowData.metadata && vexFlowData.metadata.title;
-                    if (title) {
-                      context.save();
-                      context.setFont("bold 16px Arial");
-                      context.fillText(title, left, y - 20);
-                      context.restore();
-                    }
-                    if (vexFlowData.tempo) {
-                      context.save();
-                      context.setFont("12px Arial");
-                      const tempoText = `\u2669 = ${vexFlowData.tempo}`;
-                      context.fillText(tempoText, left + 200, y - 8);
-                      context.restore();
-                    }
-                  } catch {
-                  }
-                }
-                const tickables = [];
-                lineMeasures.forEach((mNotes, idxInLine) => {
-                  const sorted = mNotes.slice().sort(
-                    (a, b) => (a.time ?? 0) - (b.time ?? 0)
-                  );
-                  sorted.forEach((noteData) => {
-                    if (noteData.isRest) {
-                      tickables.push(
-                        new Flow.StaveNote({
-                          keys: ["d/5"],
-                          duration: String(noteData.duration).replace(/r?$/, "r")
-                        })
-                      );
-                    } else {
-                      const note = new Flow.StaveNote({
-                        keys: noteData.keys.map((k) => k.toLowerCase()),
-                        duration: noteData.duration
-                      });
-                      tickables.push(note);
-                      createdNotes.push({ vf: note, data: noteData });
-                    }
-                  });
-                  if (idxInLine < lineMeasures.length - 1 && Flow.BarNote && Flow.Barline && Flow.Barline.type) {
-                    tickables.push(new Flow.BarNote(Flow.Barline.type.SINGLE));
-                  }
-                });
-                const voice2 = new Flow.Voice({
-                  num_beats: Math.max(1, lineMeasures.length) * measureCapacity,
-                  beat_value: 32
-                });
-                if (voice2.setMode && Flow.Voice && Flow.Voice.Mode && Flow.Voice.Mode.SOFT !== void 0) {
-                  voice2.setMode(Flow.Voice.Mode.SOFT);
-                } else if (typeof voice2.setStrict === "function") {
-                  voice2.setStrict(false);
-                }
-                voice2.addTickables(
-                  tickables.filter(
-                    (t) => typeof t.getTicks === "function" ? t.getTicks().value() > 0 : true
-                  )
-                );
-                const formatter = new Flow.Formatter().joinVoices([voice2]);
-                formatter.format([voice2], avail - 20);
-                voice2.draw(context, stave);
-              });
-              const allTickables = [];
-              measures.forEach((mNotes, idx) => {
-                const tickables = mNotes.slice().sort(
-                  (a, b) => (a.time ?? 0) - (b.time ?? 0)
-                ).map((noteData) => {
-                  if (noteData.isRest) {
-                    return new Flow.StaveNote({
-                      keys: ["d/5"],
-                      duration: String(noteData.duration).replace(/r?$/, "r")
-                    });
-                  }
-                  const note = new Flow.StaveNote({
-                    keys: noteData.keys.map((k) => k.toLowerCase()),
-                    duration: noteData.duration
-                  });
-                  if (noteData.graceNotes && Flow.GraceNoteGroup && Flow.GraceNote) {
-                    try {
-                      const gnotes = noteData.graceNotes.map(
-                        (g) => new Flow.GraceNote({
-                          keys: (g.keys || []).map(
-                            (kk) => String(kk).toLowerCase()
-                          ),
-                          duration: "16",
-                          slash: true
-                        })
-                      );
-                      const ggroup = new Flow.GraceNoteGroup(gnotes, true);
-                      if (typeof ggroup.beamNotes === "function") {
-                        ggroup.beamNotes();
-                      }
-                      if (typeof ggroup.setContext === "function" && typeof ggroup.attachToNote === "function") {
-                        ggroup.setContext(context);
-                        ggroup.attachToNote(note);
-                      }
-                    } catch {
-                    }
-                  }
-                  if (Array.isArray(noteData.ornaments) && noteData.ornaments.length && Flow.GraceNoteGroup && Flow.GraceNote) {
-                    const graceNoteOrnaments = noteData.ornaments.filter((orn) => orn.type === "grace_note");
-                    if (graceNoteOrnaments.length > 0) {
-                      try {
-                        const allGraceNotes = graceNoteOrnaments.flatMap((orn) => {
-                          if (orn.parameters && orn.parameters.gracePitches) {
-                            return orn.parameters.gracePitches.map(
-                              (pitch) => new Flow.GraceNote({
-                                keys: [String(pitch).toLowerCase()],
-                                duration: "16",
-                                slash: orn.parameters.graceNoteType === "acciaccatura"
-                              })
-                            );
-                          }
-                          return [];
-                        });
-                        if (allGraceNotes.length > 0) {
-                          const ggroup = new Flow.GraceNoteGroup(allGraceNotes, true);
-                          if (typeof ggroup.beamNotes === "function") {
-                            ggroup.beamNotes();
-                          }
-                          if (typeof ggroup.setContext === "function" && typeof ggroup.attachToNote === "function") {
-                            ggroup.setContext(context);
-                            ggroup.attachToNote(note);
-                          }
-                        }
-                      } catch (e) {
-                        console.warn("Failed to render grace note ornaments:", e);
-                      }
-                    }
-                  }
-                  if (Flow.Accidental) {
-                    noteData.keys.forEach((origKey, idx2) => {
-                      const k = origKey.toLowerCase();
-                      const m = /^([a-g])(#{1,2}|b{1,2})?\/-?\d+$/.exec(k);
-                      const letter = m ? m[1] : k[0];
-                      const acc2 = m && m[2] ? m[2].includes("#") ? "#" : "b" : "";
-                      const sig = keyAccMap[letter] || "natural";
-                      let glyph = null;
-                      if (acc2 === "#" && sig !== "sharp") {
-                        glyph = "#";
-                      } else if (acc2 === "b" && sig !== "flat") {
-                        glyph = "b";
-                      }
-                      if (glyph) {
-                        if (typeof note.addAccidental === "function") {
-                          note.addAccidental(idx2, new Flow.Accidental(glyph));
-                        } else if (typeof note.addModifier === "function") {
-                          note.addModifier(new Flow.Accidental(glyph), idx2);
-                        }
-                      }
-                    });
-                  }
-                  const articulationMap = {
-                    staccato: "a.",
-                    accent: "a>",
-                    tenuto: "a-",
-                    marcato: "a^",
-                    legato: "a-"
-                    // similar to tenuto for VexFlow
-                  };
-                  if (Array.isArray(noteData.vfArticulations) && noteData.vfArticulations.length) {
-                    noteData.vfArticulations.forEach((code) => {
-                      if (Flow && Flow.Articulation && Flow.Modifier && Flow.Modifier.Position && (typeof note.addArticulation === "function" || typeof note.addModifier === "function")) {
-                        const art = new Flow.Articulation(code);
-                        if (art && typeof art.setPosition === "function") {
-                          art.setPosition(Flow.Modifier.Position.ABOVE);
-                        }
-                        if (typeof note.addArticulation === "function") {
-                          note.addArticulation(0, art);
-                        } else if (typeof note.addModifier === "function") {
-                          note.addModifier(art, 0);
-                        }
-                      }
-                    });
-                  } else if (Array.isArray(noteData.articulations)) {
-                    noteData.articulations.forEach((a) => {
-                      const articulationType = typeof a === "string" ? a : a && a.type;
-                      const code = articulationMap[articulationType] || null;
-                      if (!code)
-                        return;
-                      if (Flow && Flow.Articulation && Flow.Modifier && Flow.Modifier.Position && (typeof note.addArticulation === "function" || typeof note.addModifier === "function")) {
-                        const art = new Flow.Articulation(code);
-                        if (art && typeof art.setPosition === "function") {
-                          art.setPosition(Flow.Modifier.Position.ABOVE);
-                        }
-                        if (typeof note.addArticulation === "function") {
-                          note.addArticulation(0, art);
-                        } else if (typeof note.addModifier === "function") {
-                          note.addModifier(art, 0);
-                        }
-                      }
-                    });
-                  }
-                  if (noteData.stroke && Flow && Flow.Stroke) {
-                    try {
-                      const dir = (noteData.stroke.direction || "up").toLowerCase();
-                      const style = (noteData.stroke.style || "roll").toLowerCase();
-                      const type = Flow.Stroke.Type && (style === "brush" ? dir === "down" ? Flow.Stroke.Type.BRUSH_DOWN : Flow.Stroke.Type.BRUSH_UP : dir === "down" ? Flow.Stroke.Type.ROLL_DOWN : Flow.Stroke.Type.ROLL_UP);
-                      if (type && typeof note.addStroke === "function") {
-                        note.addStroke(0, new Flow.Stroke(type));
-                      }
-                    } catch (_) {
-                    }
-                  }
-                  return note;
-                });
-                tickables.forEach((n, i) => {
-                  const d = mNotes[i];
-                  if (!d || d.isRest)
-                    return;
-                  const dotCount = typeof d.dots === "number" ? d.dots : d.dots === true || d.dot === true || d.dotted === true ? 1 : 0;
-                  for (let k = 0; k < dotCount; k++) {
-                    if (typeof n.addDotToAll === "function") {
-                      n.addDotToAll();
-                    } else if (Flow.Dot) {
-                      d.keys.forEach((_, idx2) => {
-                        if (typeof n.addModifier === "function") {
-                          n.addModifier(new Flow.Dot(), idx2);
-                        }
-                      });
-                    }
-                  }
-                  createdNotes.push({ vf: n, data: d });
-                });
-                allTickables.push(...tickables);
-                if (Flow.Beam && typeof Flow.Beam.generateBeams === "function") {
-                  const beamables = tickables.filter(
-                    (t) => typeof t.isRest !== "function" || !t.isRest()
-                  );
-                  try {
-                    const beams = Flow.Beam.generateBeams(beamables);
-                    beams.forEach((b) => b.setContext(context));
-                    allBeams.push(...beams);
-                  } catch (_) {
-                  }
-                }
-                if (idx < measures.length - 1 && Flow.BarNote && Flow.Barline && Flow.Barline.type) {
-                  allTickables.push(new Flow.BarNote(Flow.Barline.type.SINGLE));
-                }
-              });
-              const totalTicks = measures.length * measureCapacity;
-              const voice = new Flow.Voice({
-                num_beats: totalTicks,
-                beat_value: 32
-              });
-              if (voice.setMode && Flow.Voice && Flow.Voice.Mode && Flow.Voice.Mode.SOFT !== void 0) {
-                voice.setMode(Flow.Voice.Mode.SOFT);
-              } else if (typeof voice.setStrict === "function") {
-                voice.setStrict(false);
-              }
-              voice.addTickables(
-                allTickables.filter(
-                  (t) => typeof t.getTicks === "function" ? t.getTicks().value() > 0 : true
-                )
-              );
-              if (allBeams.length) {
-                allBeams.forEach((b) => {
-                  try {
-                    b.draw();
-                  } catch (_) {
-                  }
-                });
-              }
-              try {
-                const details = document.createElement("details");
-                details.style.marginTop = "10px";
-                const summary = document.createElement("summary");
-                summary.textContent = "VexFlow Source";
-                summary.style.cursor = "pointer";
-                details.appendChild(summary);
-                const pre = document.createElement("pre");
-                pre.textContent = JSON.stringify(vexFlowData, null, 2);
-                details.appendChild(pre);
-              } catch (_) {
-              }
-              if (createdNotes.length && Flow.StaveTie) {
-                for (let i = 0; i < createdNotes.length - 1; i++) {
-                  const cur2 = createdNotes[i];
-                  if (!cur2)
-                    continue;
-                  const d = cur2.data || {};
-                  const isTieStart = !!(d.tieToNext || d.tieStart || d.tie === "start");
-                  if (!isTieStart)
-                    continue;
-                  let next = null;
-                  for (let j = i + 1; j < createdNotes.length; j++) {
-                    if (createdNotes[j]) {
-                      next = createdNotes[j];
-                      break;
-                    }
-                  }
-                  if (next) {
-                    try {
-                      new Flow.StaveTie({
-                        first_note: cur2.vf,
-                        last_note: next.vf,
-                        first_indices: [0],
-                        last_indices: [0]
-                      }).setContext(context).draw();
-                    } catch (_) {
-                    }
-                  }
-                }
-              }
-              if (createdNotes.length && Flow && Flow.Glissando) {
-                for (let i = 0; i < createdNotes.length - 1; i++) {
-                  const start = createdNotes[i];
-                  if (!start || !start.data || !start.vf)
-                    continue;
-                  const g = start.data.gliss;
-                  if (!g)
-                    continue;
-                  let end = null;
-                  if (g.targetKey) {
-                    for (let j = i + 1; j < createdNotes.length; j++) {
-                      const cand = createdNotes[j];
-                      if (cand && cand.data && Array.isArray(cand.data.keys)) {
-                        const hasKey = cand.data.keys.some(
-                          (k) => String(k).toLowerCase() === String(g.targetKey).toLowerCase()
-                        );
-                        if (hasKey) {
-                          end = cand;
-                          break;
-                        }
-                      }
-                    }
-                  }
-                  if (!end) {
-                    for (let j = i + 1; j < createdNotes.length; j++) {
-                      if (createdNotes[j]) {
-                        end = createdNotes[j];
-                        break;
-                      }
-                    }
-                  }
-                  if (end && end.vf) {
-                    try {
-                      const gl = new Flow.Glissando({
-                        from: start.vf,
-                        to: end.vf,
-                        text: g.text || (g.type === "portamento" ? "port." : "gliss.")
-                      });
-                      if (gl && typeof gl.setContext === "function") {
-                        gl.setContext(context).draw();
-                      }
-                    } catch (_) {
-                    }
-                  }
-                }
-              }
-            } catch (factoryError) {
-              console.warn(
-                "Factory API failed, trying low-level API:",
-                factoryError
-              );
-              const Flow = VFNS && (VFNS.Flow || VFNS.VF || VFNS) || {};
-              const accMode = rendererConfig.accidentalsMode || "auto";
-              const getKeyAccidentalMap = (key) => {
-                const k = (key || "C").trim();
-                const majorSharps = {
-                  C: 0,
-                  G: 1,
-                  D: 2,
-                  A: 3,
-                  E: 4,
-                  B: 5,
-                  "F#": 6,
-                  "C#": 7
-                };
-                const majorFlats = {
-                  C: 0,
-                  F: 1,
-                  Bb: 2,
-                  Eb: 3,
-                  Ab: 4,
-                  Db: 5,
-                  Gb: 6,
-                  Cb: 7
-                };
-                const minorSharps = {
-                  A: 0,
-                  E: 1,
-                  B: 2,
-                  "F#": 3,
-                  "C#": 4,
-                  "G#": 5,
-                  "D#": 6,
-                  "A#": 7
-                };
-                const minorFlats = {
-                  A: 0,
-                  D: 1,
-                  G: 2,
-                  C: 3,
-                  F: 4,
-                  Bb: 5,
-                  Eb: 6,
-                  Ab: 7
-                };
-                const orderSharps = ["f", "c", "g", "d", "a", "e", "b"];
-                const orderFlats = ["b", "e", "a", "d", "g", "c", "f"];
-                const isMinor = /m(in)?$/i.test(k);
-                const base = k.replace(/m(in)?$/i, "");
-                let count = 0;
-                let type = "natural";
-                if (isMinor && minorSharps[base] !== void 0) {
-                  count = minorSharps[base];
-                  type = "sharp";
-                } else if (isMinor && minorFlats[base] !== void 0) {
-                  count = minorFlats[base];
-                  type = "flat";
-                } else if (majorSharps[base] !== void 0) {
-                  count = majorSharps[base];
-                  type = "sharp";
-                } else if (majorFlats[base] !== void 0) {
-                  count = majorFlats[base];
-                  type = "flat";
-                }
-                const map = {
-                  a: "natural",
-                  b: "natural",
-                  c: "natural",
-                  d: "natural",
-                  e: "natural",
-                  f: "natural",
-                  g: "natural"
-                };
-                if (type === "sharp") {
-                  for (let i = 0; i < count; i++)
-                    map[orderSharps[i]] = "sharp";
-                }
-                if (type === "flat") {
-                  for (let i = 0; i < count; i++)
-                    map[orderFlats[i]] = "flat";
-                }
-                return map;
-              };
-              const keyAccMap = getKeyAccidentalMap(vexFlowData.keySignature);
-              const Renderer = Flow && Flow.Renderer || VFNS.Renderer || VFNS.Flow && VFNS.Flow.Renderer;
-              if (!Renderer || !Renderer.Backends) {
-                throw new Error(
-                  "VexFlow low-level API not available (Renderer missing)"
-                );
-              }
-              const renderer = new Renderer(
-                div,
-                Renderer.Backends.SVG
-              );
-              renderer.resize(rendererConfig.width, rendererConfig.height);
-              const context = renderer.getContext();
-              const durToTicks = (d) => {
-                const s = String(d).replace(/r/g, "");
-                const map = { w: 32, h: 16, q: 8, "8": 4, "16": 2, "32": 1 };
-                return map[s] || 0;
-              };
-              const parseTS = (ts2) => {
-                const [n, d] = (ts2 || "4/4").split("/").map((x) => parseInt(x, 10));
-                return { n: n || 4, d: d || 4 };
-              };
-              const ts = parseTS(vexFlowData.timeSignature);
-              const measureCapacity = Math.max(1, Math.round(32 * ts.n / ts.d));
-              const ticksToDur = (ticks) => {
-                const inv = { 32: "w", 16: "h", 8: "q", 4: "8", 2: "16", 1: "32" };
-                return inv[ticks] || "q";
-              };
-              const measures = [];
-              let cur = [];
-              let acc = (() => {
-                const notes = vexFlowData.tracks[0].notes || [];
-                const minTime = notes.reduce(
-                  (m, n) => Math.min(m, n.time ?? 0),
-                  Number.POSITIVE_INFINITY
-                );
-                const base = minTime === Number.POSITIVE_INFINITY ? 0 : minTime;
-                return Math.round(base * 8 % measureCapacity);
-              })();
-              const originalNotes = vexFlowData.tracks[0].notes;
-              const graceBuf = [];
-              for (const nd of originalNotes) {
-                const ticks = durToTicks(nd.duration);
-                const isGrace = !!nd.grace;
-                if (isGrace) {
-                  graceBuf.push(nd);
-                  continue;
-                }
-                let t = ticks;
-                let firstPart = true;
-                while (t > 0) {
-                  const remaining = measureCapacity - acc;
-                  const slice = Math.min(t, remaining);
-                  const part = { ...nd, duration: ticksToDur(slice) };
-                  if (firstPart && graceBuf.length) {
-                    part.graceNotes = graceBuf.splice(0, graceBuf.length);
-                  }
-                  if (!firstPart)
-                    part.tieFromPrev = true;
-                  if (slice < t)
-                    part.tieToNext = true;
-                  cur.push(part);
-                  acc += slice;
-                  t -= slice;
-                  firstPart = false;
-                  if (acc >= measureCapacity) {
-                    measures.push(cur);
-                    cur = [];
-                    acc = 0;
-                  }
-                }
-              }
-              if (cur.length)
-                measures.push(cur);
-              const left = 10;
-              const right = 10;
-              const top = 40;
-              const avail = Math.max(
-                100,
-                (rendererConfig.width || 800) - left - right
-              );
-              const mCount = Math.max(1, measures.length);
-              const mWidth = Math.max(300, Math.floor(avail / mCount));
-              const fallbackKeyToMidi = (k) => {
-                const m = /^([a-g])(b|#)?\/(-?\d+)$/.exec(k);
-                if (!m)
-                  return 60;
-                const letters = { c: 0, d: 2, e: 4, f: 5, g: 7, a: 9, b: 11 };
-                const letter = letters[m[1]];
-                const acc2 = m[2] === "#" ? 1 : m[2] === "b" ? -1 : 0;
-                const octave = parseInt(m[3], 10);
-                return (octave + 1) * 12 + letter + acc2;
-              };
-              const fallbackPitches = [];
-              measures.forEach((ms) => {
-                ms.forEach((n) => {
-                  if (n && !n.isRest && Array.isArray(n.keys) && n.keys[0]) {
-                    fallbackPitches.push(
-                      fallbackKeyToMidi(String(n.keys[0]).toLowerCase())
-                    );
-                  }
-                });
-              });
-              const fallbackMedian = fallbackPitches.length ? (() => {
-                const arr = [...fallbackPitches].sort((a, b) => a - b);
-                const mid = arr.length / 2;
-                return arr.length % 2 ? arr[Math.floor(mid)] : (arr[mid - 1] + arr[mid]) / 2;
-              })() : 60;
-              const detectedClef = fallbackMedian < 60 ? "bass" : "treble";
-              const measuresPerLine = rendererConfig.measuresPerLine && rendererConfig.measuresPerLine > 0 ? Math.max(1, Math.floor(rendererConfig.measuresPerLine)) : Math.max(
-                1,
-                Math.floor(
-                  avail / Math.max(
-                    120,
-                    Math.floor(avail / Math.max(1, measures.length))
-                  )
-                )
-              );
-              const lines = [];
-              for (let i = 0; i < measures.length; i += measuresPerLine) {
-                lines.push(measures.slice(i, i + measuresPerLine));
-              }
-              const systemGap = 80;
-              const allBeams = [];
-              const createdNotes = [];
-              lines.forEach((lineMeasures, sysIndex) => {
-                const y = top + sysIndex * systemGap;
-                const stave = new Flow.Stave(left, y, avail);
-                const normalizeClef = (c) => {
-                  const m = (c || "").toString().toLowerCase();
-                  const map = {
-                    g: "treble",
-                    treble: "treble",
-                    f: "bass",
-                    bass: "bass",
-                    c: "alto",
-                    alto: "alto",
-                    tenor: "tenor",
-                    "treble-8vb": "treble-8vb",
-                    "treble-8va": "treble-8va",
-                    "bass-8vb": "bass-8vb"
-                  };
-                  return map[m] || "treble";
-                };
-                const clefToUse = normalizeClef(
-                  vexFlowData.clef || vexFlowData.tracks && vexFlowData.tracks[0] && vexFlowData.tracks[0].clef || detectedClef
-                );
-                stave.addClef(clefToUse);
-                if (vexFlowData.timeSignature && sysIndex === 0) {
-                  stave.addTimeSignature(vexFlowData.timeSignature);
-                }
-                if (vexFlowData.keySignature && vexFlowData.keySignature !== "C" && sysIndex === 0) {
-                  stave.addKeySignature(vexFlowData.keySignature);
-                }
-                stave.setContext(context).draw();
-                if (sysIndex === 0) {
-                  try {
-                    const title = vexFlowData.metadata && vexFlowData.metadata.title;
-                    if (title) {
-                      context.save();
-                      context.setFont("bold 16px Arial");
-                      context.fillText(title, left, y - 20);
-                      context.restore();
-                    }
-                    if (vexFlowData.tempo) {
-                      context.save();
-                      context.setFont("12px Arial");
-                      const tempoText = `\u2669 = ${vexFlowData.tempo}`;
-                      context.fillText(tempoText, left + 200, y - 8);
-                      context.restore();
-                    }
-                  } catch {
-                  }
-                }
-                const tickables = [];
-                lineMeasures.forEach((mNotes, idxInLine) => {
-                  const sorted = mNotes.slice().sort(
-                    (a, b) => (a.time ?? 0) - (b.time ?? 0)
-                  );
-                  sorted.forEach((noteData) => {
-                    if (noteData.isRest) {
-                      tickables.push(
-                        new Flow.StaveNote({
-                          keys: ["d/5"],
-                          duration: String(noteData.duration).replace(/r?$/, "r")
-                        })
-                      );
-                    } else {
-                      const note = new Flow.StaveNote({
-                        keys: noteData.keys.map((k) => k.toLowerCase()),
-                        duration: noteData.duration
-                      });
-                      tickables.push(note);
-                      createdNotes.push({ vf: note, data: noteData });
-                    }
-                  });
-                  if (idxInLine < lineMeasures.length - 1 && Flow.BarNote && Flow.Barline && Flow.Barline.type) {
-                    tickables.push(new Flow.BarNote(Flow.Barline.type.SINGLE));
-                  }
-                });
-                const voice2 = new Flow.Voice({
-                  num_beats: Math.max(1, lineMeasures.length) * measureCapacity,
-                  beat_value: 32
-                });
-                if (voice2.setMode && Flow.Voice && Flow.Voice.Mode && Flow.Voice.Mode.SOFT !== void 0) {
-                  voice2.setMode(Flow.Voice.Mode.SOFT);
-                } else if (typeof voice2.setStrict === "function") {
-                  voice2.setStrict(false);
-                }
-                voice2.addTickables(
-                  tickables.filter(
-                    (t) => typeof t.getTicks === "function" ? t.getTicks().value() > 0 : true
-                  )
-                );
-                const formatter = new Flow.Formatter().joinVoices([voice2]);
-                formatter.format([voice2], avail - 20);
-                voice2.draw(context, stave);
-              });
-              const allTickables = [];
-              measures.forEach((mNotes, idx) => {
-                const tickables = mNotes.slice().sort(
-                  (a, b) => (a.time ?? 0) - (b.time ?? 0)
-                ).map((noteData) => {
-                  if (noteData.isRest) {
-                    return new Flow.StaveNote({
-                      keys: ["d/5"],
-                      duration: String(noteData.duration).replace(/r?$/, "r")
-                    });
-                  }
-                  const note = new Flow.StaveNote({
-                    keys: noteData.keys.map((k) => k.toLowerCase()),
-                    duration: noteData.duration
-                  });
-                  if (noteData.graceNotes && Flow.GraceNoteGroup && Flow.GraceNote) {
-                    try {
-                      const gnotes = noteData.graceNotes.map(
-                        (g) => new Flow.GraceNote({
-                          keys: (g.keys || []).map(
-                            (kk) => String(kk).toLowerCase()
-                          ),
-                          duration: "16",
-                          slash: true
-                        })
-                      );
-                      const ggroup = new Flow.GraceNoteGroup(gnotes, true);
-                      if (typeof ggroup.beamNotes === "function") {
-                        ggroup.beamNotes();
-                      }
-                      if (typeof ggroup.setContext === "function" && typeof ggroup.attachToNote === "function") {
-                        ggroup.setContext(context);
-                        ggroup.attachToNote(note);
-                      }
-                    } catch {
-                    }
-                  }
-                  if (Array.isArray(noteData.ornaments) && noteData.ornaments.length && Flow.GraceNoteGroup && Flow.GraceNote) {
-                    const graceNoteOrnaments = noteData.ornaments.filter((orn) => orn.type === "grace_note");
-                    if (graceNoteOrnaments.length > 0) {
-                      try {
-                        const allGraceNotes = graceNoteOrnaments.flatMap((orn) => {
-                          if (orn.parameters && orn.parameters.gracePitches) {
-                            return orn.parameters.gracePitches.map(
-                              (pitch) => new Flow.GraceNote({
-                                keys: [String(pitch).toLowerCase()],
-                                duration: "16",
-                                slash: orn.parameters.graceNoteType === "acciaccatura"
-                              })
-                            );
-                          }
-                          return [];
-                        });
-                        if (allGraceNotes.length > 0) {
-                          const ggroup = new Flow.GraceNoteGroup(allGraceNotes, true);
-                          if (typeof ggroup.beamNotes === "function") {
-                            ggroup.beamNotes();
-                          }
-                          if (typeof ggroup.setContext === "function" && typeof ggroup.attachToNote === "function") {
-                            ggroup.setContext(context);
-                            ggroup.attachToNote(note);
-                          }
-                        }
-                      } catch (e) {
-                        console.warn("Failed to render grace note ornaments:", e);
-                      }
-                    }
-                  }
-                  if (Flow.Accidental) {
-                    noteData.keys.forEach((origKey, idx2) => {
-                      const k = origKey.toLowerCase();
-                      const m = /^([a-g])(#{1,2}|b{1,2})?\/-?\d+$/.exec(k);
-                      const letter = m ? m[1] : k[0];
-                      const acc2 = m && m[2] ? m[2].includes("#") ? "#" : "b" : "";
-                      const sig = keyAccMap[letter] || "natural";
-                      let glyph = null;
-                      if (acc2 === "#" && sig !== "sharp") {
-                        glyph = "#";
-                      } else if (acc2 === "b" && sig !== "flat") {
-                        glyph = "b";
-                      }
-                      if (glyph) {
-                        if (typeof note.addAccidental === "function") {
-                          note.addAccidental(idx2, new Flow.Accidental(glyph));
-                        } else if (typeof note.addModifier === "function") {
-                          note.addModifier(new Flow.Accidental(glyph), idx2);
-                        }
-                      }
-                    });
-                  }
-                  const articulationMap = {
-                    staccato: "a.",
-                    accent: "a>",
-                    tenuto: "a-",
-                    marcato: "a^",
-                    legato: "a-"
-                    // similar to tenuto for VexFlow
-                  };
-                  if (Array.isArray(noteData.vfArticulations) && noteData.vfArticulations.length) {
-                    noteData.vfArticulations.forEach((code) => {
-                      if (Flow && Flow.Articulation && Flow.Modifier && Flow.Modifier.Position && (typeof note.addArticulation === "function" || typeof note.addModifier === "function")) {
-                        const art = new Flow.Articulation(code);
-                        if (art && typeof art.setPosition === "function") {
-                          art.setPosition(Flow.Modifier.Position.ABOVE);
-                        }
-                        if (typeof note.addArticulation === "function") {
-                          note.addArticulation(0, art);
-                        } else if (typeof note.addModifier === "function") {
-                          note.addModifier(art, 0);
-                        }
-                      }
-                    });
-                  } else if (Array.isArray(noteData.articulations)) {
-                    noteData.articulations.forEach((a) => {
-                      const articulationType = typeof a === "string" ? a : a && a.type;
-                      const code = articulationMap[articulationType] || null;
-                      if (!code)
-                        return;
-                      if (Flow && Flow.Articulation && Flow.Modifier && Flow.Modifier.Position && (typeof note.addArticulation === "function" || typeof note.addModifier === "function")) {
-                        const art = new Flow.Articulation(code);
-                        if (art && typeof art.setPosition === "function") {
-                          art.setPosition(Flow.Modifier.Position.ABOVE);
-                        }
-                        if (typeof note.addArticulation === "function") {
-                          note.addArticulation(0, art);
-                        } else if (typeof note.addModifier === "function") {
-                          note.addModifier(art, 0);
-                        }
-                      }
-                    });
-                  }
-                  return note;
-                });
-                tickables.forEach((n, i) => {
-                  const d = mNotes[i];
-                  if (!d || d.isRest)
-                    return;
-                  const dotCount = typeof d.dots === "number" ? d.dots : d.dots === true || d.dot === true || d.dotted === true ? 1 : 0;
-                  for (let k = 0; k < dotCount; k++) {
-                    if (typeof n.addDotToAll === "function") {
-                      n.addDotToAll();
-                    } else if (Flow.Dot) {
-                      d.keys.forEach((_, idx2) => {
-                        if (typeof n.addModifier === "function") {
-                          n.addModifier(new Flow.Dot(), idx2);
-                        }
-                      });
-                    }
-                  }
-                  createdNotes.push({ vf: n, data: d });
-                });
-                allTickables.push(...tickables);
-                if (Flow.Beam && typeof Flow.Beam.generateBeams === "function") {
-                  const beamables = tickables.filter(
-                    (t) => typeof t.isRest !== "function" || !t.isRest()
-                  );
-                  try {
-                    const beams = Flow.Beam.generateBeams(beamables);
-                    beams.forEach((b) => b.setContext(context));
-                    allBeams.push(...beams);
-                  } catch (_) {
-                  }
-                }
-                if (idx < measures.length - 1 && Flow.BarNote && Flow.Barline && Flow.Barline.type) {
-                  allTickables.push(new Flow.BarNote(Flow.Barline.type.SINGLE));
-                }
-              });
-              const totalTicks = measures.length * measureCapacity;
-              const voice = new Flow.Voice({
-                num_beats: totalTicks,
-                beat_value: 32
-              });
-              if (voice.setMode && Flow.Voice && Flow.Voice.Mode && Flow.Voice.Mode.SOFT !== void 0) {
-                voice.setMode(Flow.Voice.Mode.SOFT);
-              } else if (typeof voice.setStrict === "function") {
-                voice.setStrict(false);
-              }
-              voice.addTickables(
-                allTickables.filter(
-                  (t) => typeof t.getTicks === "function" ? t.getTicks().value() > 0 : true
-                )
-              );
-              if (allBeams.length) {
-                allBeams.forEach((b) => {
-                  try {
-                    b.draw();
-                  } catch (_) {
-                  }
-                });
-              }
-              if (createdNotes.length && Flow.StaveTie) {
-                for (let i = 0; i < createdNotes.length - 1; i++) {
-                  const cur2 = createdNotes[i];
-                  if (!cur2)
-                    continue;
-                  const d = cur2.data || {};
-                  const isTieStart = !!(d.tieToNext || d.tieStart || d.tie === "start");
-                  if (!isTieStart)
-                    continue;
-                  let next = null;
-                  for (let j = i + 1; j < createdNotes.length; j++) {
-                    if (createdNotes[j]) {
-                      next = createdNotes[j];
-                      break;
-                    }
-                  }
-                  if (next) {
-                    try {
-                      new Flow.StaveTie({
-                        first_note: cur2.vf,
-                        last_note: next.vf,
-                        first_indices: [0],
-                        last_indices: [0]
-                      }).setContext(context).draw();
-                    } catch (_) {
-                    }
-                  }
-                }
-              }
-            }
-          }
-        };
-      }
-    };
-  }
-});
-
-// src/converters/index.js
-var converters_exports = {};
-__export(converters_exports, {
-  VexFlowConverter: () => VexFlowConverter,
-  abc: () => abc,
-  convertToVexFlow: () => convertToVexFlow,
-  downloadABC: () => downloadABC,
-  downloadMidi: () => downloadMidi,
-  downloadWav: () => downloadWav,
-  midi: () => midi,
-  midiToJmon: () => midiToJmon,
-  supercollider: () => supercollider,
-  tonejs: () => tonejs,
-  wav: () => wav
-});
-var init_converters = __esm({
-  "src/converters/index.js"() {
-    init_midi();
-    init_midi_to_jmon();
-    init_tonejs();
-    init_wav();
-    init_abc();
-    init_supercollider();
-    init_vexflow();
   }
 });
 
@@ -4533,67 +1726,6 @@ var init_gm_instruments = __esm({
   }
 });
 
-// src/constants/ui-constants.js
-var PLAYER_DIMENSIONS, TIMELINE_CONFIG, COLORS;
-var init_ui_constants = __esm({
-  "src/constants/ui-constants.js"() {
-    PLAYER_DIMENSIONS = {
-      MAX_WIDTH: 800,
-      MIN_WIDTH: 0,
-      MOBILE_MAX_WIDTH: "100vw",
-      PADDING: 16,
-      MOBILE_PADDING: 8,
-      BORDER_RADIUS: 12,
-      MOBILE_BORDER_RADIUS: 8
-    };
-    TIMELINE_CONFIG = {
-      MARGIN: "8px 0",
-      MOBILE_MARGIN: "6px 0",
-      GAP: 12,
-      MOBILE_GAP: 8,
-      UPDATE_INTERVAL: 100
-      // ms between timeline updates
-    };
-    COLORS = {
-      BACKGROUND: "#FFFFFF",
-      PRIMARY: "#333",
-      SECONDARY: "#F0F0F0",
-      ACCENT: "#333",
-      TEXT: "#000000",
-      LIGHT_TEXT: "#666666",
-      BORDER: "#CCCCCC"
-    };
-  }
-});
-
-// src/constants/player-constants.js
-var AUDIO_CONFIG, ERROR_MESSAGES, LOG_PREFIXES;
-var init_player_constants = __esm({
-  "src/constants/player-constants.js"() {
-    AUDIO_CONFIG = {
-      DEFAULT_TEMPO: 120,
-      MIN_TEMPO: 60,
-      MAX_TEMPO: 240,
-      DEFAULT_VELOCITY: 0.8,
-      GLISSANDO_MIN_STEPS: 3
-    };
-    ERROR_MESSAGES = {
-      INVALID_COMPOSITION: "Composition must be a valid JMON object",
-      NO_SEQUENCES_OR_TRACKS: "Composition must have sequences or tracks",
-      TRACKS_MUST_BE_ARRAY: "Tracks/sequences must be an array",
-      TONE_NOT_AVAILABLE: "Tone.js not available",
-      AUDIO_CONTEXT_FAILED: "Failed to start audio context",
-      iOS_AUDIO_HELP: "On iOS, please ensure your device isn't in silent mode and try again.",
-      GENERAL_AUDIO_HELP: "Please check your audio settings and try again."
-    };
-    LOG_PREFIXES = {
-      PLAYER: "[PLAYER]",
-      MULTIVOICE: "[MULTIVOICE]",
-      AUDIO_GRAPH: "[AUDIO_GRAPH]"
-    };
-  }
-});
-
 // src/browser/music-player.js
 var music_player_exports = {};
 __export(music_player_exports, {
@@ -4601,1821 +1733,382 @@ __export(music_player_exports, {
 });
 function createPlayer(composition, options = {}) {
   if (!composition || typeof composition !== "object") {
-    console.error(`${LOG_PREFIXES.PLAYER} Invalid composition:`, composition);
-    throw new Error(ERROR_MESSAGES.INVALID_COMPOSITION);
+    throw new Error("Invalid composition");
   }
-  const {
-    autoplay = false,
-    showDebug = false,
-    customInstruments = {},
-    autoMultivoice = true,
-    maxVoices = 4,
-    Tone: externalTone = null,
-    preloadTone = false
-  } = options;
-  if (!composition.sequences && !composition.tracks) {
-    console.error(
-      `${LOG_PREFIXES.PLAYER} No sequences or tracks found in composition:`,
-      composition
-    );
-    throw new Error(ERROR_MESSAGES.NO_SEQUENCES_OR_TRACKS);
-  }
+  const { Tone: externalTone = null, autoplay = false } = options;
   const tracks = composition.tracks || composition.sequences || [];
   if (!Array.isArray(tracks)) {
-    console.error(
-      `${LOG_PREFIXES.PLAYER} Tracks/sequences must be an array:`,
-      tracks
-    );
-    throw new Error(ERROR_MESSAGES.TRACKS_MUST_BE_ARRAY);
+    throw new Error("Tracks must be an array");
   }
-  const tempo = composition.tempo || composition.bpm || AUDIO_CONFIG.DEFAULT_TEMPO;
-  const conversionOptions = { autoMultivoice, maxVoices, showDebug };
-  const convertedData = tonejs(composition, conversionOptions);
+  const tempo = composition.tempo || composition.bpm || 120;
+  const convertedData = tonejs(composition, {});
   const { tracks: convertedTracks, metadata } = convertedData;
-  let totalDuration = metadata.totalDuration;
-  const colors = COLORS;
+  const totalDuration = metadata.totalDuration;
+  const originalTracksSource = tracks;
+  let isPlaying = false;
+  let currentTime = 0;
+  let animationId = null;
+  let scheduledEvents = [];
+  let activeSynths = [];
   const container = document.createElement("div");
   container.style.cssText = `
-        font-family: 'PT Sans', sans-serif;
-        background-color: ${colors.background};
-        color: ${colors.text};
-        padding: 16px 16px 8px 16px;
-        border-radius: 12px;
-        width: 100%;
-        max-width: ${PLAYER_DIMENSIONS.MAX_WIDTH}px;
-        min-width: ${PLAYER_DIMENSIONS.MIN_WIDTH};
-        border: 1px solid ${colors.border};
-        box-shadow: 2px 2px 10px rgba(0, 0, 0, 0.1);
-        display: flex;
-        flex-direction: column;
-        box-sizing: border-box;
-    `;
-  const styleTag = document.createElement("style");
-  styleTag.textContent = `
-        /* iOS audio improvements */
-        .jmon-music-player-container {
-            -webkit-user-select: none;
-            -webkit-touch-callout: none;
-            -webkit-tap-highlight-color: transparent;
-            touch-action: manipulation;
-        }
-        .jmon-music-player-play {
-            -webkit-user-select: none;
-            -webkit-touch-callout: none;
-            -webkit-tap-highlight-color: transparent;
-            touch-action: manipulation;
-        }
-
-        /* Button hover effects */
-        .jmon-music-player-btn-vertical:hover {
-            background-color: #555555 !important;
-            transform: translateY(-1px);
-        }
-        .jmon-music-player-btn-vertical:active {
-            transform: translateY(0px);
-        }
-
-        /* Large screens: Show vertical downloads, hide horizontal ones, horizontal track layout */
-        @media (min-width: 600px) {
-            .jmon-music-player-downloads {
-                display: none !important;
-            }
-            .jmon-music-player-vertical-downloads {
-                display: flex !important;
-            }
-            .jmon-music-player-top {
-                gap: 32px !important;
-            }
-            .jmon-music-player-right {
-                min-width: 140px !important;
-                max-width: 160px !important;
-            }
-            .jmon-track-selector {
-                flex-direction: row !important;
-                align-items: center !important;
-                gap: 16px !important;
-            }
-            .jmon-track-selector label {
-                min-width: 120px !important;
-                margin-bottom: 0 !important;
-                flex-shrink: 0 !important;
-            }
-            .jmon-track-selector select {
-                flex: 1 !important;
-            }
-        }
-
-        /* Medium screens: Compact layout with horizontal track selectors */
-        @media (min-width: 481px) and (max-width: 799px) {
-            .jmon-music-player-downloads {
-                display: none !important;
-            }
-            .jmon-music-player-vertical-downloads {
-                display: flex !important;
-            }
-            .jmon-music-player-top {
-                gap: 20px !important;
-            }
-            .jmon-music-player-right {
-                min-width: 120px !important;
-                max-width: 140px !important;
-            }
-            .jmon-track-selector {
-                flex-direction: row !important;
-                align-items: center !important;
-                gap: 12px !important;
-            }
-            .jmon-track-selector label {
-                min-width: 100px !important;
-                margin-bottom: 0 !important;
-                flex-shrink: 0 !important;
-                font-size: 14px !important;
-            }
-            .jmon-track-selector select {
-                flex: 1 !important;
-            }
-        }
-
-        /* Small screens: Mobile layout */
-        @media (max-width: 480px) {
-            .jmon-music-player-downloads {
-                display: flex !important;
-            }
-            .jmon-music-player-vertical-downloads {
-                display: none !important;
-            }
-            .jmon-music-player-container {
-                padding: 8px !important;
-                border-radius: 8px !important;
-                max-width: 100vw !important;
-                min-width: 0 !important;
-                box-shadow: none !important;
-            }
-            .jmon-music-player-top {
-                flex-direction: column !important;
-                gap: 12px !important;
-                align-items: stretch !important;
-            }
-            .jmon-music-player-left, .jmon-music-player-right {
-                width: 100% !important;
-                min-width: 0 !important;
-                max-width: none !important;
-                flex: none !important;
-            }
-            .jmon-music-player-right {
-                gap: 12px !important;
-            }
-            .jmon-track-selector {
-                flex-direction: column !important;
-                align-items: stretch !important;
-                gap: 8px !important;
-            }
-            .jmon-track-selector label {
-                min-width: auto !important;
-                margin-bottom: 0 !important;
-            }
-            .jmon-track-selector select {
-                flex: none !important;
-            }
-            .jmon-music-player-timeline {
-                gap: 8px !important;
-                margin: 6px 0 !important;
-            }
-            .jmon-music-player-downloads {
-                flex-direction: column !important;
-                gap: 8px !important;
-                margin-top: 6px !important;
-            }
-            .jmon-music-player-btn {
-                min-height: 40px !important;
-                font-size: 14px !important;
-                padding: 10px 0 !important;
-            }
-            .jmon-music-player-play {
-                width: 40px !important;
-                height: 40px !important;
-                min-width: 40px !important;
-                max-width: 40px !important;
-                padding: 8px !important;
-                margin: 0 4px !important;
-                border-radius: 50% !important;
-                flex-shrink: 0 !important;
-            }
-            .jmon-music-player-stop {
-                width: 40px !important;
-                height: 40px !important;
-                min-width: 40px !important;
-                max-width: 40px !important;
-                padding: 8px !important;
-                margin: 0 4px !important;
-                flex-shrink: 0 !important;
-            }
-        }
-    `;
-  document.head.appendChild(styleTag);
-  container.classList.add("jmon-music-player-container");
-  const mainLayout = document.createElement("div");
-  mainLayout.style.cssText = `
-        display: grid;
-        grid-template-columns: 1fr;
-        grid-template-rows: auto auto auto auto;
-        gap: 12px;
-        margin-bottom: 0px;
-        font-family: 'PT Sans', sans-serif;
-    `;
-  mainLayout.classList.add("jmon-music-player-main");
-  const topContainer = document.createElement("div");
-  topContainer.style.cssText = `
-        display: flex;
-        justify-content: space-between;
-        align-items: flex-start;
-        font-family: 'PT Sans', sans-serif;
-        gap: 24px;
-        flex-wrap: wrap;
-    `;
-  topContainer.classList.add("jmon-music-player-top");
-  const leftColumn = document.createElement("div");
-  leftColumn.style.cssText = `
-        display: flex;
-        flex-direction: column;
-        flex: 1;
-        min-width: 0;
-        box-sizing: border-box;
-    `;
-  leftColumn.classList.add("jmon-music-player-left");
-  const instrumentsContainer = document.createElement("div");
-  instrumentsContainer.style.cssText = `
-        display: flex;
-        flex-direction: column;
-        gap: 6px;
-    `;
-  const gmInstruments = getPopularInstruments();
-  const originalTracks = composition.tracks || [];
-  const synthSelectors = [];
-  originalTracks.forEach((track, index) => {
-    const trackAnalysis = convertedTracks.find(
-      (t) => t.originalTrackIndex === index
-    )?.analysis;
-    if (trackAnalysis?.hasGlissando) {
-      console.warn(
-        `Track ${track.label || track.name || index + 1} contient un glissando : la polyphonie sera d\xE9sactiv\xE9e pour cette piste.`
-      );
-    }
-    const synthSelectorItem = document.createElement("div");
-    synthSelectorItem.style.cssText = `
-            margin-bottom: 8px;
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-        `;
-    synthSelectorItem.classList.add("jmon-track-selector");
-    const synthLabel = document.createElement("label");
-    synthLabel.textContent = track.label || `Track ${index + 1}`;
-    synthLabel.style.cssText = `
-            font-family: 'PT Sans', sans-serif;
-            font-size: 16px;
-            color: ${colors.text};
-            display: block;
-            margin-bottom: 0;
-            font-weight: normal;
-            flex-shrink: 0;
-        `;
-    const synthSelect = document.createElement("select");
-    synthSelect.style.cssText = `
-            padding: 4px;
-            border: 1px solid ${colors.secondary};
-            border-radius: 4px;
-            background-color: ${colors.background};
-            color: ${colors.text};
-            font-size: 12px;
-            width: 100%;
-            height: 28px;
-            box-sizing: border-box;
-            -webkit-appearance: none;
-            -moz-appearance: none;
-            appearance: none;
-            margin: 0;
-            outline: none;
-        `;
-    const synthGroup = document.createElement("optgroup");
-    synthGroup.label = "Synthesizers";
-    const basicSynths = [
-      "PolySynth",
-      "Synth",
-      "AMSynth",
-      "DuoSynth",
-      "FMSynth",
-      "MembraneSynth",
-      "MetalSynth",
-      "MonoSynth",
-      "PluckSynth"
-    ];
-    const audioGraphNodes = composition.audioGraph || [];
-    if (Array.isArray(audioGraphNodes) && audioGraphNodes.length > 0) {
-      const trackSynthRef = composition.tracks?.[index]?.synthRef;
-      audioGraphNodes.forEach((node) => {
-        if (node.id && node.type && node.type !== "Destination") {
-          const option = document.createElement("option");
-          option.value = `AudioGraph: ${node.id}`;
-          option.textContent = node.id;
-          if (trackSynthRef === node.id) {
-            option.selected = true;
-          }
-          synthGroup.appendChild(option);
-        }
-      });
-    }
-    basicSynths.forEach((synthType) => {
-      const option = document.createElement("option");
-      option.value = synthType;
-      option.textContent = synthType;
-      if (trackAnalysis?.hasGlissando && synthType === "Synth") {
-        option.selected = true;
-      } else if (!trackAnalysis?.hasGlissando && !composition.tracks?.[index]?.synthRef && synthType === "PolySynth") {
-        option.selected = true;
-      }
-      if (trackAnalysis?.hasGlissando && (synthType === "PolySynth" || synthType === "DuoSynth")) {
-        option.disabled = true;
-        option.textContent += " (mono only for glissando)";
-      }
-      synthGroup.appendChild(option);
-    });
-    synthSelect.appendChild(synthGroup);
-    const gmGroup = document.createElement("optgroup");
-    gmGroup.label = "Sampled Instruments";
-    const instrumentsByCategory = {};
-    gmInstruments.forEach((instrument) => {
-      if (!instrumentsByCategory[instrument.category]) {
-        instrumentsByCategory[instrument.category] = [];
-      }
-      instrumentsByCategory[instrument.category].push(instrument);
-    });
-    Object.keys(instrumentsByCategory).sort().forEach((category) => {
-      const categoryGroup = document.createElement("optgroup");
-      categoryGroup.label = category;
-      instrumentsByCategory[category].forEach((instrument) => {
-        const option = document.createElement("option");
-        option.value = `GM: ${instrument.name}`;
-        option.textContent = instrument.name;
-        if (trackAnalysis?.hasGlissando) {
-          option.disabled = true;
-          option.textContent += " (not suitable for glissando)";
-        }
-        categoryGroup.appendChild(option);
-      });
-      synthSelect.appendChild(categoryGroup);
-    });
-    synthSelectors.push(synthSelect);
-    synthSelectorItem.append(synthLabel, synthSelect);
-    instrumentsContainer.appendChild(synthSelectorItem);
-  });
-  leftColumn.appendChild(instrumentsContainer);
-  const rightColumn = document.createElement("div");
-  rightColumn.style.cssText = `
-        display: flex;
-        flex-direction: column;
-        min-width: 120px;
-        max-width: 150px;
-        box-sizing: border-box;
-        gap: 16px;
-    `;
-  rightColumn.classList.add("jmon-music-player-right");
-  const bpmContainer = document.createElement("div");
-  bpmContainer.style.cssText = `
-        display: flex;
-        flex-direction: column;
-        width: 100%;
-        min-width: 0;
-        box-sizing: border-box;
-    `;
-  const bpmLabel = document.createElement("label");
-  bpmLabel.textContent = "Tempo";
-  bpmLabel.style.cssText = `
-        font-family: 'PT Sans', sans-serif;
-        font-size: 16px;
-        font-weight: normal;
-        margin-bottom: 8px;
-        color: ${colors.text};
-    `;
-  const bpmInput = document.createElement("input");
-  bpmInput.type = "number";
-  bpmInput.min = 60;
-  bpmInput.max = 240;
-  bpmInput.value = tempo;
-  bpmInput.style.cssText = `
-        padding: 4px;
-        border: 1px solid ${colors.secondary};
-        border-radius: 4px;
-        background-color: ${colors.background};
-        color: ${colors.text};
-        font-size: 12px;
-        text-align: center;
-        width: 100%;
-        height: 28px;
-        box-sizing: border-box;
-        -webkit-appearance: none;
-        -moz-appearance: none;
-        appearance: none;
-        margin: 0;
-        outline: none;
-    `;
-  bpmContainer.append(bpmLabel, bpmInput);
-  const verticalDownloads = document.createElement("div");
-  verticalDownloads.style.cssText = `
-        display: flex;
-        flex-direction: column;
-        gap: 12px;
-        margin-top: 8px;
-    `;
-  verticalDownloads.classList.add("jmon-music-player-vertical-downloads");
-  const downloadMIDIButtonVertical = document.createElement("button");
-  downloadMIDIButtonVertical.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-keyboard-music" style="margin-right: 8px;"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="M6 8h4"/><path d="M14 8h.01"/><path d="M18 8h.01"/><path d="M2 12h20"/><path d="M6 12v4"/><path d="M10 12v4"/><path d="M14 12v4"/><path d="M18 12v4"/></svg><span>MIDI</span>`;
-  downloadMIDIButtonVertical.style.cssText = `
-        padding: 12px 16px;
-        border: none;
-        border-radius: 8px;
-        background-color: #333333;
-        color: white;
-        font-family: 'PT Sans', sans-serif;
-        font-size: 14px;
-        font-weight: 500;
-        cursor: pointer;
-        transition: background-color 0.3s ease;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        min-height: 44px;
-        box-sizing: border-box;
-    `;
-  downloadMIDIButtonVertical.classList.add("jmon-music-player-btn-vertical");
-  const downloadWavButtonVertical = document.createElement("button");
-  downloadWavButtonVertical.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-audio-lines" style="margin-right: 8px;"><path d="M2 10v3"/><path d="M6 6v11"/><path d="M10 3v18"/><path d="M14 8v7"/><path d="M18 5v13"/><path d="M22 10v3"/></svg><span>WAV</span>`;
-  downloadWavButtonVertical.style.cssText = `
-        padding: 12px 16px;
-        border: none;
-        border-radius: 8px;
-        background-color: #333333;
-        color: white;
-        font-family: 'PT Sans', sans-serif;
-        font-size: 14px;
-        font-weight: 500;
-        cursor: pointer;
-        transition: background-color 0.3s ease;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        min-height: 44px;
-        box-sizing: border-box;
-    `;
-  downloadWavButtonVertical.classList.add("jmon-music-player-btn-vertical");
-  verticalDownloads.append(
-    downloadMIDIButtonVertical,
-    downloadWavButtonVertical
-  );
-  verticalDownloads.style.display = "none";
-  rightColumn.append(bpmContainer, verticalDownloads);
-  const timelineContainer = document.createElement("div");
-  timelineContainer.style.cssText = `
-        position: relative;
-        width: 100%;
-        margin: ${TIMELINE_CONFIG.MARGIN};
-        display: flex;
-        align-items: center;
-        gap: ${TIMELINE_CONFIG.GAP}px;
-        min-width: 0;
-        box-sizing: border-box;
-    `;
-  timelineContainer.classList.add("jmon-music-player-timeline");
-  const currentTime = document.createElement("div");
-  currentTime.textContent = "0:00";
-  currentTime.style.cssText = `
-        font-family: 'PT Sans', sans-serif;
-        font-size: 14px;
-        color: ${colors.text};
-        min-width: 40px;
-        text-align: center;
-    `;
-  const totalTime = document.createElement("div");
-  totalTime.textContent = "0:00";
-  totalTime.style.cssText = `
-        font-family: 'PT Sans', sans-serif;
-        font-size: 14px;
-        color: ${colors.text};
-        min-width: 40px;
-        text-align: center;
-    `;
-  const timeline = document.createElement("input");
-  timeline.type = "range";
-  timeline.min = 0;
-  timeline.max = 100;
-  timeline.value = 0;
-  timeline.style.cssText = `
-        flex-grow: 1;
-        -webkit-appearance: none;
-        background: ${colors.secondary};
-        outline: none;
-        border-radius: 15px;
-        overflow: visible;
-        height: 8px;
-    `;
-  const timelineStyle = document.createElement("style");
-  timelineStyle.textContent = `
-        input[type="range"].jmon-timeline-slider {
-            background: ${colors.secondary} !important;
-            border: 1px solid ${colors.border} !important;
-            box-shadow: inset 0 1px 3px rgba(0,0,0,0.1) !important;
-        }
-        input[type="range"].jmon-timeline-slider::-webkit-slider-track {
-            background: ${colors.secondary} !important;
-            height: 8px !important;
-            border-radius: 15px !important;
-            border: 1px solid ${colors.border} !important;
-            box-shadow: inset 0 1px 3px rgba(0,0,0,0.1) !important;
-        }
-        input[type="range"].jmon-timeline-slider::-moz-range-track {
-            background: ${colors.secondary} !important;
-            height: 8px !important;
-            border-radius: 15px !important;
-            border: 1px solid ${colors.border} !important;
-            box-shadow: inset 0 1px 3px rgba(0,0,0,0.1) !important;
-        }
-        input[type="range"].jmon-timeline-slider::-webkit-slider-thumb {
-            -webkit-appearance: none !important;
-            appearance: none !important;
-            height: 20px !important;
-            width: 20px !important;
-            border-radius: 50% !important;
-            background: ${colors.primary} !important;
-            cursor: pointer !important;
-            border: 2px solid ${colors.background} !important;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.2) !important;
-        }
-        input[type="range"].jmon-timeline-slider::-moz-range-thumb {
-            height: 20px !important;
-            width: 20px !important;
-            border-radius: 50% !important;
-            background: ${colors.primary} !important;
-            cursor: pointer !important;
-            border: 2px solid ${colors.background} !important;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.2) !important;
-        }
-    `;
-  document.head.appendChild(timelineStyle);
-  timeline.classList.add("jmon-timeline-slider");
+    font-family: Arial, sans-serif;
+    background: #2a2a2a;
+    color: #fff;
+    padding: 20px;
+    border-radius: 8px;
+    max-width: 800px;
+    margin: 0 auto;
+  `;
+  const controlsRow = document.createElement("div");
+  controlsRow.style.cssText = `
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  `;
+  const buttonStyle = `
+    background: #4CAF50;
+    border: none;
+    color: white;
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    white-space: nowrap;
+  `;
   const playButton = document.createElement("button");
-  playButton.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-play"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg>`;
-  playButton.style.cssText = `
-        width: 40px;
-        height: 40px;
-        min-width: 40px;
-        max-width: 40px;
-        padding: 8px;
-        border: none;
-        border-radius: 50%;
-        background-color: ${colors.primary};
-        color: ${colors.background};
-        font-size: 16px;
-        cursor: pointer;
-        transition: background-color 0.3s ease;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        margin: 0px 5px 0px 10px;
-        box-sizing: border-box;
-        flex-shrink: 0;
-    `;
-  playButton.classList.add("jmon-music-player-play");
+  playButton.textContent = "\u25B6 Play";
+  playButton.style.cssText = buttonStyle;
   const stopButton = document.createElement("button");
-  stopButton.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-square"><rect width="18" height="18" x="3" y="3" rx="2"/></svg>`;
-  stopButton.style.cssText = `
-        width: 40px;
-        height: 40px;
-        min-width: 40px;
-        max-width: 40px;
-        padding: 8px;
-        border: none;
-        border-radius: 8px;
-        background-color: ${colors.secondary};
-        color: ${colors.text};
-        font-size: 14px;
-        cursor: pointer;
-        transition: background-color 0.3s ease;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        margin: 0px 5px 0px 0px;
-        box-sizing: border-box;
-        flex-shrink: 0;
-    `;
-  stopButton.classList.add("jmon-music-player-stop");
-  const timeDisplay = document.createElement("div");
-  timeDisplay.style.cssText = `
-        display: flex;
-        justify-content: space-between;
-        font-size: 12px;
-        color: ${colors.lightText};
-        margin: 0px 0px 0px 10px;
-    `;
-  const controlsContainer = document.createElement("div");
-  controlsContainer.style.cssText = `
-        display: flex;
-        align-items: center;
-        gap: 0px;
-    `;
-  controlsContainer.append(playButton, stopButton);
-  timelineContainer.append(currentTime, timeline, totalTime, controlsContainer);
-  const buttonContainer = document.createElement("div");
-  buttonContainer.style.cssText = `
-        display: flex;
-        justify-content: space-between;
-        margin-top: 8px;
-        gap: 10px;
-        min-width: 0;
-        box-sizing: border-box;
-    `;
-  buttonContainer.classList.add("jmon-music-player-downloads");
-  const downloadMIDIButton = document.createElement("button");
-  downloadMIDIButton.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-keyboard-music" style="margin-right: 5px;"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="M6 8h4"/><path d="M14 8h.01"/><path d="M18 8h.01"/><path d="M2 12h20"/><path d="M6 12v4"/><path d="M10 12v4"/><path d="M14 12v4"/><path d="M18 12v4"/></svg><span>MIDI</span>`;
-  downloadMIDIButton.style.cssText = `
-        padding: 15px 30px;
-        margin: 0 5px;
-        border: none;
-        border-radius: 8px;
-        background-color: #333333;
-        color: white;
-        font-family: 'PT Sans', sans-serif;
-        font-size: 16px;
-        font-weight: 500;
-        cursor: pointer;
-        transition: background-color 0.3s ease;
-        flex: 1;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        min-height: 50px;
-        min-width: 0;
-        box-sizing: border-box;
-    `;
-  downloadMIDIButton.classList.add("jmon-music-player-btn");
-  const downloadWavButton = document.createElement("button");
-  downloadWavButton.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-audio-lines" style="margin-right: 5px;"><path d="M2 10v3"/><path d="M6 6v11"/><path d="M10 3v18"/><path d="M14 8v7"/><path d="M18 5v13"/><path d="M22 10v3"/></svg><span>WAV</span>`;
-  downloadWavButton.style.cssText = `
-        padding: 15px 30px;
-        margin: 0 5px;
-        border: none;
-        border-radius: 8px;
-        background-color: #333333;
-        color: white;
-        font-family: 'PT Sans', sans-serif;
-        font-size: 16px;
-        font-weight: 500;
-        cursor: pointer;
-        transition: background-color 0.3s ease;
-        flex: 1;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        min-height: 50px;
-        min-width: 0;
-        box-sizing: border-box;
-    `;
-  downloadWavButton.classList.add("jmon-music-player-btn");
-  buttonContainer.append(downloadMIDIButton, downloadWavButton);
-  topContainer.append(leftColumn, rightColumn);
-  mainLayout.appendChild(topContainer);
-  mainLayout.appendChild(timelineContainer);
-  container.append(mainLayout, buttonContainer);
-  let Tone2, isPlaying = false, synths = [], parts = [], effects = [];
-  let samplerLoadPromises = [];
-  let graphInstruments = null;
-  const originalTracksSource = composition.tracks || [];
-  const buildAudioGraphInstruments2 = () => {
-    if (!Tone2)
-      return null;
-    if (!composition.audioGraph || !Array.isArray(composition.audioGraph)) {
-      return null;
-    }
-    const map = {};
-    const normalizeUrlsToNoteNames = (urls) => {
-      const out = {};
-      Object.entries(urls || {}).forEach(([k, v]) => {
-        let noteKey = k;
-        if (typeof k === "number" || /^\d+$/.test(String(k))) {
-          try {
-            noteKey = Tone2.Frequency(parseInt(k, 10), "midi").toNote();
-          } catch (e) {
-          }
-        }
-        out[noteKey] = v;
-      });
-      return out;
-    };
-    try {
-      composition.audioGraph.forEach((node) => {
-        const { id, type, options: options2 = {}, target } = node;
-        if (!id || !type)
-          return;
-        let instrument = null;
-        if (type === "Sampler") {
-          const normalizedUrls = normalizeUrlsToNoteNames(options2.urls);
-          let resolveLoaded, rejectLoaded;
-          const loadPromise = new Promise((res, rej) => {
-            resolveLoaded = res;
-            rejectLoaded = rej;
-          });
-          const samplerOpts = {
-            urls: normalizedUrls,
-            onload: () => resolveLoaded && resolveLoaded(),
-            onerror: (e) => {
-              console.error(`[PLAYER] Sampler load error for ${id}:`, e);
-              rejectLoaded && rejectLoaded(e);
-            }
-          };
-          if (options2.baseUrl)
-            samplerOpts.baseUrl = options2.baseUrl;
-          try {
-            console.log(
-              `[PLAYER] Building Sampler ${id} with urls:`,
-              normalizedUrls,
-              "baseUrl:",
-              samplerOpts.baseUrl || "(none)"
-            );
-            instrument = new Tone2.Sampler(samplerOpts);
-          } catch (e) {
-            console.error("[PLAYER] Failed to create Sampler:", e);
-            instrument = null;
-          }
-          samplerLoadPromises.push(loadPromise);
-          if (instrument && options2.envelope && options2.envelope.enabled) {
-            if (typeof options2.envelope.attack === "number") {
-              instrument.attack = options2.envelope.attack;
-            }
-            if (typeof options2.envelope.release === "number") {
-              instrument.release = options2.envelope.release;
-            }
-          }
-        } else if (SYNTHESIZER_TYPES.includes(type)) {
-          try {
-            instrument = new Tone2[type](options2);
-          } catch (e) {
-            console.warn(
-              `[PLAYER] Failed to create ${type} from audioGraph, using PolySynth:`,
-              e
-            );
-            instrument = new Tone2.PolySynth();
-          }
-        } else if (ALL_EFFECTS.includes(type)) {
-          try {
-            instrument = new Tone2[type](options2);
-            console.log(
-              `[PLAYER] Created effect ${id} (${type}) with options:`,
-              options2
-            );
-          } catch (e) {
-            console.warn(`[PLAYER] Failed to create ${type} effect:`, e);
-            instrument = null;
-          }
-        } else if (type === "Destination") {
-          map[id] = Tone2.Destination;
-        }
-        if (instrument) {
-          map[id] = instrument;
-        }
-      });
-      if (Object.keys(map).length > 0) {
-        composition.audioGraph.forEach((node) => {
-          const { id, target } = node;
-          if (!id || !map[id])
-            return;
-          const currentNode = map[id];
-          if (currentNode === Tone2.Destination)
-            return;
-          if (target && map[target]) {
-            try {
-              if (map[target] === Tone2.Destination) {
-                currentNode.toDestination();
-                console.log(`[PLAYER] Connected ${id} -> Destination`);
-              } else {
-                currentNode.connect(map[target]);
-                console.log(`[PLAYER] Connected ${id} -> ${target}`);
-              }
-            } catch (e) {
-              console.warn(`[PLAYER] Failed to connect ${id} -> ${target}:`, e);
-              currentNode.toDestination();
-            }
-          } else {
-            currentNode.toDestination();
-            console.log(
-              `[PLAYER] Connected ${id} -> Destination (no target specified)`
-            );
-          }
-        });
-      }
-      return map;
-    } catch (e) {
-      console.error("[PLAYER] Failed building audioGraph instruments:", e);
-      return null;
-    }
-  };
-  const isIOS = () => {
-    return /iPad|iPhone|iPod/.test(navigator.userAgent) || navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1;
-  };
-  const formatTime = (seconds) => {
-    return `${Math.floor(seconds / 60)}:${Math.floor(seconds % 60).toString().padStart(2, "0")}`;
-  };
-  totalTime.textContent = formatTime(totalDuration);
-  const initializeTone = async () => {
-    if (typeof window !== "undefined") {
-      const existingTone = externalTone || window.Tone || (typeof Tone2 !== "undefined" ? Tone2 : null);
-      if (!existingTone) {
-        try {
-          if (typeof __require !== "undefined") {
-            console.log("[PLAYER] Loading Tone.js via require()...");
-            const ToneFromRequire = await __require("tone@14.8.49/build/Tone.js");
-            window.Tone = ToneFromRequire.default || ToneFromRequire.Tone || ToneFromRequire;
-          } else {
-            console.log("[PLAYER] Loading Tone.js via import()...");
-            const ToneModule = await import("https://esm.sh/tone@14.8.49");
-            window.Tone = ToneModule.default || ToneModule.Tone || ToneModule;
-          }
-          if (!window.Tone || typeof window.Tone !== "object" || !window.Tone.PolySynth) {
-            console.warn(
-              "[PLAYER] First load attempt failed, trying alternative CDN..."
-            );
-            try {
-              const ToneAlt = await import("https://cdn.skypack.dev/tone@14.8.49");
-              window.Tone = ToneAlt.default || ToneAlt.Tone || ToneAlt;
-              if (!window.Tone || !window.Tone.PolySynth) {
-                throw new Error("Alternative CDN also failed");
-              }
-            } catch (altError) {
-              console.warn(
-                "[PLAYER] Alternative CDN failed, trying jsdelivr..."
-              );
-              try {
-                const ToneJsdelivr = await import("https://cdn.jsdelivr.net/npm/tone@14.8.49/build/Tone.js");
-                window.Tone = ToneJsdelivr.default || ToneJsdelivr.Tone || ToneJsdelivr;
-                if (!window.Tone || !window.Tone.PolySynth) {
-                  throw new Error("All CDN attempts failed");
-                }
-              } catch (jsdelivrError) {
-                throw new Error(
-                  "Loaded Tone.js but got invalid object from all CDNs"
-                );
-              }
-            }
-          }
-          console.log(
-            "[PLAYER] Tone.js loaded successfully, version:",
-            window.Tone.version || "unknown"
-          );
-        } catch (error) {
-          console.warn("Could not auto-load Tone.js:", error.message);
-          console.log(
-            "To use the player, load Tone.js manually first using one of these methods:"
-          );
-          console.log(
-            'Method 1: Tone = await require("tone@14.8.49/build/Tone.js")'
-          );
-          console.log(
-            'Method 2: Tone = await import("https://esm.sh/tone@14.8.49").then(m => m.default)'
-          );
-          console.log(
-            'Method 3: Tone = await import("https://cdn.skypack.dev/tone@14.8.49").then(m => m.default)'
-          );
-          return false;
-        }
-      } else {
-        console.log(
-          "[PLAYER] Using existing Tone.js, version:",
-          existingTone.version || "unknown"
-        );
-        window.Tone = existingTone;
-      }
-      const toneInstance = window.Tone || existingTone;
-      if (toneInstance) {
-        Tone2 = toneInstance;
-        console.log("[PLAYER] Available Tone constructors:", {
-          PolySynth: typeof Tone2.PolySynth,
-          Synth: typeof Tone2.Synth,
-          Part: typeof Tone2.Part,
-          Transport: typeof Tone2.Transport,
-          start: typeof Tone2.start,
-          context: !!Tone2.context
-        });
-        console.log(
-          "[PLAYER] Tone.js initialized, context state:",
-          Tone2.context ? Tone2.context.state : "no context"
-        );
-        if (isIOS()) {
-          console.log(
-            "[PLAYER] iOS device detected - audio context will start on user interaction"
-          );
-        }
-        return true;
-      }
-    }
-    console.warn("Tone.js not available");
-    return false;
-  };
-  const setupAudio = () => {
-    if (!Tone2) {
-      console.warn("[PLAYER] Tone.js not available, cannot setup audio");
+  stopButton.textContent = "\u23F9 Stop";
+  stopButton.style.cssText = buttonStyle;
+  stopButton.disabled = true;
+  const currentTimeDisplay = document.createElement("div");
+  currentTimeDisplay.textContent = "0:00";
+  currentTimeDisplay.style.cssText = `
+    font-size: 14px;
+    color: #aaa;
+    min-width: 40px;
+  `;
+  const timeline = document.createElement("div");
+  timeline.style.cssText = `
+    flex: 1;
+    height: 8px;
+    background: #444;
+    border-radius: 4px;
+    cursor: pointer;
+    position: relative;
+  `;
+  const timelineProgress = document.createElement("div");
+  timelineProgress.style.cssText = `
+    height: 100%;
+    background: #4CAF50;
+    border-radius: 4px;
+    width: 0%;
+    transition: width 0.1s linear;
+  `;
+  timeline.appendChild(timelineProgress);
+  const totalTimeDisplay = document.createElement("div");
+  totalTimeDisplay.textContent = "0:00";
+  totalTimeDisplay.style.cssText = `
+    font-size: 14px;
+    color: #aaa;
+    min-width: 40px;
+    text-align: right;
+  `;
+  controlsRow.appendChild(playButton);
+  controlsRow.appendChild(stopButton);
+  controlsRow.appendChild(currentTimeDisplay);
+  controlsRow.appendChild(timeline);
+  controlsRow.appendChild(totalTimeDisplay);
+  container.appendChild(controlsRow);
+  function formatTime(seconds) {
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, "0")}`;
+  }
+  totalTimeDisplay.textContent = formatTime(totalDuration);
+  function updateTimeline() {
+    if (!window.Tone?.Transport)
       return;
+    currentTime = window.Tone.Transport.seconds;
+    const progress = currentTime / totalDuration * 100;
+    timelineProgress.style.width = `${Math.min(progress, 100)}%`;
+    currentTimeDisplay.textContent = formatTime(currentTime);
+    if (isPlaying && currentTime < totalDuration) {
+      animationId = requestAnimationFrame(updateTimeline);
+    } else if (currentTime >= totalDuration) {
+      stop();
     }
-    const missingConstructors = [];
-    if (!Tone2.PolySynth)
-      missingConstructors.push("PolySynth");
-    if (!Tone2.Synth)
-      missingConstructors.push("Synth");
-    if (!Tone2.Part)
-      missingConstructors.push("Part");
-    if (!Tone2.Transport)
-      missingConstructors.push("Transport");
-    if (missingConstructors.length > 0) {
-      console.error(
-        "[PLAYER] Tone.js is missing required constructors:",
-        missingConstructors
-      );
-      console.error(
-        "[PLAYER] Available Tone properties:",
-        Object.keys(Tone2).filter((k) => typeof Tone2[k] === "function").slice(0, 20)
-      );
-      console.error("[PLAYER] Tone object:", Tone2);
-      console.error(
-        "[PLAYER] This usually means Tone.js did not load correctly. Try refreshing the page or loading Tone.js manually."
-      );
-      return;
+  }
+  async function setupAudio() {
+    let ToneLib = externalTone || window.Tone;
+    if (!ToneLib) {
+      await new Promise((resolve, reject) => {
+        const script = document.createElement("script");
+        script.src = "https://cdn.jsdelivr.net/npm/tone@14.8.49/build/Tone.js";
+        script.onload = () => {
+          ToneLib = window.Tone;
+          resolve();
+        };
+        script.onerror = reject;
+        document.head.appendChild(script);
+      });
     }
-    Tone2.Transport.bpm.value = metadata.tempo;
-    console.log(
-      `[PLAYER] Set Transport BPM to ${metadata.tempo} before building instruments`
-    );
-    if (!graphInstruments) {
-      graphInstruments = buildAudioGraphInstruments2();
-      if (graphInstruments) {
-        const samplerIds = Object.keys(graphInstruments).filter(
-          (k) => graphInstruments[k] && graphInstruments[k].name === "Sampler"
-        );
-        if (samplerIds.length > 0) {
-          console.log(
-            "[PLAYER] Using audioGraph Samplers for tracks with synthRef:",
-            samplerIds
-          );
-        }
-      }
+    if (!ToneLib) {
+      throw new Error("Failed to load Tone.js");
     }
-    console.log("[PLAYER] Cleaning up existing audio...", {
-      synths: synths.length,
-      parts: parts.length
-    });
-    Tone2.Transport.stop();
-    Tone2.Transport.position = 0;
-    parts.forEach((p, index) => {
+    window.Tone = ToneLib;
+    await ToneLib.start();
+    ToneLib.Transport.bpm.value = tempo;
+    activeSynths.forEach((s) => {
       try {
-        p.stop();
+        s.dispose();
       } catch (e) {
-        console.warn(`[PLAYER] Failed to stop part ${index}:`, e);
+        console.warn("Error disposing synth/effect:", e);
       }
     });
-    parts.forEach((p, index) => {
-      try {
-        p.dispose();
-      } catch (e) {
-        console.warn(`[PLAYER] Failed to dispose part ${index}:`, e);
-      }
-    });
-    synths.forEach((s, index) => {
-      if (!graphInstruments || !Object.values(graphInstruments).includes(s)) {
-        try {
-          if (s.disconnect && typeof s.disconnect === "function") {
-            s.disconnect();
-          }
-          s.dispose();
-        } catch (e) {
-          console.warn(`[PLAYER] Failed to dispose synth ${index}:`, e);
-        }
-      }
-    });
-    effects.forEach((e, index) => {
-      try {
-        if (e.disconnect && typeof e.disconnect === "function") {
-          e.disconnect();
-        }
-        e.dispose();
-      } catch (err) {
-        console.warn(`[PLAYER] Failed to dispose effect ${index}:`, err);
-      }
-    });
-    synths = [];
-    parts = [];
-    effects = [];
-    console.log("[PLAYER] Audio cleanup completed");
-    console.log("[PLAYER] Converted tracks:", convertedTracks.length);
-    const compiledModulations = [];
-    originalTracksSource.forEach((track, index) => {
-      try {
-        const compiled = compileEvents(track);
-        compiledModulations[index] = compiled.modulations || [];
-      } catch (e) {
-        console.warn(
-          `[PLAYER] Failed to compile modulations for track ${index}:`,
-          e
-        );
-        compiledModulations[index] = [];
-      }
-    });
+    activeSynths = [];
+    scheduledEvents = [];
     convertedTracks.forEach((trackConfig) => {
-      const {
-        originalTrackIndex,
-        voiceIndex,
-        totalVoices,
-        trackInfo,
-        synthConfig,
-        partEvents
-      } = trackConfig;
+      const { originalTrackIndex, partEvents } = trackConfig;
       const originalTrack = originalTracksSource[originalTrackIndex] || {};
-      const synthRef = originalTrack.synthRef;
-      const secPerBeat = 60 / metadata.tempo;
-      const normalizedEvents = (partEvents || []).map((ev) => {
-        const time = typeof ev.time === "number" ? ev.time * secPerBeat : ev.time;
-        const duration = typeof ev.duration === "number" ? ev.duration * secPerBeat : ev.duration;
-        return { ...ev, time, duration };
-      });
-      let synth = null;
-      if (synthRef && graphInstruments && graphInstruments[synthRef]) {
-        synth = graphInstruments[synthRef];
+      let modulations = [];
+      try {
+        const compiled = compileEvents(originalTrack);
+        modulations = compiled.modulations || [];
+        console.log(`[ARTICULATIONS] Track ${originalTrackIndex}: Found ${modulations.length} modulations`, modulations);
+      } catch (e) {
+        console.warn("Failed to compile articulations:", e);
+      }
+      let synth;
+      if (originalTrack.instrument !== void 0 && !originalTrack.synth) {
+        const urls = generateSamplerUrls(originalTrack.instrument);
+        synth = new ToneLib.Sampler({
+          urls,
+          baseUrl: "",
+          // URLs are already complete
+          onload: () => console.log(`Loaded GM instrument ${originalTrack.instrument}`)
+        }).toDestination();
+        console.log(`Creating Sampler for GM instrument ${originalTrack.instrument}`);
       } else {
-        const selectedSynth = synthSelectors[originalTrackIndex] ? synthSelectors[originalTrackIndex].value : synthConfig.type;
+        const requestedSynthType = originalTrack.synth || "PolySynth";
         try {
-          if (selectedSynth.startsWith("AudioGraph: ")) {
-            const audioGraphId = selectedSynth.substring(12);
-            if (graphInstruments && graphInstruments[audioGraphId]) {
-              synth = graphInstruments[audioGraphId];
-              console.log(
-                `[PLAYER] Using audioGraph instrument: ${audioGraphId}`
-              );
-            } else {
-              throw new Error(
-                `AudioGraph instrument ${audioGraphId} not found`
-              );
-            }
-          } else if (selectedSynth.startsWith("GM: ")) {
-            const instrumentName = selectedSynth.substring(4);
-            const gmInstrument = gmInstruments.find(
-              (inst) => inst.name === instrumentName
-            );
-            if (gmInstrument) {
-              console.log(`[PLAYER] Loading GM instrument: ${instrumentName}`);
-              const samplerUrls = generateSamplerUrls(
-                gmInstrument.program,
-                CDN_SOURCES[0],
-                [36, 84],
-                "balanced"
-              );
-              console.log(
-                `[PLAYER] Loading GM instrument ${instrumentName} with ${Object.keys(samplerUrls).length} samples`
-              );
-              console.log(
-                `[PLAYER] Sample notes:`,
-                Object.keys(samplerUrls).sort()
-              );
-              synth = new Tone2.Sampler({
-                urls: samplerUrls,
-                onload: () => console.log(
-                  `[PLAYER] GM instrument ${instrumentName} loaded successfully`
-                ),
-                onerror: (error) => {
-                  console.error(
-                    `[PLAYER] Failed to load GM instrument ${instrumentName}:`,
-                    error
-                  );
-                }
-              }).toDestination();
-            } else {
-              throw new Error(`GM instrument ${instrumentName} not found`);
-            }
-          } else {
-            const synthType = synthConfig.reason === "glissando_compatibility" ? synthConfig.type : selectedSynth;
-            if (!Tone2[synthType] || typeof Tone2[synthType] !== "function") {
-              throw new Error(`Tone.${synthType} is not a constructor`);
-            }
-            synth = new Tone2[synthType]().toDestination();
-            if (synthConfig.reason === "glissando_compatibility" && voiceIndex === 0) {
-              console.warn(
-                `[MULTIVOICE] Using ${synthType} instead of ${synthConfig.original} for glissando in ${trackInfo.label}`
-              );
-            }
-          }
-        } catch (error) {
-          console.warn(
-            `Failed to create ${selectedSynth}, using PolySynth:`,
-            error
-          );
-          try {
-            if (!Tone2.PolySynth || typeof Tone2.PolySynth !== "function") {
-              throw new Error("Tone.PolySynth is not available");
-            }
-            synth = new Tone2.PolySynth().toDestination();
-          } catch (fallbackError) {
-            console.error(
-              "Fatal: Cannot create any synth, Tone.js may not be properly loaded:",
-              fallbackError
-            );
-            return;
-          }
+          synth = new ToneLib[requestedSynthType]().toDestination();
+        } catch {
+          synth = new ToneLib.PolySynth().toDestination();
         }
       }
-      const trackModulations = compiledModulations[originalTrackIndex] || [];
-      const vibratoMods = trackModulations.filter(
+      activeSynths.push(synth);
+      const vibratoMods = modulations.filter(
         (m) => m.type === "pitch" && m.subtype === "vibrato"
       );
-      const tremoloMods = trackModulations.filter(
+      const tremoloMods = modulations.filter(
         (m) => m.type === "amplitude" && m.subtype === "tremolo"
       );
+      console.log(`[EFFECTS] Track ${originalTrackIndex}: ${vibratoMods.length} vibrato, ${tremoloMods.length} tremolo`);
       let vibratoEffect = null;
       let tremoloEffect = null;
       if (vibratoMods.length > 0 || tremoloMods.length > 0) {
-        console.log(
-          `[PLAYER] Creating effect chain for track ${originalTrackIndex} (${vibratoMods.length} vibrato, ${tremoloMods.length} tremolo)`
-        );
-        if (!synthRef || !graphInstruments?.[synthRef]) {
-          synth.disconnect();
-        }
+        synth.disconnect();
         if (vibratoMods.length > 0) {
           const defaultVibrato = vibratoMods[0];
-          vibratoEffect = new Tone2.Vibrato({
+          vibratoEffect = new ToneLib.Vibrato({
             frequency: defaultVibrato.rate || 5,
             depth: (defaultVibrato.depth || 50) / 100
-            // Convert cents to 0-1
           });
           vibratoEffect.wet.value = 0;
+          activeSynths.push(vibratoEffect);
         }
         if (tremoloMods.length > 0) {
           const defaultTremolo = tremoloMods[0];
-          tremoloEffect = new Tone2.Tremolo({
+          tremoloEffect = new ToneLib.Tremolo({
             frequency: defaultTremolo.rate || 8,
             depth: defaultTremolo.depth || 0.3
           }).start();
           tremoloEffect.wet.value = 0;
+          activeSynths.push(tremoloEffect);
         }
         if (vibratoEffect && tremoloEffect) {
           synth.connect(vibratoEffect);
           vibratoEffect.connect(tremoloEffect);
           tremoloEffect.toDestination();
-          effects.push(vibratoEffect, tremoloEffect);
         } else if (vibratoEffect) {
           synth.connect(vibratoEffect);
           vibratoEffect.toDestination();
-          effects.push(vibratoEffect);
         } else if (tremoloEffect) {
           synth.connect(tremoloEffect);
           tremoloEffect.toDestination();
-          effects.push(tremoloEffect);
         }
-      }
-      synths.push(synth);
-      if (totalVoices > 1) {
-        console.log(
-          `[MULTIVOICE] Track "${trackInfo.label}" voice ${voiceIndex + 1}: ${partEvents.length} notes`
-        );
-      }
-      const part = new Tone2.Part((time, note) => {
-        if (Array.isArray(note.pitch)) {
-          note.pitch.forEach((n) => {
-            let noteName = "C4";
-            if (typeof n === "number") {
-              noteName = Tone2.Frequency(n, "midi").toNote();
-            } else if (typeof n === "string") {
-              noteName = n;
-            } else if (Array.isArray(n) && typeof n[0] === "string") {
-              noteName = n[0];
-            }
-            synth.triggerAttackRelease(noteName, note.duration, time);
-          });
-        } else if (Array.isArray(note.modulations) && note.modulations.some(
-          (m) => m.type === "pitch" && (m.subtype === "glissando" || m.subtype === "portamento") && (m.to !== void 0 || m.target !== void 0)
-        )) {
-          let noteName = typeof note.pitch === "number" ? Tone2.Frequency(note.pitch, "midi").toNote() : note.pitch;
-          const gliss = note.modulations.find(
-            (m) => m.type === "pitch" && (m.subtype === "glissando" || m.subtype === "portamento") && (m.to !== void 0 || m.target !== void 0)
-          );
-          const glissTarget = gliss && (gliss.to !== void 0 ? gliss.to : gliss.target);
-          let targetName = typeof glissTarget === "number" ? Tone2.Frequency(glissTarget, "midi").toNote() : glissTarget;
-          console.log("[PLAYER] Glissando", {
-            fromNote: noteName,
-            toNote: targetName,
-            duration: note.duration,
-            time
-          });
-          console.log(
-            "[PLAYER] Glissando effect starting from",
-            noteName,
-            "to",
-            targetName
-          );
-          synth.triggerAttack(noteName, time, note.velocity || 0.8);
-          const startFreq = Tone2.Frequency(noteName).toFrequency();
-          const endFreq = Tone2.Frequency(targetName).toFrequency();
-          const totalCents = 1200 * Math.log2(endFreq / startFreq);
-          if (synth.detune && synth.detune.setValueAtTime && synth.detune.linearRampToValueAtTime) {
-            synth.detune.setValueAtTime(0, time);
-            synth.detune.linearRampToValueAtTime(
-              totalCents,
-              time + note.duration
-            );
-            console.log(
-              "[PLAYER] Applied detune glissando:",
-              totalCents,
-              "cents over",
-              note.duration,
-              "beats"
-            );
-          } else {
-            const startMidi = Tone2.Frequency(noteName).toMidi();
-            const endMidi = Tone2.Frequency(targetName).toMidi();
-            const steps = Math.max(3, Math.abs(endMidi - startMidi));
-            const stepDuration = note.duration / steps;
-            for (let i = 1; i < steps; i++) {
-              const ratio = i / (steps - 1);
-              const currentFreq = startFreq * Math.pow(endFreq / startFreq, ratio);
-              const currentNote = Tone2.Frequency(currentFreq).toNote();
-              const currentTime2 = time + i * stepDuration;
-              synth.triggerAttackRelease(
-                currentNote,
-                stepDuration * 0.8,
-                currentTime2,
-                (note.velocity || 0.8) * 0.7
-              );
-            }
-            console.log(
-              "[PLAYER] Applied chromatic glissando with",
-              steps,
-              "steps"
-            );
-          }
-          synth.triggerRelease(time + note.duration);
-        } else {
-          let noteName = "C4";
-          if (typeof note.pitch === "number") {
-            noteName = Tone2.Frequency(note.pitch, "midi").toNote();
-          } else if (typeof note.pitch === "string") {
-            noteName = note.pitch;
-          } else if (Array.isArray(note.pitch) && typeof note.pitch[0] === "string") {
-            noteName = note.pitch[0];
-          }
-          let noteDuration = note.duration;
-          let noteVelocity = note.velocity || 0.8;
-          const mods = Array.isArray(note.modulations) ? note.modulations : [];
-          const durScale = mods.find(
-            (m) => m.type === "durationScale" && typeof m.factor === "number"
-          );
-          if (durScale) {
-            noteDuration = note.duration * durScale.factor;
-          }
-          const velBoost = mods.find(
-            (m) => m.type === "velocityBoost" && typeof m.amountBoost === "number"
-          );
-          if (velBoost) {
-            noteVelocity = Math.min(noteVelocity + velBoost.amountBoost, 1);
-          }
-          synth.triggerAttackRelease(
-            noteName,
-            noteDuration,
-            time,
-            noteVelocity
-          );
-        }
-      }, normalizedEvents);
-      if (vibratoEffect || tremoloEffect) {
-        trackModulations.forEach((mod) => {
-          const noteIndex = mod.index;
-          const originalNote = originalTracksSource[originalTrackIndex]?.notes?.[noteIndex];
-          if (!originalNote)
-            return;
-          const startTime = mod.start * secPerBeat;
-          const endTime = mod.end * secPerBeat;
+        const secondsPerQuarterNote = 60 / tempo;
+        modulations.forEach((mod) => {
+          const startTime = mod.start * secondsPerQuarterNote;
+          const endTime = mod.end * secondsPerQuarterNote;
           if (mod.type === "pitch" && mod.subtype === "vibrato" && vibratoEffect) {
             const vibratoFreq = mod.rate || 5;
             const vibratoDepth = (mod.depth || 50) / 100;
-            Tone2.Transport.schedule((time) => {
+            const enableId = ToneLib.Transport.schedule((time) => {
               vibratoEffect.frequency.value = vibratoFreq;
               vibratoEffect.depth.value = vibratoDepth;
-              vibratoEffect.wet.rampTo(1, 0.05, time);
-              console.log(
-                `[PLAYER] Vibrato enabled at ${startTime}s (rate: ${vibratoFreq}Hz, depth: ${vibratoDepth})`
-              );
+              vibratoEffect.wet.value = 1;
             }, startTime);
-            Tone2.Transport.schedule((time) => {
-              vibratoEffect.wet.rampTo(0, 0.05, time);
-              console.log(`[PLAYER] Vibrato disabled at ${endTime}s`);
+            scheduledEvents.push(enableId);
+            const disableId = ToneLib.Transport.schedule((time) => {
+              vibratoEffect.wet.value = 0;
             }, endTime);
+            scheduledEvents.push(disableId);
           }
           if (mod.type === "amplitude" && mod.subtype === "tremolo" && tremoloEffect) {
             const tremoloFreq = mod.rate || 8;
             const tremoloDepth = mod.depth || 0.3;
-            Tone2.Transport.schedule((time) => {
+            const enableId = ToneLib.Transport.schedule((time) => {
               tremoloEffect.frequency.value = tremoloFreq;
               tremoloEffect.depth.value = tremoloDepth;
-              tremoloEffect.wet.rampTo(1, 0.05, time);
-              console.log(
-                `[PLAYER] Tremolo enabled at ${startTime}s (rate: ${tremoloFreq}Hz, depth: ${tremoloDepth})`
-              );
+              tremoloEffect.wet.value = 1;
             }, startTime);
-            Tone2.Transport.schedule((time) => {
-              tremoloEffect.wet.rampTo(0, 0.05, time);
-              console.log(`[PLAYER] Tremolo disabled at ${endTime}s`);
+            scheduledEvents.push(enableId);
+            const disableId = ToneLib.Transport.schedule((time) => {
+              tremoloEffect.wet.value = 0;
             }, endTime);
+            scheduledEvents.push(disableId);
           }
         });
       }
-      parts.push(part);
-    });
-    Tone2.Transport.loopEnd = totalDuration;
-    Tone2.Transport.loop = true;
-    Tone2.Transport.stop();
-    Tone2.Transport.position = 0;
-    totalTime.textContent = formatTime(totalDuration);
-  };
-  let lastTimelineUpdate = 0;
-  const TIMELINE_UPDATE_INTERVAL = TIMELINE_CONFIG.UPDATE_INTERVAL;
-  const updateTimeline = () => {
-    const now = performance.now();
-    const shouldUpdate = now - lastTimelineUpdate >= TIMELINE_UPDATE_INTERVAL;
-    if (Tone2 && isPlaying) {
-      const loopSeconds = typeof Tone2.Transport.loopEnd === "number" ? Tone2.Transport.loopEnd : Tone2.Time(Tone2.Transport.loopEnd).toSeconds();
-      if (shouldUpdate) {
-        const elapsed = Tone2.Transport.seconds % loopSeconds;
-        const progress = elapsed / loopSeconds * 100;
-        timeline.value = Math.min(progress, 100);
-        currentTime.textContent = formatTime(elapsed);
-        totalTime.textContent = formatTime(loopSeconds);
-        lastTimelineUpdate = now;
-      }
-      if (Tone2.Transport.state === "started" && isPlaying) {
-        requestAnimationFrame(updateTimeline);
-      } else if (Tone2.Transport.state === "stopped" || Tone2.Transport.state === "paused") {
-        if (shouldUpdate) {
-          const elapsed = Tone2.Transport.seconds % loopSeconds;
-          const progress = elapsed / loopSeconds * 100;
-          timeline.value = Math.min(progress, 100);
-          currentTime.textContent = formatTime(elapsed);
-          lastTimelineUpdate = now;
-        }
-        if (Tone2.Transport.state === "stopped") {
-          Tone2.Transport.seconds = 0;
-          timeline.value = 0;
-          currentTime.textContent = formatTime(0);
-          isPlaying = false;
-          playButton.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-play"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg>`;
-        }
-      }
-    }
-  };
-  playButton.addEventListener("click", async () => {
-    if (!Tone2) {
-      if (await initializeTone()) {
-        setupAudio();
-      } else {
-        console.error("[PLAYER] Failed to initialize Tone.js");
-        return;
-      }
-    }
-    if (isPlaying) {
-      console.log("[PLAYER] Pausing playback...");
-      Tone2.Transport.pause();
-      isPlaying = false;
-      playButton.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-play"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg>`;
-      console.log("[PLAYER] Playback paused");
-    } else {
-      if (!Tone2.context || Tone2.context.state !== "running") {
-        try {
-          await Tone2.start();
-          console.log(
-            "[PLAYER] Audio context started:",
-            Tone2.context ? Tone2.context.state : "unknown"
+      const modsByNote = {};
+      modulations.forEach((mod) => {
+        if (!modsByNote[mod.index])
+          modsByNote[mod.index] = [];
+        modsByNote[mod.index].push(mod);
+      });
+      partEvents.forEach((note, noteIndex) => {
+        const time = typeof note.time === "number" ? note.time * (60 / tempo) : note.time;
+        const duration = typeof note.duration === "number" ? note.duration * (60 / tempo) : note.duration;
+        const velocity = note.velocity || 0.8;
+        const mods = modsByNote[noteIndex] || [];
+        const glissando = mods.find(
+          (m) => m.type === "pitch" && (m.subtype === "glissando" || m.subtype === "portamento")
+        );
+        if (Array.isArray(note.pitch)) {
+          const noteNames = note.pitch.map(
+            (p) => typeof p === "number" ? ToneLib.Frequency(p, "midi").toNote() : p
           );
-          if (Tone2.context && typeof Tone2.context.resume === "function") {
-            await Tone2.context.resume();
-            console.log("[PLAYER] Audio context resumed for iOS compatibility");
-          }
-        } catch (error) {
-          console.error("[PLAYER] Failed to start audio context:", error);
-          let errorMsg = "Failed to start audio. ";
-          if (isIOS()) {
-            errorMsg += "On iOS, please ensure your device isn't in silent mode and try again.";
-          } else {
-            errorMsg += "Please check your audio settings and try again.";
-          }
-          alert(errorMsg);
+          const eventId = ToneLib.Transport.schedule((schedTime) => {
+            synth.triggerAttackRelease(noteNames, duration, schedTime, velocity);
+          }, time);
+          scheduledEvents.push(eventId);
           return;
         }
-      }
-      if (synths.length === 0) {
-        console.log("[PLAYER] No synths found, setting up audio...");
-        setupAudio();
-      }
-      if (Tone2.Transport.state !== "paused") {
-        Tone2.Transport.stop();
-        Tone2.Transport.position = 0;
-        console.log("[PLAYER] Starting from beginning");
-      } else {
-        console.log("[PLAYER] Resuming from paused position");
-      }
-      console.log(
-        "[PLAYER] Transport state before start:",
-        Tone2.Transport.state
-      );
-      console.log(
-        "[PLAYER] Transport position reset to:",
-        Tone2.Transport.position
-      );
-      console.log(
-        "[PLAYER] Audio context state:",
-        Tone2.context ? Tone2.context.state : "unknown"
-      );
-      console.log("[PLAYER] Parts count:", parts.length);
-      console.log("[PLAYER] Synths count:", synths.length);
-      if (graphInstruments) {
-        const samplers = Object.values(graphInstruments).filter(
-          (inst) => inst && inst.name === "Sampler"
-        );
-        if (samplers.length > 0 && samplerLoadPromises.length > 0) {
-          console.log(
-            `[PLAYER] Waiting for ${samplers.length} sampler(s) to load...`
-          );
-          try {
-            await Promise.all(samplerLoadPromises);
-            console.log("[PLAYER] All samplers loaded.");
-          } catch (e) {
-            console.warn("[PLAYER] Sampler load wait error:", e);
-            return;
+        const noteName = typeof note.pitch === "number" ? ToneLib.Frequency(note.pitch, "midi").toNote() : note.pitch;
+        if (glissando && glissando.to !== void 0) {
+          const toNote = typeof glissando.to === "number" ? ToneLib.Frequency(glissando.to, "midi").toNote() : glissando.to;
+          const startFreq = ToneLib.Frequency(noteName).toFrequency();
+          const endFreq = ToneLib.Frequency(toNote).toFrequency();
+          const cents = 1200 * Math.log2(endFreq / startFreq);
+          if (synth.detune) {
+            console.log(`[GLISSANDO] Using main synth detune: ${noteName} -> ${toNote} (${cents} cents)`);
+            const eventId = ToneLib.Transport.schedule((schedTime) => {
+              synth.triggerAttack(noteName, schedTime, velocity);
+              synth.detune.setValueAtTime(0, schedTime);
+              synth.detune.linearRampToValueAtTime(cents, schedTime + duration);
+              synth.triggerRelease(schedTime + duration);
+            }, time);
+            scheduledEvents.push(eventId);
+          } else {
+            console.log(`[GLISSANDO] Creating temporary MonoSynth: ${noteName} -> ${toNote} (${cents} cents)`);
+            const glissSynth = new ToneLib.MonoSynth().toDestination();
+            activeSynths.push(glissSynth);
+            const eventId = ToneLib.Transport.schedule((schedTime) => {
+              glissSynth.triggerAttack(noteName, schedTime, velocity);
+              glissSynth.detune.setValueAtTime(0, schedTime);
+              glissSynth.detune.linearRampToValueAtTime(cents, schedTime + duration);
+              glissSynth.triggerRelease(schedTime + duration);
+            }, time);
+            scheduledEvents.push(eventId);
           }
+        } else {
+          const eventId = ToneLib.Transport.schedule((schedTime) => {
+            synth.triggerAttackRelease(noteName, duration, schedTime, velocity);
+          }, time);
+          scheduledEvents.push(eventId);
         }
+      });
+    });
+  }
+  async function play2() {
+    if (isPlaying) {
+      window.Tone.Transport.pause();
+      isPlaying = false;
+      playButton.textContent = "\u25B6 Play";
+      cancelAnimationFrame(animationId);
+    } else {
+      if (!window.Tone || scheduledEvents.length === 0) {
+        await setupAudio();
+        console.log("Waiting for samples to load...");
+        await window.Tone.loaded();
+        console.log("Samples loaded, starting playback");
       }
-      if (parts.length === 0) {
-        console.error(
-          "[PLAYER] No parts available to start. This usually means setupAudio() failed."
-        );
-        console.error(
-          "[PLAYER] Try refreshing the page or check if Tone.js is properly loaded."
-        );
-        return;
+      if (window.Tone.Transport.state === "paused") {
+        window.Tone.Transport.start();
+      } else {
+        window.Tone.Transport.start("+0", currentTime);
       }
-      if (Tone2.Transport.state !== "paused") {
-        parts.forEach((part, index) => {
-          if (!part || typeof part.start !== "function") {
-            console.error(`[PLAYER] Part ${index} is invalid:`, part);
-            return;
-          }
-          try {
-            part.start(0);
-          } catch (error) {
-            console.error(`[PLAYER] Failed to start part ${index}:`, error);
-          }
-        });
-      }
-      Tone2.Transport.start();
       isPlaying = true;
-      playButton.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-pause"><circle cx="12" cy="12" r="10"/><line x1="10" x2="10" y1="15" y2="9"/><line x1="14" x2="14" y1="15" y2="9"/></svg>`;
+      playButton.textContent = "\u23F8 Pause";
+      stopButton.disabled = false;
       updateTimeline();
     }
-  });
-  stopButton.addEventListener("click", async () => {
-    if (!Tone2) {
-      return;
-    }
-    console.log("[PLAYER] Stopping playback completely...");
-    Tone2.Transport.stop();
-    Tone2.Transport.cancel();
-    Tone2.Transport.position = 0;
-    parts.forEach((part, index) => {
-      try {
-        part.stop();
-      } catch (e) {
-        console.warn(
-          `[PLAYER] Failed to stop part ${index} during complete stop:`,
-          e
-        );
-      }
-    });
-    isPlaying = false;
-    timeline.value = 0;
-    currentTime.textContent = formatTime(0);
-    playButton.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-play"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg>`;
-    console.log("[PLAYER] Playback stopped completely");
-  });
-  timeline.addEventListener("input", () => {
-    if (Tone2 && totalDuration > 0) {
-      const time = timeline.value / 100 * totalDuration;
-      const wasPlaying = isPlaying;
-      if (wasPlaying) {
-        Tone2.Transport.pause();
-      }
-      Tone2.Transport.seconds = time;
-      currentTime.textContent = formatTime(time);
-      if (wasPlaying) {
-        setTimeout(() => {
-          Tone2.Transport.start();
-        }, 50);
-      }
-    }
-  });
-  bpmInput.addEventListener("change", () => {
-    const newTempo = parseInt(bpmInput.value);
-    if (Tone2 && newTempo >= 60 && newTempo <= 240) {
-      console.log(`[PLAYER] Tempo changed to ${newTempo} BPM`);
-      Tone2.Transport.bpm.value = newTempo;
-      console.log(`[PLAYER] Tempo changed to ${newTempo} BPM`);
-    } else {
-      bpmInput.value = Tone2 ? Tone2.Transport.bpm.value : tempo;
-    }
-  });
-  synthSelectors.forEach((select) => {
-    select.addEventListener("change", () => {
-      if (Tone2 && synths.length > 0) {
-        console.log(
-          "[PLAYER] Synthesizer selection changed, reinitializing audio..."
-        );
-        const wasPlaying = isPlaying;
-        if (isPlaying) {
-          Tone2.Transport.stop();
-          isPlaying = false;
+  }
+  function stop() {
+    if (window.Tone) {
+      window.Tone.Transport.stop();
+      window.Tone.Transport.cancel(0);
+      scheduledEvents.forEach((eventId) => {
+        try {
+          window.Tone.Transport.clear(eventId);
+        } catch (e) {
         }
-        setupAudio();
-        if (wasPlaying) {
-          setTimeout(() => {
-            Tone2.Transport.start();
-            isPlaying = true;
-            playButton.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-pause"><circle cx="12" cy="12" r="10"/><line x1="10" x2="10" y1="15" y2="9"/><line x1="14" x2="14" y1="15" y2="9"/></svg>`;
-          }, 100);
-        } else {
-          playButton.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-play"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg>`;
-        }
-      }
-    });
-  });
-  const handleMIDIDownload = async () => {
-    try {
-      const { midi: midi2 } = await Promise.resolve().then(() => (init_converters(), converters_exports));
-      const midiData = midi2(composition);
-      let ToneMidi;
-      if (typeof __require !== "undefined") {
-        ToneMidi = await __require("https://esm.sh/@tonejs/midi@2.0.28");
-      } else {
-        const module = await import("https://esm.sh/@tonejs/midi@2.0.28");
-        ToneMidi = module.default || module;
-      }
-      const midiFile = new ToneMidi.Midi();
-      midiFile.header.setTempo(midiData.header.bpm);
-      midiData.tracks.forEach((trackData) => {
-        const track = midiFile.addTrack();
-        track.name = trackData.label || "Track";
-        trackData.notes.forEach((note) => {
-          track.addNote({
-            midi: typeof note.pitch === "number" ? note.pitch : 60,
-            time: note.time || 0,
-            duration: note.duration || 0.5,
-            velocity: note.velocity || 0.8
-          });
-        });
       });
-      const blob = new Blob([midiFile.toArray()], { type: "audio/midi" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `${composition.metadata?.title || "composition"}.mid`;
-      a.click();
-      URL.revokeObjectURL(url);
-      console.log("\u2713 MIDI download complete");
-    } catch (error) {
-      console.error("MIDI download error:", error);
-      alert("Failed to download MIDI: " + error.message);
-    }
-  };
-  const handleWavDownload = async () => {
-    try {
-      const ToneLib = window.Tone;
-      if (!ToneLib || !ToneLib.Offline) {
-        alert(
-          "Tone.js not loaded - cannot generate WAV. Try playing the composition first."
-        );
-        return;
-      }
-      console.log("Rendering WAV offline...");
-      const buffer = await ToneLib.Offline(async ({ transport }) => {
-        transport.bpm.value = metadata.tempo;
-        const compiledModulations = [];
-        originalTracksSource.forEach((track, index) => {
-          try {
-            const compiled = compileEvents(track);
-            compiledModulations[index] = compiled.modulations || [];
-          } catch (e) {
-            console.warn(
-              `[WAV] Failed to compile modulations for track ${index}:`,
-              e
-            );
-            compiledModulations[index] = [];
+      scheduledEvents = [];
+      activeSynths.forEach((s) => {
+        try {
+          if (!s.disposed) {
+            s.dispose();
           }
-        });
-        const offlineSynths = [];
-        convertedTracks.forEach((trackConfig) => {
-          const { originalTrackIndex, partEvents } = trackConfig;
-          const originalTrack = originalTracksSource[originalTrackIndex] || {};
-          const synthRef = originalTrack.synthRef;
-          let synth = null;
-          if (synthRef && graphInstruments && graphInstruments[synthRef]) {
-            synth = graphInstruments[synthRef];
-          } else {
-            const selectedSynth = synthSelectors[originalTrackIndex]?.value || "PolySynth";
-            if (selectedSynth.startsWith("GM: ")) {
-              synth = new ToneLib.PolySynth().toDestination();
-            } else {
-              try {
-                synth = new ToneLib[selectedSynth]().toDestination();
-              } catch {
-                synth = new ToneLib.PolySynth().toDestination();
-              }
-            }
-          }
-          offlineSynths.push(synth);
-          const trackModulations = compiledModulations[originalTrackIndex] || [];
-          const vibratoMods = trackModulations.filter(
-            (m) => m.type === "pitch" && m.subtype === "vibrato"
-          );
-          const tremoloMods = trackModulations.filter(
-            (m) => m.type === "amplitude" && m.subtype === "tremolo"
-          );
-          let vibratoEffect = null;
-          let tremoloEffect = null;
-          if (vibratoMods.length > 0 || tremoloMods.length > 0) {
-            console.log(
-              `[WAV] Creating effect chain for track ${originalTrackIndex} (${vibratoMods.length} vibrato, ${tremoloMods.length} tremolo)`
-            );
-            if (!synthRef || !graphInstruments?.[synthRef]) {
-              synth.disconnect();
-            }
-            if (vibratoMods.length > 0) {
-              const defaultVibrato = vibratoMods[0];
-              vibratoEffect = new ToneLib.Vibrato({
-                frequency: defaultVibrato.rate || 5,
-                depth: (defaultVibrato.depth || 50) / 100
-              });
-              vibratoEffect.wet.value = 0;
-            }
-            if (tremoloMods.length > 0) {
-              const defaultTremolo = tremoloMods[0];
-              tremoloEffect = new ToneLib.Tremolo({
-                frequency: defaultTremolo.rate || 8,
-                depth: defaultTremolo.depth || 0.3
-              }).start();
-              tremoloEffect.wet.value = 0;
-            }
-            if (vibratoEffect && tremoloEffect) {
-              synth.connect(vibratoEffect);
-              vibratoEffect.connect(tremoloEffect);
-              tremoloEffect.toDestination();
-            } else if (vibratoEffect) {
-              synth.connect(vibratoEffect);
-              vibratoEffect.toDestination();
-            } else if (tremoloEffect) {
-              synth.connect(tremoloEffect);
-              tremoloEffect.toDestination();
-            }
-            const secondsPerQuarterNote = 60 / metadata.tempo;
-            trackModulations.forEach((mod) => {
-              const startTime = mod.start * secondsPerQuarterNote;
-              const endTime = mod.end * secondsPerQuarterNote;
-              if (mod.type === "pitch" && mod.subtype === "vibrato" && vibratoEffect) {
-                const vibratoFreq = mod.rate || 5;
-                const vibratoDepth = (mod.depth || 50) / 100;
-                transport.schedule((time) => {
-                  vibratoEffect.frequency.value = vibratoFreq;
-                  vibratoEffect.depth.value = vibratoDepth;
-                  vibratoEffect.wet.rampTo(1, 0.05, time);
-                }, startTime);
-                transport.schedule((time) => {
-                  vibratoEffect.wet.rampTo(0, 0.05, time);
-                }, endTime);
-              }
-              if (mod.type === "amplitude" && mod.subtype === "tremolo" && tremoloEffect) {
-                const tremoloFreq = mod.rate || 8;
-                const tremoloDepth = mod.depth || 0.3;
-                transport.schedule((time) => {
-                  tremoloEffect.frequency.value = tremoloFreq;
-                  tremoloEffect.depth.value = tremoloDepth;
-                  tremoloEffect.wet.rampTo(1, 0.05, time);
-                }, startTime);
-                transport.schedule((time) => {
-                  tremoloEffect.wet.rampTo(0, 0.05, time);
-                }, endTime);
-              }
-            });
-          }
-          partEvents.forEach((note) => {
-            const time = typeof note.time === "number" ? note.time * (60 / metadata.tempo) : note.time;
-            const duration = typeof note.duration === "number" ? note.duration * (60 / metadata.tempo) : note.duration;
-            if (Array.isArray(note.pitch)) {
-              const notes = note.pitch.map(
-                (p) => typeof p === "number" ? ToneLib.Frequency(p, "midi").toNote() : p
-              );
-              synth.triggerAttackRelease(
-                notes,
-                duration,
-                time,
-                note.velocity || 0.8
-              );
-            } else {
-              const noteName = typeof note.pitch === "number" ? ToneLib.Frequency(note.pitch, "midi").toNote() : note.pitch;
-              synth.triggerAttackRelease(
-                noteName,
-                duration,
-                time,
-                note.velocity || 0.8
-              );
-            }
-          });
-        });
-        transport.start(0);
-      }, totalDuration + 1);
-      const wavBlob = await audioBufferToWav2(buffer);
-      const url = URL.createObjectURL(wavBlob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `${composition.metadata?.title || "composition"}.wav`;
-      a.click();
-      URL.revokeObjectURL(url);
-      console.log("\u2713 WAV download complete");
-    } catch (error) {
-      console.error("WAV download error:", error);
-      alert("Failed to download WAV: " + error.message);
+        } catch (e) {
+          console.warn("Error disposing synth/effect:", e);
+        }
+      });
+      activeSynths = [];
     }
-  };
-  function audioBufferToWav2(buffer) {
-    const numberOfChannels = buffer.numberOfChannels;
-    const sampleRate = buffer.sampleRate;
-    const length = buffer.length * numberOfChannels * 2;
-    const arrayBuffer = new ArrayBuffer(44 + length);
-    const view = new DataView(arrayBuffer);
-    writeString(view, 0, "RIFF");
-    view.setUint32(4, 36 + length, true);
-    writeString(view, 8, "WAVE");
-    writeString(view, 12, "fmt ");
-    view.setUint32(16, 16, true);
-    view.setUint16(20, 1, true);
-    view.setUint16(22, numberOfChannels, true);
-    view.setUint32(24, sampleRate, true);
-    view.setUint32(28, sampleRate * numberOfChannels * 2, true);
-    view.setUint16(32, numberOfChannels * 2, true);
-    view.setUint16(34, 16, true);
-    writeString(view, 36, "data");
-    view.setUint32(40, length, true);
-    let offset = 44;
-    for (let i = 0; i < buffer.length; i++) {
-      for (let channel = 0; channel < numberOfChannels; channel++) {
-        const sample = Math.max(
-          -1,
-          Math.min(1, buffer.getChannelData(channel)[i])
-        );
-        view.setInt16(offset, sample * 32767, true);
-        offset += 2;
+    isPlaying = false;
+    currentTime = 0;
+    playButton.textContent = "\u25B6 Play";
+    stopButton.disabled = true;
+    timelineProgress.style.width = "0%";
+    currentTimeDisplay.textContent = "0:00";
+    cancelAnimationFrame(animationId);
+  }
+  timeline.addEventListener("click", (e) => {
+    const rect = timeline.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const percent = x / rect.width;
+    const newTime = percent * totalDuration;
+    if (window.Tone) {
+      const wasPlaying = isPlaying;
+      stop();
+      currentTime = newTime;
+      if (wasPlaying) {
+        play2();
+      } else {
+        timelineProgress.style.width = `${percent * 100}%`;
+        currentTimeDisplay.textContent = formatTime(newTime);
       }
     }
-    return new Blob([arrayBuffer], { type: "audio/wav" });
-  }
-  function writeString(view, offset, string) {
-    for (let i = 0; i < string.length; i++) {
-      view.setUint8(offset + i, string.charCodeAt(i));
-    }
-  }
-  downloadMIDIButton.addEventListener("click", handleMIDIDownload);
-  downloadWavButton.addEventListener("click", handleWavDownload);
-  downloadMIDIButtonVertical.addEventListener("click", handleMIDIDownload);
-  downloadWavButtonVertical.addEventListener("click", handleWavDownload);
-  const initialTone = externalTone || typeof window !== "undefined" && window.Tone || (typeof Tone2 !== "undefined" ? Tone2 : null);
-  if (initialTone || preloadTone) {
-    initializeTone().then(() => {
-      setupAudio();
-      if (autoplay) {
-        setTimeout(() => {
-          playButton.click();
-        }, 500);
-      }
-    });
-  }
-  if (autoplay && !initialTone && !preloadTone) {
-    const autoplayInterval = setInterval(() => {
-      const currentTone = typeof window !== "undefined" && window.Tone || (typeof Tone2 !== "undefined" ? Tone2 : null);
-      if (currentTone) {
-        clearInterval(autoplayInterval);
-        setTimeout(() => {
-          playButton.click();
-        }, 500);
-      }
-    }, 100);
-    setTimeout(() => {
-      clearInterval(autoplayInterval);
-    }, 1e4);
+  });
+  playButton.addEventListener("click", play2);
+  stopButton.addEventListener("click", stop);
+  if (autoplay) {
+    play2().catch(console.error);
   }
   return container;
 }
@@ -6424,14 +2117,250 @@ var init_music_player = __esm({
     init_tonejs();
     init_audio();
     init_gm_instruments();
-    init_audio_effects();
-    init_ui_constants();
-    init_player_constants();
   }
 });
 
-// src/index.js
-init_jmon_validator_browser();
+// src/utils/jmon-validator.browser.js
+var JmonValidator = class {
+  constructor() {
+    console.warn(
+      "[JMON] Using simplified browser validator. For full validation, use Node.js environment."
+    );
+  }
+  /**
+   * Basic validation and normalization for browser use
+   * @param {Object} obj - JMON object to validate
+   * @returns {Object} { valid, errors, normalized }
+   */
+  validateAndNormalize(obj) {
+    const errors = [];
+    let normalized = { ...obj };
+    try {
+      if (!obj || typeof obj !== "object") {
+        errors.push("Object must be a valid object");
+        return { valid: false, errors, normalized: null };
+      }
+      if (!normalized.tracks && !normalized.notes) {
+        if (Array.isArray(obj)) {
+          normalized = { tracks: [{ notes: obj }] };
+        } else {
+          normalized.tracks = normalized.tracks || [];
+        }
+      }
+      if (normalized.notes && !normalized.tracks) {
+        normalized.tracks = [{ notes: normalized.notes }];
+        delete normalized.notes;
+      }
+      if (!Array.isArray(normalized.tracks)) {
+        normalized.tracks = [normalized.tracks];
+      }
+      normalized.tracks.forEach((track, trackIndex) => {
+        if (!track.notes) {
+          errors.push(`Track ${trackIndex} missing notes array`);
+          return;
+        }
+        if (!Array.isArray(track.notes)) {
+          errors.push(`Track ${trackIndex} notes must be an array`);
+          return;
+        }
+        track.notes.forEach((note, noteIndex) => {
+          if (typeof note !== "object") {
+            errors.push(
+              `Track ${trackIndex}, note ${noteIndex}: must be an object`
+            );
+            return;
+          }
+          if (note.pitch === void 0) {
+            note.pitch = null;
+          }
+          if (note.duration === void 0) {
+            note.duration = 1;
+          }
+          if (note.time === void 0) {
+            note.time = 0;
+          }
+        });
+      });
+      normalized.format = normalized.format || "jmon";
+      normalized.version = normalized.version || "1.0";
+      normalized.timeSignature = normalized.timeSignature || "4/4";
+      normalized.keySignature = normalized.keySignature || "C";
+      return {
+        valid: errors.length === 0,
+        errors,
+        normalized
+      };
+    } catch (error) {
+      errors.push(`Validation error: ${error.message}`);
+      return {
+        valid: false,
+        errors,
+        normalized: null
+      };
+    }
+  }
+  /**
+   * Simple validation without normalization
+   * @param {Object} obj - JMON object to validate
+   * @returns {boolean} true if valid
+   */
+  isValid(obj) {
+    const result = this.validateAndNormalize(obj);
+    return result.valid;
+  }
+};
+
+// src/algorithms/constants/ArticulationTypes.js
+var ARTICULATION_TYPES = {
+  // Simple articulations
+  "staccato": {
+    complex: false,
+    description: "Shortens note duration to ~50%"
+  },
+  "accent": {
+    complex: false,
+    description: "Increases note velocity/emphasis"
+  },
+  "tenuto": {
+    complex: false,
+    description: "Holds note for full duration with emphasis"
+  },
+  "legato": {
+    complex: false,
+    description: "Smooth connection between notes"
+  },
+  "marcato": {
+    complex: false,
+    description: "Strong accent with slight separation"
+  },
+  // Complex articulations
+  "glissando": {
+    complex: true,
+    requiredParams: ["target"],
+    description: "Smooth slide from note to target pitch"
+  },
+  "portamento": {
+    complex: true,
+    requiredParams: ["target"],
+    optionalParams: ["curve", "speed"],
+    description: "Expressive slide between pitches"
+  },
+  "bend": {
+    complex: true,
+    requiredParams: ["amount"],
+    optionalParams: ["curve", "returnToOriginal"],
+    description: "Pitch bend up or down in cents"
+  },
+  "vibrato": {
+    complex: true,
+    optionalParams: ["rate", "depth", "delay"],
+    description: "Periodic pitch variation"
+  },
+  "tremolo": {
+    complex: true,
+    optionalParams: ["rate", "depth"],
+    description: "Rapid volume variation"
+  },
+  "crescendo": {
+    complex: true,
+    requiredParams: ["endVelocity"],
+    optionalParams: ["curve"],
+    description: "Gradual volume increase"
+  },
+  "diminuendo": {
+    complex: true,
+    requiredParams: ["endVelocity"],
+    optionalParams: ["curve"],
+    description: "Gradual volume decrease"
+  }
+};
+
+// src/algorithms/constants/OrnamentTypes.js
+var ORNAMENT_TYPES = {
+  "grace_note": {
+    requiredParams: ["graceNoteType"],
+    optionalParams: ["gracePitches"],
+    conflicts: [],
+    description: "Single note before the main note",
+    defaultParams: {
+      graceNoteType: "acciaccatura"
+    },
+    validate: (note, params) => {
+      if (!["acciaccatura", "appoggiatura"].includes(params.graceNoteType)) {
+        return { valid: false, error: "graceNoteType must be either acciaccatura or appoggiatura" };
+      }
+      if (params.gracePitches && !Array.isArray(params.gracePitches)) {
+        return { valid: false, error: "gracePitches must be an array of pitches" };
+      }
+      return { valid: true };
+    }
+  },
+  "trill": {
+    requiredParams: [],
+    optionalParams: ["by", "trillRate"],
+    conflicts: ["mordent"],
+    minDuration: "8n",
+    description: "Rapid alternation between main note and auxiliary note",
+    defaultParams: {
+      by: 1,
+      trillRate: 0.125
+    },
+    validate: (note, params) => {
+      if (params.by && typeof params.by !== "number") {
+        return { valid: false, error: "trill step (by) must be a number" };
+      }
+      if (params.trillRate && typeof params.trillRate !== "number") {
+        return { valid: false, error: "trillRate must be a number" };
+      }
+      return { valid: true };
+    }
+  },
+  "mordent": {
+    requiredParams: [],
+    optionalParams: ["by"],
+    conflicts: ["trill"],
+    description: "Quick alternation with note above or below",
+    defaultParams: {
+      by: 1
+    },
+    validate: (note, params) => {
+      if (params.by && typeof params.by !== "number") {
+        return { valid: false, error: "mordent step (by) must be a number" };
+      }
+      return { valid: true };
+    }
+  },
+  "turn": {
+    requiredParams: [],
+    optionalParams: ["scale"],
+    conflicts: [],
+    description: "Melodic turn around the main note",
+    validate: (note, params) => {
+      if (params.scale && typeof params.scale !== "string") {
+        return { valid: false, error: "scale must be a string" };
+      }
+      return { valid: true };
+    }
+  },
+  "arpeggio": {
+    requiredParams: ["arpeggioDegrees"],
+    optionalParams: ["direction"],
+    conflicts: [],
+    description: "Notes played in sequence",
+    defaultParams: {
+      direction: "up"
+    },
+    validate: (note, params) => {
+      if (!Array.isArray(params.arpeggioDegrees)) {
+        return { valid: false, error: "arpeggioDegrees must be an array" };
+      }
+      if (params.direction && !["up", "down", "both"].includes(params.direction)) {
+        return { valid: false, error: "direction must be up, down, or both" };
+      }
+      return { valid: true };
+    }
+  }
+};
 
 // src/algorithms/constants/MusicTheoryConstants.js
 var MusicTheoryConstants = class {
@@ -6531,6 +2460,205 @@ var MusicTheoryConstants = class {
    */
   static scaleToTriad(scale) {
     return [scale[0], scale[2], scale[4]];
+  }
+};
+
+// src/algorithms/constants/ConstantsAPI.js
+var ConstantsAPI = class {
+  /**
+   * List all available constant categories
+   * @returns {string[]} Array of category names
+   *
+   * @example
+   * jm.constants.list()
+   * // => ['articulations', 'ornaments', 'scales', 'intervals', ...]
+   */
+  static list() {
+    return [
+      "articulations",
+      "ornaments",
+      "scales",
+      "intervals",
+      "chromaticScale",
+      "modes"
+    ];
+  }
+  /**
+   * Get all constants of a specific category
+   * @param {string} category - Category name
+   * @returns {Object|Array} Constants for that category
+   *
+   * @example
+   * jm.constants.get('articulations')
+   * // => { staccato: {...}, accent: {...}, ... }
+   *
+   * @example
+   * jm.constants.get('scales')
+   * // => { major: [...], minor: [...], ... }
+   */
+  static get(category) {
+    switch (category) {
+      case "articulations":
+        return ARTICULATION_TYPES;
+      case "ornaments":
+        return ORNAMENT_TYPES;
+      case "scales":
+        return MusicTheoryConstants.scale_intervals;
+      case "intervals":
+        return MusicTheoryConstants.intervals;
+      case "chromaticScale":
+        return MusicTheoryConstants.chromatic_scale;
+      case "modes":
+        return {
+          ionian: MusicTheoryConstants.scale_intervals.major,
+          dorian: MusicTheoryConstants.scale_intervals.dorian,
+          phrygian: MusicTheoryConstants.scale_intervals.phrygian,
+          lydian: MusicTheoryConstants.scale_intervals.lydian,
+          mixolydian: MusicTheoryConstants.scale_intervals.mixolydian,
+          aeolian: MusicTheoryConstants.scale_intervals.minor,
+          locrian: MusicTheoryConstants.scale_intervals.locrian
+        };
+      default:
+        throw new Error(`Unknown constant category: ${category}. Available: ${this.list().join(", ")}`);
+    }
+  }
+  /**
+   * Describe a specific constant with details
+   * @param {string} category - Category name
+   * @param {string} name - Constant name within category
+   * @returns {Object} Description object
+   *
+   * @example
+   * jm.constants.describe('articulations', 'staccato')
+   * // => { name: 'staccato', complex: false, description: '...', ... }
+   */
+  static describe(category, name) {
+    const constants2 = this.get(category);
+    if (category === "articulations" || category === "ornaments") {
+      const item = constants2[name];
+      if (!item) {
+        throw new Error(`Unknown ${category} type: ${name}. Available: ${Object.keys(constants2).join(", ")}`);
+      }
+      return {
+        name,
+        category,
+        ...item
+      };
+    }
+    if (category === "scales" || category === "modes") {
+      const intervals = constants2[name];
+      if (!intervals) {
+        throw new Error(`Unknown ${category} name: ${name}. Available: ${Object.keys(constants2).join(", ")}`);
+      }
+      return {
+        name,
+        category,
+        intervals,
+        noteCount: intervals.length
+      };
+    }
+    if (category === "intervals") {
+      const semitones = constants2[name];
+      if (semitones === void 0) {
+        throw new Error(`Unknown interval: ${name}. Available: ${Object.keys(constants2).join(", ")}`);
+      }
+      return {
+        name,
+        category,
+        semitones
+      };
+    }
+    if (category === "chromaticScale") {
+      const index = parseInt(name);
+      if (isNaN(index) || index < 0 || index >= constants2.length) {
+        throw new Error(`Invalid chromatic scale index: ${name}. Must be 0-${constants2.length - 1}`);
+      }
+      return {
+        index,
+        note: constants2[index],
+        category
+      };
+    }
+    throw new Error(`Cannot describe category: ${category}`);
+  }
+  /**
+   * Search constants by description or properties
+   * @param {string} query - Search query
+   * @param {Object} options - Search options
+   * @param {string[]} [options.categories] - Limit search to specific categories
+   * @returns {Array} Array of matching results
+   *
+   * @example
+   * jm.constants.search('slide')
+   * // => [{ category: 'articulations', name: 'glissando', ... }, ...]
+   */
+  static search(query, options = {}) {
+    const { categories = ["articulations", "ornaments"] } = options;
+    const results = [];
+    const lowerQuery = query.toLowerCase();
+    for (const category of categories) {
+      try {
+        const constants2 = this.get(category);
+        if (category === "articulations" || category === "ornaments") {
+          for (const [name, def] of Object.entries(constants2)) {
+            const searchText = `${name} ${def.description || ""}`.toLowerCase();
+            if (searchText.includes(lowerQuery)) {
+              results.push({
+                category,
+                name,
+                ...def
+              });
+            }
+          }
+        }
+      } catch (e) {
+      }
+    }
+    return results;
+  }
+  /**
+   * Get all articulation type names
+   * @returns {string[]} Array of articulation type names
+   *
+   * @example
+   * jm.constants.listArticulations()
+   * // => ['staccato', 'accent', 'tenuto', ...]
+   */
+  static listArticulations() {
+    return Object.keys(ARTICULATION_TYPES);
+  }
+  /**
+   * Get all ornament type names
+   * @returns {string[]} Array of ornament type names
+   *
+   * @example
+   * jm.constants.listOrnaments()
+   * // => ['grace_note', 'trill', 'mordent', ...]
+   */
+  static listOrnaments() {
+    return Object.keys(ORNAMENT_TYPES);
+  }
+  /**
+   * Get all scale type names
+   * @returns {string[]} Array of scale type names
+   *
+   * @example
+   * jm.constants.listScales()
+   * // => ['major', 'minor', 'pentatonic', ...]
+   */
+  static listScales() {
+    return Object.keys(MusicTheoryConstants.scale_intervals);
+  }
+  /**
+   * Get all interval names
+   * @returns {string[]} Array of interval names
+   *
+   * @example
+   * jm.constants.listIntervals()
+   * // => ['P1', 'm2', 'M2', ...]
+   */
+  static listIntervals() {
+    return Object.keys(MusicTheoryConstants.intervals);
   }
 };
 
@@ -7286,93 +3414,6 @@ var Voice = class extends MusicTheoryConstants {
   }
 };
 
-// src/algorithms/constants/OrnamentTypes.js
-var ORNAMENT_TYPES = {
-  "grace_note": {
-    requiredParams: ["graceNoteType"],
-    optionalParams: ["gracePitches"],
-    conflicts: [],
-    description: "Single note before the main note",
-    defaultParams: {
-      graceNoteType: "acciaccatura"
-    },
-    validate: (note, params) => {
-      if (!["acciaccatura", "appoggiatura"].includes(params.graceNoteType)) {
-        return { valid: false, error: "graceNoteType must be either acciaccatura or appoggiatura" };
-      }
-      if (params.gracePitches && !Array.isArray(params.gracePitches)) {
-        return { valid: false, error: "gracePitches must be an array of pitches" };
-      }
-      return { valid: true };
-    }
-  },
-  "trill": {
-    requiredParams: [],
-    optionalParams: ["by", "trillRate"],
-    conflicts: ["mordent"],
-    minDuration: "8n",
-    description: "Rapid alternation between main note and auxiliary note",
-    defaultParams: {
-      by: 1,
-      trillRate: 0.125
-    },
-    validate: (note, params) => {
-      if (params.by && typeof params.by !== "number") {
-        return { valid: false, error: "trill step (by) must be a number" };
-      }
-      if (params.trillRate && typeof params.trillRate !== "number") {
-        return { valid: false, error: "trillRate must be a number" };
-      }
-      return { valid: true };
-    }
-  },
-  "mordent": {
-    requiredParams: [],
-    optionalParams: ["by"],
-    conflicts: ["trill"],
-    description: "Quick alternation with note above or below",
-    defaultParams: {
-      by: 1
-    },
-    validate: (note, params) => {
-      if (params.by && typeof params.by !== "number") {
-        return { valid: false, error: "mordent step (by) must be a number" };
-      }
-      return { valid: true };
-    }
-  },
-  "turn": {
-    requiredParams: [],
-    optionalParams: ["scale"],
-    conflicts: [],
-    description: "Melodic turn around the main note",
-    validate: (note, params) => {
-      if (params.scale && typeof params.scale !== "string") {
-        return { valid: false, error: "scale must be a string" };
-      }
-      return { valid: true };
-    }
-  },
-  "arpeggio": {
-    requiredParams: ["arpeggioDegrees"],
-    optionalParams: ["direction"],
-    conflicts: [],
-    description: "Notes played in sequence",
-    defaultParams: {
-      direction: "up"
-    },
-    validate: (note, params) => {
-      if (!Array.isArray(params.arpeggioDegrees)) {
-        return { valid: false, error: "arpeggioDegrees must be an array" };
-      }
-      if (params.direction && !["up", "down", "both"].includes(params.direction)) {
-        return { valid: false, error: "direction must be up, down, or both" };
-      }
-      return { valid: true };
-    }
-  }
-};
-
 // src/algorithms/theory/harmony/Ornament.js
 var Ornament = class _Ornament {
   /**
@@ -7689,71 +3730,6 @@ var Ornament = class _Ornament {
       ...arpeggioNotes,
       ...notes.slice(noteIndex + 1)
     ];
-  }
-};
-
-// src/algorithms/constants/ArticulationTypes.js
-var ARTICULATION_TYPES = {
-  // Simple articulations
-  "staccato": {
-    complex: false,
-    description: "Shortens note duration to ~50%"
-  },
-  "accent": {
-    complex: false,
-    description: "Increases note velocity/emphasis"
-  },
-  "tenuto": {
-    complex: false,
-    description: "Holds note for full duration with emphasis"
-  },
-  "legato": {
-    complex: false,
-    description: "Smooth connection between notes"
-  },
-  "marcato": {
-    complex: false,
-    description: "Strong accent with slight separation"
-  },
-  // Complex articulations
-  "glissando": {
-    complex: true,
-    requiredParams: ["target"],
-    description: "Smooth slide from note to target pitch"
-  },
-  "portamento": {
-    complex: true,
-    requiredParams: ["target"],
-    optionalParams: ["curve", "speed"],
-    description: "Expressive slide between pitches"
-  },
-  "bend": {
-    complex: true,
-    requiredParams: ["amount"],
-    optionalParams: ["curve", "returnToOriginal"],
-    description: "Pitch bend up or down in cents"
-  },
-  "vibrato": {
-    complex: true,
-    optionalParams: ["rate", "depth", "delay"],
-    description: "Periodic pitch variation"
-  },
-  "tremolo": {
-    complex: true,
-    optionalParams: ["rate", "depth"],
-    description: "Rapid volume variation"
-  },
-  "crescendo": {
-    complex: true,
-    requiredParams: ["endVelocity"],
-    optionalParams: ["curve"],
-    description: "Gradual volume increase"
-  },
-  "diminuendo": {
-    complex: true,
-    requiredParams: ["endVelocity"],
-    optionalParams: ["curve"],
-    description: "Gradual volume decrease"
   }
 };
 
@@ -9292,7 +5268,7 @@ var CellularAutomata = class {
 var Loop = class _Loop {
   /**
    * Initializes a Loop object.
-   * 
+   *
    * @param {Object|Array} loops - Dictionary or array of JMON tracks. Each track has notes: [{pitch, duration, time, velocity}, ...]
    * @param {number} measureLength - The length of a measure in beats. Defaults to 4.
    * @param {boolean} insertRests - Whether to insert rests. Defaults to true.
@@ -12368,7 +8344,18 @@ var theory = {
   }
 };
 var constants = {
-  theory: MusicTheoryConstants
+  theory: MusicTheoryConstants,
+  articulations: ARTICULATION_TYPES,
+  ornaments: ORNAMENT_TYPES,
+  // Convenience methods from ConstantsAPI
+  list: ConstantsAPI.list.bind(ConstantsAPI),
+  get: ConstantsAPI.get.bind(ConstantsAPI),
+  describe: ConstantsAPI.describe.bind(ConstantsAPI),
+  search: ConstantsAPI.search.bind(ConstantsAPI),
+  listArticulations: ConstantsAPI.listArticulations.bind(ConstantsAPI),
+  listOrnaments: ConstantsAPI.listOrnaments.bind(ConstantsAPI),
+  listScales: ConstantsAPI.listScales.bind(ConstantsAPI),
+  listIntervals: ConstantsAPI.listIntervals.bind(ConstantsAPI)
 };
 var generative = {
   gaussian: {
@@ -12421,8 +8408,2145 @@ var algorithms_default = {
   utils
 };
 
-// src/index.js
-init_converters();
+// src/converters/midi.js
+init_audio();
+var Midi = class _Midi {
+  static midiToNoteName(midi2) {
+    const noteNames = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+    const octave = Math.floor(midi2 / 12) - 1;
+    const noteIndex = midi2 % 12;
+    return noteNames[noteIndex] + octave;
+  }
+  static convert(composition) {
+    const bpm = composition.tempo || composition.bpm || 120;
+    const timeSignature = composition.timeSignature || "4/4";
+    const rawTracks = composition.tracks || [];
+    const tracksArray = Array.isArray(rawTracks) ? rawTracks : rawTracks && typeof rawTracks === "object" ? Object.values(rawTracks) : [];
+    return {
+      header: {
+        bpm,
+        timeSignature
+      },
+      tracks: tracksArray.map((track) => {
+        const label = track.label || track.name;
+        const notesSrc = Array.isArray(track.events) ? track.events : Array.isArray(track.notes) ? track.notes : Array.isArray(track) ? track : [];
+        const safeNotes = Array.isArray(notesSrc) ? notesSrc : [];
+        const perf = compileEvents({ events: safeNotes }, { tempo: bpm, timeSignature });
+        const notes = safeNotes.map((note) => ({
+          pitch: note.pitch,
+          noteName: typeof note.pitch === "number" ? _Midi.midiToNoteName(note.pitch) : note.pitch,
+          time: note.time,
+          duration: note.duration,
+          velocity: note.velocity || 0.8
+        }));
+        return {
+          label,
+          notes,
+          modulations: perf && Array.isArray(perf.modulations) ? perf.modulations : []
+        };
+      })
+    };
+  }
+};
+function midi(composition) {
+  return Midi.convert(composition);
+}
+
+// src/converters/midi-to-jmon.js
+var MidiToJmon = class _MidiToJmon {
+  constructor(options = {}) {
+    this.options = {
+      Tone: null,
+      trackNaming: "auto",
+      // 'auto', 'numbered', 'channel', 'instrument'
+      mergeDrums: true,
+      quantize: null,
+      // e.g., 0.25 for 16th note quantization
+      includeModulations: true,
+      includeTempo: true,
+      includeKeySignature: true,
+      ...options
+    };
+  }
+  /**
+   * Static conversion method
+   * @param {ArrayBuffer|Uint8Array} midiData - MIDI file data
+   * @param {Object} options - Conversion options
+   * @returns {Promise<Object>} JMON composition
+   */
+  static async convert(midiData, options = {}) {
+    const converter = new _MidiToJmon(options);
+    return await converter.convertToJmon(midiData);
+  }
+  /**
+   * Main conversion method
+   * @param {ArrayBuffer|Uint8Array} midiData - MIDI file data
+   * @returns {Promise<Object>} JMON composition
+   */
+  async convertToJmon(midiData) {
+    const Tone2 = await this.initializeTone();
+    let parsed;
+    try {
+      parsed = new Tone2.Midi(midiData);
+    } catch (error) {
+      throw new Error(`Failed to parse MIDI file: ${error.message}`);
+    }
+    const composition = this.buildJmonComposition(parsed, Tone2);
+    const validator = new JmonValidator();
+    const { valid, normalized, errors } = validator.validateAndNormalize(
+      composition
+    );
+    if (!valid) {
+      console.warn("Generated JMON failed validation:", errors);
+    }
+    return valid ? normalized : composition;
+  }
+  /**
+   * Initialize Tone.js instance following music-player.js pattern
+   * @returns {Promise<Object>} Tone.js instance
+   */
+  async initializeTone() {
+    const externalTone = this.options.Tone;
+    if (typeof globalThis.window !== "undefined") {
+      const existingTone = externalTone || globalThis.window.Tone || (typeof Tone !== "undefined" ? Tone : null);
+      if (existingTone) {
+        return existingTone;
+      }
+      try {
+        const toneModule = await import("tone");
+        return toneModule.default || toneModule;
+      } catch (error) {
+        throw new Error(
+          "Tone.js not found. Please provide Tone instance or load Tone.js"
+        );
+      }
+    } else {
+      if (externalTone) {
+        return externalTone;
+      }
+      throw new Error("Tone instance required in Node.js environment");
+    }
+  }
+  /**
+   * Build JMON composition from parsed MIDI
+   * @param {Object} parsed - Parsed MIDI from Tone.js
+   * @param {Object} Tone - Tone.js instance
+   * @returns {Object} JMON composition
+   */
+  buildJmonComposition(parsed, Tone2) {
+    const composition = {
+      format: "jmon",
+      version: "1.0",
+      tempo: this.extractTempo(parsed),
+      tracks: this.convertTracks(parsed.tracks, Tone2, parsed)
+    };
+    const timeSignature = this.extractTimeSignature(parsed);
+    if (timeSignature) {
+      composition.timeSignature = timeSignature;
+    }
+    const keySignature = this.extractKeySignature(parsed);
+    if (keySignature) {
+      composition.keySignature = keySignature;
+    }
+    const metadata = this.extractMetadata(parsed);
+    if (Object.keys(metadata).length > 0) {
+      composition.metadata = metadata;
+    }
+    if (this.options.includeTempo && this.hasTempoChanges(parsed)) {
+      composition.tempoMap = this.extractTempoMap(parsed);
+    }
+    if (this.hasTimeSignatureChanges(parsed)) {
+      composition.timeSignatureMap = this.extractTimeSignatureMap(parsed);
+    }
+    return composition;
+  }
+  /**
+   * Convert MIDI tracks to JMON tracks
+   * @param {Array} tracks - MIDI tracks from Tone.js
+   * @param {Object} Tone - Tone.js instance
+   * @param {Object} parsed - Full parsed MIDI data
+   * @returns {Array} JMON tracks
+   */
+  convertTracks(tracks, Tone2, parsed) {
+    const jmonTracks = [];
+    let trackIndex = 0;
+    for (const track of tracks) {
+      if (!track.notes || track.notes.length === 0) {
+        continue;
+      }
+      const trackName = this.generateTrackName(track, trackIndex, parsed);
+      const isDrumTrack = this.isDrumTrack(track);
+      const notes = track.notes.map(
+        (note) => this.convertNote(note, Tone2, track)
+      );
+      const processedNotes = this.options.quantize ? this.quantizeNotes(notes, this.options.quantize) : notes;
+      const jmonTrack = {
+        label: trackName,
+        notes: processedNotes
+      };
+      if (track.channel !== void 0) {
+        jmonTrack.midiChannel = track.channel;
+      }
+      if (track.instrument) {
+        jmonTrack.synth = {
+          type: isDrumTrack ? "Sampler" : "PolySynth",
+          options: this.getInstrumentOptions(track.instrument, isDrumTrack)
+        };
+      }
+      if (this.options.includeModulations && track.controlChanges) {
+        const modulations = this.extractModulations(track.controlChanges);
+        if (modulations.length > 0) {
+          this.applyModulationsToTrack(jmonTrack, modulations);
+        }
+      }
+      jmonTracks.push(jmonTrack);
+      trackIndex++;
+    }
+    return jmonTracks;
+  }
+  /**
+   * Convert MIDI note to JMON note
+   * @param {Object} note - MIDI note from Tone.js
+   * @param {Object} Tone - Tone.js instance
+   * @param {Object} track - Parent track for context
+   * @returns {Object} JMON note
+   */
+  convertNote(note, Tone2, track) {
+    const jmonNote = {
+      pitch: note.midi,
+      // Use MIDI number as primary format
+      time: note.time,
+      // Tone.js already converts to seconds, we'll convert to quarters
+      duration: this.convertDurationToNoteValue(note.duration),
+      velocity: note.velocity
+    };
+    const bpm = note.tempo || 120;
+    jmonNote.time = this.convertSecondsToQuarterNotes(note.time, bpm);
+    if (this.options.includeModulations && note.controlChanges) {
+      const noteModulations = this.convertNoteModulations(note.controlChanges);
+      if (noteModulations.length > 0) {
+        jmonNote.modulations = noteModulations;
+      }
+    }
+    return jmonNote;
+  }
+  /**
+   * Generate track name based on naming strategy
+   * @param {Object} track - MIDI track
+   * @param {number} index - Track index
+   * @param {Object} parsed - Full parsed MIDI
+   * @returns {string} Track name
+   */
+  generateTrackName(track, index, parsed) {
+    switch (this.options.trackNaming) {
+      case "numbered":
+        return `Track ${index + 1}`;
+      case "channel":
+        return `Channel ${(track.channel || 0) + 1}`;
+      case "instrument":
+        if (track.instrument) {
+          return track.instrument.name || `Instrument ${track.instrument.number}`;
+        }
+        return `Track ${index + 1}`;
+      case "auto":
+      default:
+        if (track.name && track.name.trim()) {
+          return track.name.trim();
+        }
+        if (this.isDrumTrack(track)) {
+          return "Drums";
+        }
+        if (track.instrument && track.instrument.name) {
+          return track.instrument.name;
+        }
+        if (track.channel !== void 0) {
+          return track.channel === 9 ? "Drums" : `Channel ${track.channel + 1}`;
+        }
+        return `Track ${index + 1}`;
+    }
+  }
+  /**
+   * Check if track is a drum track (channel 10/9 in MIDI)
+   * @param {Object} track - MIDI track
+   * @returns {boolean} True if drum track
+   */
+  isDrumTrack(track) {
+    return track.channel === 9;
+  }
+  /**
+   * Get instrument options for synth configuration
+   * @param {Object} instrument - MIDI instrument info
+   * @param {boolean} isDrum - Whether this is a drum track
+   * @returns {Object} Synth options
+   */
+  getInstrumentOptions(instrument, isDrum) {
+    if (isDrum) {
+      return {
+        envelope: {
+          enabled: true,
+          attack: 0.02,
+          decay: 0.1,
+          sustain: 0.8,
+          release: 0.3
+        }
+      };
+    }
+    return {
+      oscillator: { type: "triangle" },
+      envelope: {
+        attack: 0.1,
+        decay: 0.2,
+        sustain: 0.7,
+        release: 1
+      }
+    };
+  }
+  /**
+   * Extract tempo from MIDI
+   * @param {Object} parsed - Parsed MIDI
+   * @returns {number} BPM
+   */
+  extractTempo(parsed) {
+    if (parsed.header && parsed.header.tempos && parsed.header.tempos.length > 0) {
+      return Math.round(parsed.header.tempos[0].bpm);
+    }
+    for (const track of parsed.tracks) {
+      if (track.tempoEvents && track.tempoEvents.length > 0) {
+        return Math.round(track.tempoEvents[0].bpm);
+      }
+    }
+    return 120;
+  }
+  /**
+   * Extract time signature from MIDI
+   * @param {Object} parsed - Parsed MIDI
+   * @returns {string|null} Time signature like "4/4"
+   */
+  extractTimeSignature(parsed) {
+    if (parsed.header && parsed.header.timeSignatures && parsed.header.timeSignatures.length > 0) {
+      const ts = parsed.header.timeSignatures[0];
+      return `${ts.numerator}/${ts.denominator}`;
+    }
+    for (const track of parsed.tracks) {
+      if (track.timeSignatureEvents && track.timeSignatureEvents.length > 0) {
+        const ts = track.timeSignatureEvents[0];
+        return `${ts.numerator}/${ts.denominator}`;
+      }
+    }
+    return null;
+  }
+  /**
+   * Extract key signature from MIDI
+   * @param {Object} parsed - Parsed MIDI
+   * @returns {string|null} Key signature like "C", "G", "Dm"
+   */
+  extractKeySignature(parsed) {
+    if (!this.options.includeKeySignature) {
+      return null;
+    }
+    let keySignature = null;
+    let earliestTime = Infinity;
+    if (parsed.header && parsed.header.keySignatures && parsed.header.keySignatures.length > 0) {
+      const ks = parsed.header.keySignatures[0];
+      keySignature = this.midiKeySignatureToString(ks.key, ks.scale);
+    }
+    for (const track of parsed.tracks) {
+      if (track.meta) {
+        for (const meta of track.meta) {
+          if (meta.type === "keySignature" && meta.time < earliestTime) {
+            earliestTime = meta.time;
+            keySignature = this.midiKeySignatureToString(meta.key, meta.scale);
+          }
+        }
+      }
+      if (track.keySignatures && track.keySignatures.length > 0) {
+        const ks = track.keySignatures[0];
+        if (ks.ticks < earliestTime) {
+          earliestTime = ks.ticks;
+          keySignature = this.midiKeySignatureToString(ks.key, ks.scale);
+        }
+      }
+    }
+    return keySignature;
+  }
+  /**
+   * Convert MIDI key signature to string representation
+   * @param {number} key - Number of sharps (positive) or flats (negative)
+   * @param {string|number} scale - 'major'/'minor' or 0/1 (0=major, 1=minor)
+   * @returns {string} Key signature like "C", "G", "Dm"
+   */
+  midiKeySignatureToString(key, scale) {
+    const isMinor = scale === "minor" || scale === 1 || scale === true;
+    const majorKeys = [
+      "C",
+      "G",
+      "D",
+      "A",
+      "E",
+      "B",
+      "F#",
+      "C#",
+      // Sharps
+      "C",
+      "F",
+      "Bb",
+      "Eb",
+      "Ab",
+      "Db",
+      "Gb",
+      "Cb"
+    ];
+    const minorKeys = [
+      "A",
+      "E",
+      "B",
+      "F#",
+      "C#",
+      "G#",
+      "D#",
+      "A#",
+      // Sharps
+      "A",
+      "D",
+      "G",
+      "C",
+      "F",
+      "Bb",
+      "Eb",
+      "Ab"
+    ];
+    let keyName;
+    if (key >= 0) {
+      const index = Math.min(key, 7);
+      keyName = isMinor ? minorKeys[index] : majorKeys[index];
+    } else {
+      const index = Math.min(Math.abs(key), 7);
+      keyName = isMinor ? minorKeys[8 + index] : majorKeys[8 + index];
+    }
+    return isMinor ? `${keyName}m` : keyName;
+  }
+  /**
+   * Extract metadata from MIDI
+   * @param {Object} parsed - Parsed MIDI
+   * @returns {Object} Metadata object
+   */
+  extractMetadata(parsed) {
+    const metadata = {};
+    for (const track of parsed.tracks) {
+      if (track.meta) {
+        for (const meta of track.meta) {
+          switch (meta.type) {
+            case "trackName":
+            case "text":
+              if (!metadata.title && meta.text && meta.text.trim()) {
+                metadata.title = meta.text.trim();
+              }
+              break;
+            case "copyright":
+              if (meta.text && meta.text.trim()) {
+                metadata.copyright = meta.text.trim();
+              }
+              break;
+            case "composer":
+              if (meta.text && meta.text.trim()) {
+                metadata.composer = meta.text.trim();
+              }
+              break;
+          }
+        }
+      }
+    }
+    return metadata;
+  }
+  /**
+   * Check if MIDI has tempo changes
+   * @param {Object} parsed - Parsed MIDI
+   * @returns {boolean} True if has tempo changes
+   */
+  hasTempoChanges(parsed) {
+    if (parsed.header && parsed.header.tempos && parsed.header.tempos.length > 1) {
+      return true;
+    }
+    for (const track of parsed.tracks) {
+      if (track.tempoEvents && track.tempoEvents.length > 1) {
+        return true;
+      }
+    }
+    return false;
+  }
+  /**
+   * Extract tempo map for tempo changes
+   * @param {Object} parsed - Parsed MIDI
+   * @returns {Array} Tempo map events
+   */
+  extractTempoMap(parsed) {
+    const tempoMap = [];
+    const allTempoEvents = [];
+    if (parsed.header && parsed.header.tempos) {
+      allTempoEvents.push(...parsed.header.tempos.map((t) => ({
+        time: t.time,
+        tempo: Math.round(t.bpm)
+      })));
+    }
+    for (const track of parsed.tracks) {
+      if (track.tempoEvents) {
+        allTempoEvents.push(...track.tempoEvents.map((t) => ({
+          time: t.time,
+          tempo: Math.round(t.bpm)
+        })));
+      }
+    }
+    allTempoEvents.sort((a, b) => a.time - b.time);
+    for (const event of allTempoEvents) {
+      tempoMap.push({
+        time: this.convertSecondsToQuarterNotes(event.time, event.tempo),
+        tempo: event.tempo
+      });
+    }
+    return tempoMap;
+  }
+  /**
+   * Check if MIDI has time signature changes
+   * @param {Object} parsed - Parsed MIDI
+   * @returns {boolean} True if has time signature changes
+   */
+  hasTimeSignatureChanges(parsed) {
+    if (parsed.header && parsed.header.timeSignatures && parsed.header.timeSignatures.length > 1) {
+      return true;
+    }
+    for (const track of parsed.tracks) {
+      if (track.timeSignatureEvents && track.timeSignatureEvents.length > 1) {
+        return true;
+      }
+    }
+    return false;
+  }
+  /**
+   * Extract time signature map for time signature changes
+   * @param {Object} parsed - Parsed MIDI
+   * @returns {Array} Time signature map events
+   */
+  extractTimeSignatureMap(parsed) {
+    const timeSignatureMap = [];
+    const allTSEvents = [];
+    if (parsed.header && parsed.header.timeSignatures) {
+      allTSEvents.push(...parsed.header.timeSignatures);
+    }
+    for (const track of parsed.tracks) {
+      if (track.timeSignatureEvents) {
+        allTSEvents.push(...track.timeSignatureEvents);
+      }
+    }
+    allTSEvents.sort((a, b) => a.time - b.time);
+    for (const event of allTSEvents) {
+      timeSignatureMap.push({
+        time: this.convertSecondsToQuarterNotes(event.time, 120),
+        // Use default tempo for conversion
+        timeSignature: `${event.numerator}/${event.denominator}`
+      });
+    }
+    return timeSignatureMap;
+  }
+  /**
+   * Convert seconds to quarter notes
+   * @param {number} seconds - Time in seconds
+   * @param {number} bpm - Beats per minute
+   * @returns {number} Time in quarter notes
+   */
+  convertSecondsToQuarterNotes(seconds, bpm) {
+    const quarterNoteLength = 60 / bpm;
+    return seconds / quarterNoteLength;
+  }
+  /**
+   * Convert duration to note value string
+   * @param {number} duration - Duration in seconds
+   * @returns {string} Note value like "4n", "8n"
+   */
+  convertDurationToNoteValue(duration) {
+    const quarterNote = 0.5;
+    const ratio = duration / quarterNote;
+    if (ratio >= 3.5)
+      return "1n";
+    if (ratio >= 1.75)
+      return "2n";
+    if (ratio >= 0.875)
+      return "4n";
+    if (ratio >= 0.4375)
+      return "8n";
+    if (ratio >= 0.21875)
+      return "16n";
+    if (ratio >= 0.109375)
+      return "32n";
+    return "16n";
+  }
+  /**
+   * Extract modulations from MIDI control changes
+   * @param {Object} controlChanges - MIDI CC events
+   * @returns {Array} Modulation events
+   */
+  extractModulations(controlChanges) {
+    const modulations = [];
+    for (const [cc, events] of Object.entries(controlChanges)) {
+      const ccNumber = parseInt(cc);
+      for (const event of events) {
+        const modulation = {
+          type: "cc",
+          controller: ccNumber,
+          value: event.value,
+          time: this.convertSecondsToQuarterNotes(event.time, 120)
+        };
+        modulations.push(modulation);
+      }
+    }
+    return modulations;
+  }
+  /**
+   * Convert note-level modulations
+   * @param {Object} controlChanges - Note-level CC events
+   * @returns {Array} Note modulation events
+   */
+  convertNoteModulations(controlChanges) {
+    return this.extractModulations(controlChanges);
+  }
+  /**
+   * Apply modulations to track
+   * @param {Object} track - JMON track
+   * @param {Array} modulations - Modulation events
+   */
+  applyModulationsToTrack(track, modulations) {
+    if (modulations.length > 0) {
+      track.automation = [{
+        id: "midi_cc",
+        target: "midi.cc1",
+        // Default to modulation wheel
+        anchorPoints: modulations.map((mod) => ({
+          time: mod.time,
+          value: mod.value
+        }))
+      }];
+    }
+  }
+  /**
+   * Quantize notes to grid
+   * @param {Array} notes - Notes to quantize
+   * @param {number} grid - Grid size in quarter notes
+   * @returns {Array} Quantized notes
+   */
+  quantizeNotes(notes, grid) {
+    return notes.map((note) => ({
+      ...note,
+      time: Math.round(note.time / grid) * grid
+    }));
+  }
+};
+async function midiToJmon(midiData, options = {}) {
+  const isArrayBuffer = typeof ArrayBuffer !== "undefined" && midiData instanceof ArrayBuffer;
+  const isUint8Array = typeof Uint8Array !== "undefined" && midiData instanceof Uint8Array;
+  if (!isArrayBuffer && !isUint8Array) {
+    throw new TypeError("midiToJmon: 'midiData' must be an ArrayBuffer or Uint8Array");
+  }
+  return await MidiToJmon.convert(midiData, options);
+}
+
+// src/converters/index.js
+init_tonejs();
+
+// src/converters/wav.js
+init_audio();
+init_gm_instruments();
+function wav(composition, options = {}) {
+  return {
+    sampleRate: options.sampleRate || 44100,
+    duration: options.duration || 10,
+    channels: options.channels || 1,
+    tempo: composition.tempo || composition.bpm || 120,
+    notes: composition.tracks?.flatMap((t) => t.notes) || []
+  };
+}
+
+// src/converters/supercollider.js
+var Supercollider = class {
+  static convert(composition) {
+    const title = composition.metadata?.name || "Untitled";
+    let sc = `// SuperCollider script generated from JMON
+// Title: ${title}
+`;
+    const notes = composition.tracks?.[0]?.notes || [];
+    notes.forEach((note) => {
+      sc += `Synth("default", ["freq", ${note.pitch}, "dur", ${note.duration}]);
+`;
+    });
+    return sc;
+  }
+};
+function supercollider(composition) {
+  return Supercollider.convert(composition);
+}
+
+// src/utils/notation/deriveVisualFromArticulations.js
+function normalizeArticulations2(articulations) {
+  const out = [];
+  if (!Array.isArray(articulations))
+    return out;
+  for (const a of articulations) {
+    if (typeof a === "string") {
+      out.push({ type: a });
+    } else if (a && typeof a === "object" && typeof a.type === "string") {
+      out.push({ ...a });
+    }
+  }
+  return out;
+}
+function resolveAccentPrecedence(types) {
+  const staccato = types.has("staccato");
+  const marcato = types.has("marcato");
+  const tenuto = types.has("tenuto");
+  const accent = !marcato && types.has("accent");
+  return { staccato, accent, tenuto, marcato };
+}
+function mapToVexFlowArticulationCodes(resolved) {
+  const codes = [];
+  if (resolved.staccato)
+    codes.push("a.");
+  if (resolved.accent)
+    codes.push("a>");
+  if (resolved.tenuto)
+    codes.push("a-");
+  if (resolved.marcato)
+    codes.push("a^");
+  return codes;
+}
+function mapToAbcDecorations(arts, options = {}) {
+  const includeFermata = options.includeFermata !== false;
+  const abc2 = [];
+  const types = new Set(arts.map((a) => a.type));
+  const resolved = resolveAccentPrecedence(types);
+  if (resolved.staccato)
+    abc2.push("!staccato!");
+  if (resolved.accent)
+    abc2.push("!accent!");
+  if (resolved.tenuto)
+    abc2.push("!tenuto!");
+  if (resolved.marcato)
+    abc2.push("!marcato!");
+  const want = (t) => types.has(t);
+  if (includeFermata && want("fermata"))
+    abc2.push("!fermata!");
+  if (want("trill"))
+    abc2.push("!trill!");
+  if (want("mordent"))
+    abc2.push("!mordent!");
+  if (want("turn"))
+    abc2.push("!turn!");
+  if (want("arpeggio"))
+    abc2.push("!arpeggio!");
+  if (want("glissando") || want("portamento"))
+    abc2.push("!slide!");
+  return abc2;
+}
+function extractStrokeHint(arts) {
+  const stroke = arts.find((a) => a.type === "stroke") || arts.find((a) => a.type === "arpeggio") || arts.find((a) => a.type === "arpeggiate");
+  if (!stroke)
+    return null;
+  const dir = typeof stroke.direction === "string" && stroke.direction.toLowerCase() === "down" ? "down" : "up";
+  const style = typeof stroke.style === "string" && stroke.style.toLowerCase() === "brush" ? "brush" : "roll";
+  return { direction: dir, style };
+}
+function extractGlissHint(arts) {
+  const a = arts.find((x) => x.type === "glissando" || x.type === "portamento");
+  if (!a)
+    return null;
+  const text = a.type === "portamento" ? "port." : "gliss.";
+  const out = { type: a.type, text };
+  if (typeof a.target === "number")
+    out.target = a.target;
+  if (typeof a.curve === "string")
+    out.curve = a.curve;
+  return out;
+}
+function deriveVisualFromArticulations(articulations, options = {}) {
+  const arts = normalizeArticulations2(articulations);
+  const has = new Set(arts.map((a) => a.type));
+  const resolved = resolveAccentPrecedence(has);
+  const abcDecorations = mapToAbcDecorations(arts, options.abc);
+  const vfArticulations = mapToVexFlowArticulationCodes(resolved);
+  const vfStroke = extractStrokeHint(arts);
+  const vfGliss = extractGlissHint(arts);
+  return {
+    has,
+    abc: { decorations: abcDecorations },
+    vexflow: {
+      articulations: vfArticulations,
+      stroke: vfStroke,
+      gliss: vfGliss
+    }
+  };
+}
+
+// src/converters/vexflow.js
+var VexFlowConverter = class {
+  constructor() {
+    this.noteMap = {
+      60: "C/4",
+      61: "C#/4",
+      62: "D/4",
+      63: "D#/4",
+      64: "E/4",
+      65: "F/4",
+      66: "F#/4",
+      67: "G/4",
+      68: "G#/4",
+      69: "A/4",
+      70: "A#/4",
+      71: "B/4",
+      72: "C/5",
+      73: "C#/5",
+      74: "D/5",
+      75: "D#/5",
+      76: "E/5",
+      77: "F/5",
+      78: "F#/5",
+      79: "G/5",
+      80: "G#/5",
+      81: "A/5",
+      82: "A#/5",
+      83: "B/5"
+    };
+  }
+  /**
+   * Convert MIDI note number to VexFlow pitch notation
+   */
+  midiToVexFlow(midiNote) {
+    if (this.noteMap[midiNote]) {
+      return this.noteMap[midiNote];
+    }
+    const octave = Math.floor(midiNote / 12) - 1;
+    const noteNames = [
+      "C",
+      "C#",
+      "D",
+      "D#",
+      "E",
+      "F",
+      "F#",
+      "G",
+      "G#",
+      "A",
+      "A#",
+      "B"
+    ];
+    const noteName = noteNames[midiNote % 12];
+    return `${noteName}/${octave}`;
+  }
+  /**
+   * Convert duration to VexFlow duration string
+   */
+  durationToVexFlow(duration) {
+    if (duration >= 4)
+      return "w";
+    if (duration >= 2)
+      return "h";
+    if (duration >= 1)
+      return "q";
+    if (duration >= 0.5)
+      return "8";
+    if (duration >= 0.25)
+      return "16";
+    return "32";
+  }
+  /**
+   * Convert JMON composition to VexFlow format
+   */
+  convertToVexFlow(composition) {
+    const result = {
+      timeSignature: composition.timeSignature || "4/4",
+      keySignature: composition.keySignature || "C",
+      clef: composition.clef,
+      metadata: composition.metadata || {},
+      tempo: composition.tempo ?? composition.bpm ?? null,
+      tracks: []
+    };
+    let tracks = [];
+    if (Array.isArray(composition.tracks)) {
+      tracks = composition.tracks.map((t, i) => ({
+        name: t.name || `Track ${i + 1}`,
+        notes: t.notes || t,
+        clef: t.clef
+      }));
+    } else if (composition.tracks && typeof composition.tracks === "object") {
+      tracks = Object.entries(composition.tracks).map(([name, notes], i) => ({
+        name: name || `Track ${i + 1}`,
+        notes,
+        clef: notes && notes.clef || void 0
+      }));
+    } else if (composition.notes) {
+      tracks = [{
+        name: composition.name || "Track 1",
+        notes: composition.notes,
+        clef: composition.clef
+      }];
+    } else {
+      tracks = [{
+        name: "Track 1",
+        notes: composition,
+        clef: composition.clef
+      }];
+    }
+    tracks.forEach((track, trackIndex) => {
+      const notes = track.notes || track;
+      const vexFlowNotes = [];
+      if (Array.isArray(notes)) {
+        notes.forEach((note) => {
+          const pitches = Array.isArray(note.pitch) ? note.pitch : note.pitch !== null && note.pitch !== void 0 ? [note.pitch] : [];
+          if (pitches.length > 0) {
+            const vexFlowNote = {
+              keys: pitches.map(
+                (p) => String(this.midiToVexFlow(p)).toLowerCase()
+              ),
+              duration: this.durationToVexFlow(note.duration || 1),
+              time: note.time ?? 0
+            };
+            if (note.articulation || Array.isArray(note.articulations) && note.articulations.length) {
+              if (note.articulation && typeof note.articulation === "string") {
+                vexFlowNote.articulations = [note.articulation];
+              } else if (Array.isArray(note.articulations) && note.articulations.length) {
+                const hints = deriveVisualFromArticulations(note.articulations);
+                if (hints && hints.vexflow) {
+                  if (Array.isArray(hints.vexflow.articulations) && hints.vexflow.articulations.length) {
+                    vexFlowNote.vfArticulations = hints.vexflow.articulations.slice();
+                  }
+                  if (hints.vexflow.stroke) {
+                    vexFlowNote.stroke = { ...hints.vexflow.stroke };
+                  }
+                  if (hints.vexflow.gliss) {
+                    const g = hints.vexflow.gliss;
+                    try {
+                      vexFlowNote.gliss = {
+                        type: g.type,
+                        targetKey: typeof g.target === "number" ? String(this.midiToVexFlow(g.target)).toLowerCase() : void 0,
+                        curve: g.curve || "linear",
+                        text: g.text || (g.type === "portamento" ? "port." : "gliss.")
+                      };
+                    } catch (_) {
+                    }
+                  }
+                }
+              }
+            }
+            if (Array.isArray(note.ornaments) && note.ornaments.length) {
+              vexFlowNote.ornaments = note.ornaments.map((ornament) => {
+                const processedOrnament = { type: ornament.type };
+                if (ornament.parameters) {
+                  processedOrnament.parameters = { ...ornament.parameters };
+                  if (ornament.type === "grace_note" && ornament.parameters.gracePitches) {
+                    processedOrnament.parameters.gracePitches = ornament.parameters.gracePitches.map((pitch) => {
+                      if (typeof pitch === "number") {
+                        return this.midiToVexFlow(pitch);
+                      }
+                      return pitch;
+                    });
+                  }
+                }
+                return processedOrnament;
+              });
+            }
+            vexFlowNotes.push(vexFlowNote);
+          } else {
+            vexFlowNotes.push({
+              keys: [],
+              duration: this.durationToVexFlow(note.duration || 1),
+              time: note.time ?? 0,
+              isRest: true
+            });
+          }
+        });
+      }
+      result.tracks.push({
+        name: track.name || `Track ${trackIndex + 1}`,
+        notes: vexFlowNotes,
+        clef: track.clef
+      });
+    });
+    return result;
+  }
+  /**
+   * Create VexFlow renderer configuration
+   */
+  createRenderer(elementId, width = 800, height = 200) {
+    return {
+      elementId,
+      width,
+      height,
+      renderer: "svg",
+      // or 'canvas'
+      scale: 1
+    };
+  }
+  /**
+   * Generate VexFlow rendering instructions
+   */
+  generateRenderingInstructions(vexFlowData, rendererConfig) {
+    return {
+      type: "vexflow",
+      data: vexFlowData,
+      config: rendererConfig,
+      render: function(VF) {
+        const targetEl = rendererConfig.element && rendererConfig.element.nodeType === 1 ? rendererConfig.element : rendererConfig.elementId ? document.getElementById(rendererConfig.elementId) : null;
+        let div = targetEl;
+        const root = document.body || document.documentElement;
+        if (!div) {
+          div = document.createElement("div");
+          div.id = rendererConfig.elementId || `vexflow-${Date.now()}`;
+          root.appendChild(div);
+        } else {
+          if (!div.id) {
+            div.id = rendererConfig.elementId || `vexflow-${Date.now()}`;
+          }
+          if (!root.contains(div)) {
+            root.appendChild(div);
+          }
+        }
+        rendererConfig.elementId = div.id;
+        const VFNS = (() => {
+          const candidates = [
+            VF,
+            VF && VF.default,
+            typeof globalThis.window !== "undefined" && (globalThis.window.VF || globalThis.window.VexFlow),
+            typeof globalThis.window !== "undefined" && globalThis.window.Vex && (globalThis.window.Vex.Flow || globalThis.window.Vex)
+          ];
+          for (const c of candidates) {
+            if (c)
+              return c;
+          }
+          return null;
+        })();
+        try {
+          const FactoryCtor = VFNS && (VFNS.Factory || VFNS.Flow && VFNS.Flow.Factory || VFNS.VF && VFNS.VF.Factory);
+          if (!FactoryCtor) {
+            throw new Error("VexFlow Factory API not available on this build");
+          }
+          const factory = new FactoryCtor({
+            renderer: {
+              // Use elementId for VexFlow Factory (falls back to generated div id)
+              elementId: rendererConfig.elementId || div.id,
+              width: rendererConfig.width,
+              height: rendererConfig.height
+            }
+          });
+          const context = factory.getContext();
+          const Flow = VFNS && (VFNS.Flow || VFNS) || {};
+          const accMode = rendererConfig.accidentalsMode || "auto";
+          const getKeyAccidentalMap = (key) => {
+            const k = (key || "C").trim();
+            const majorSharps = {
+              C: 0,
+              G: 1,
+              D: 2,
+              A: 3,
+              E: 4,
+              B: 5,
+              "F#": 6,
+              "C#": 7
+            };
+            const majorFlats = {
+              C: 0,
+              F: 1,
+              Bb: 2,
+              Eb: 3,
+              Ab: 4,
+              Db: 5,
+              Gb: 6,
+              Cb: 7
+            };
+            const minorSharps = {
+              A: 0,
+              E: 1,
+              B: 2,
+              "F#": 3,
+              "C#": 4,
+              "G#": 5,
+              "D#": 6,
+              "A#": 7
+            };
+            const minorFlats = {
+              A: 0,
+              D: 1,
+              G: 2,
+              C: 3,
+              F: 4,
+              Bb: 5,
+              Eb: 6,
+              Ab: 7
+            };
+            const orderSharps = ["f", "c", "g", "d", "a", "e", "b"];
+            const orderFlats = ["b", "e", "a", "d", "g", "c", "f"];
+            const isMinor = /m(in)?$/i.test(k);
+            const base = k.replace(/m(in)?$/i, "");
+            let count = 0;
+            let type = "natural";
+            if (isMinor && minorSharps[base] !== void 0) {
+              count = minorSharps[base];
+              type = "sharp";
+            } else if (isMinor && minorFlats[base] !== void 0) {
+              count = minorFlats[base];
+              type = "flat";
+            } else if (majorSharps[base] !== void 0) {
+              count = majorSharps[base];
+              type = "sharp";
+            } else if (majorFlats[base] !== void 0) {
+              count = majorFlats[base];
+              type = "flat";
+            }
+            const map = {
+              a: "natural",
+              b: "natural",
+              c: "natural",
+              d: "natural",
+              e: "natural",
+              f: "natural",
+              g: "natural"
+            };
+            if (type === "sharp") {
+              for (let i = 0; i < count; i++)
+                map[orderSharps[i]] = "sharp";
+            }
+            if (type === "flat") {
+              for (let i = 0; i < count; i++)
+                map[orderFlats[i]] = "flat";
+            }
+            return map;
+          };
+          const keyAccMap = getKeyAccidentalMap(vexFlowData.keySignature);
+          const durToTicks = (d) => {
+            const s = String(d).replace(/r/g, "");
+            const map = { w: 32, h: 16, q: 8, "8": 4, "16": 2, "32": 1 };
+            return map[s] || 0;
+          };
+          const parseTS = (ts2) => {
+            const [n, d] = (ts2 || "4/4").split("/").map((x) => parseInt(x, 10));
+            return { n: n || 4, d: d || 4 };
+          };
+          const ts = parseTS(vexFlowData.timeSignature);
+          const measureCapacity = Math.max(1, Math.round(32 * ts.n / ts.d));
+          const ticksToDur = (ticks) => {
+            const inv = { 32: "w", 16: "h", 8: "q", 4: "8", 2: "16", 1: "32" };
+            return inv[ticks] || "q";
+          };
+          const measures = [];
+          let cur = [];
+          let acc = (() => {
+            const notes = vexFlowData.tracks[0].notes || [];
+            const minTime = notes.reduce(
+              (m, n) => Math.min(m, n.time ?? 0),
+              Number.POSITIVE_INFINITY
+            );
+            const base = minTime === Number.POSITIVE_INFINITY ? 0 : minTime;
+            return Math.round(base * 8 % measureCapacity);
+          })();
+          const originalNotes = vexFlowData.tracks[0].notes;
+          const graceBuf = [];
+          for (const nd of originalNotes) {
+            const ticks = durToTicks(nd.duration);
+            const isGrace = !!nd.grace;
+            if (isGrace) {
+              graceBuf.push(nd);
+              continue;
+            }
+            let t = ticks;
+            let firstPart = true;
+            while (t > 0) {
+              const remaining = measureCapacity - acc;
+              const slice = Math.min(t, remaining);
+              const part = { ...nd, duration: ticksToDur(slice) };
+              if (firstPart && graceBuf.length) {
+                part.graceNotes = graceBuf.splice(0, graceBuf.length);
+              }
+              if (!firstPart)
+                part.tieFromPrev = true;
+              if (slice < t)
+                part.tieToNext = true;
+              cur.push(part);
+              acc += slice;
+              t -= slice;
+              firstPart = false;
+              if (acc >= measureCapacity) {
+                measures.push(cur);
+                cur = [];
+                acc = 0;
+              }
+            }
+          }
+          if (cur.length)
+            measures.push(cur);
+          const left = 10;
+          const right = 10;
+          const top = 40;
+          const avail = Math.max(
+            100,
+            (rendererConfig.width || 800) - left - right
+          );
+          const mCount = Math.max(1, measures.length);
+          const mWidth = Math.max(300, Math.floor(avail / mCount));
+          const keyToMidi = (k) => {
+            const m = /^([a-g])(b|#)?\/(-?\d+)$/.exec(k);
+            if (!m)
+              return 60;
+            const letters = { c: 0, d: 2, e: 4, f: 5, g: 7, a: 9, b: 11 };
+            const letter = letters[m[1]];
+            const acc2 = m[2] === "#" ? 1 : m[2] === "b" ? -1 : 0;
+            const octave = parseInt(m[3], 10);
+            return (octave + 1) * 12 + letter + acc2;
+          };
+          const allPitches = [];
+          measures.forEach((ms) => {
+            ms.forEach((n) => {
+              if (n && !n.isRest && Array.isArray(n.keys) && n.keys[0]) {
+                allPitches.push(keyToMidi(String(n.keys[0]).toLowerCase()));
+              }
+            });
+          });
+          const median = allPitches.length ? (() => {
+            const arr = [...allPitches].sort((a, b) => a - b);
+            const mid = arr.length / 2;
+            return arr.length % 2 ? arr[Math.floor(mid)] : (arr[mid - 1] + arr[mid]) / 2;
+          })() : 60;
+          const detectedClef = median < 60 ? "bass" : "treble";
+          const measuresPerLine = rendererConfig.measuresPerLine && rendererConfig.measuresPerLine > 0 ? Math.max(1, Math.floor(rendererConfig.measuresPerLine)) : Math.max(
+            1,
+            Math.floor(
+              avail / Math.max(120, Math.floor(avail / Math.max(1, mCount)))
+            )
+          );
+          const lines = [];
+          for (let i = 0; i < measures.length; i += measuresPerLine) {
+            lines.push(measures.slice(i, i + measuresPerLine));
+          }
+          const systemGap = 80;
+          const allBeams = [];
+          const createdNotes = [];
+          lines.forEach((lineMeasures, sysIndex) => {
+            const y = top + sysIndex * systemGap;
+            const stave = new Flow.Stave(left, y, avail);
+            const normalizeClef = (c) => {
+              const m = (c || "").toString().toLowerCase();
+              const map = {
+                g: "treble",
+                treble: "treble",
+                f: "bass",
+                bass: "bass",
+                c: "alto",
+                alto: "alto",
+                tenor: "tenor",
+                "treble-8vb": "treble-8vb",
+                "treble-8va": "treble-8va",
+                "bass-8vb": "bass-8vb"
+              };
+              return map[m] || "treble";
+            };
+            const clefToUse = normalizeClef(
+              vexFlowData.clef || vexFlowData.tracks && vexFlowData.tracks[0] && vexFlowData.tracks[0].clef || detectedClef
+            );
+            stave.addClef(clefToUse);
+            if (vexFlowData.timeSignature && sysIndex === 0) {
+              stave.addTimeSignature(vexFlowData.timeSignature);
+            }
+            if (vexFlowData.keySignature && vexFlowData.keySignature !== "C" && sysIndex === 0) {
+              stave.addKeySignature(vexFlowData.keySignature);
+            }
+            stave.setContext(context).draw();
+            if (sysIndex === 0) {
+              try {
+                const title = vexFlowData.metadata && vexFlowData.metadata.title;
+                if (title) {
+                  context.save();
+                  context.setFont("bold 16px Arial");
+                  context.fillText(title, left, y - 20);
+                  context.restore();
+                }
+                if (vexFlowData.tempo) {
+                  context.save();
+                  context.setFont("12px Arial");
+                  const tempoText = `\u2669 = ${vexFlowData.tempo}`;
+                  context.fillText(tempoText, left + 200, y - 8);
+                  context.restore();
+                }
+              } catch {
+              }
+            }
+            const tickables = [];
+            lineMeasures.forEach((mNotes, idxInLine) => {
+              const sorted = mNotes.slice().sort(
+                (a, b) => (a.time ?? 0) - (b.time ?? 0)
+              );
+              sorted.forEach((noteData) => {
+                if (noteData.isRest) {
+                  tickables.push(
+                    new Flow.StaveNote({
+                      keys: ["d/5"],
+                      duration: String(noteData.duration).replace(/r?$/, "r")
+                    })
+                  );
+                } else {
+                  const note = new Flow.StaveNote({
+                    keys: noteData.keys.map((k) => k.toLowerCase()),
+                    duration: noteData.duration
+                  });
+                  tickables.push(note);
+                  createdNotes.push({ vf: note, data: noteData });
+                }
+              });
+              if (idxInLine < lineMeasures.length - 1 && Flow.BarNote && Flow.Barline && Flow.Barline.type) {
+                tickables.push(new Flow.BarNote(Flow.Barline.type.SINGLE));
+              }
+            });
+            const voice2 = new Flow.Voice({
+              num_beats: Math.max(1, lineMeasures.length) * measureCapacity,
+              beat_value: 32
+            });
+            if (voice2.setMode && Flow.Voice && Flow.Voice.Mode && Flow.Voice.Mode.SOFT !== void 0) {
+              voice2.setMode(Flow.Voice.Mode.SOFT);
+            } else if (typeof voice2.setStrict === "function") {
+              voice2.setStrict(false);
+            }
+            voice2.addTickables(
+              tickables.filter(
+                (t) => typeof t.getTicks === "function" ? t.getTicks().value() > 0 : true
+              )
+            );
+            const formatter = new Flow.Formatter().joinVoices([voice2]);
+            formatter.format([voice2], avail - 20);
+            voice2.draw(context, stave);
+          });
+          const allTickables = [];
+          measures.forEach((mNotes, idx) => {
+            const tickables = mNotes.slice().sort(
+              (a, b) => (a.time ?? 0) - (b.time ?? 0)
+            ).map((noteData) => {
+              if (noteData.isRest) {
+                return new Flow.StaveNote({
+                  keys: ["d/5"],
+                  duration: String(noteData.duration).replace(/r?$/, "r")
+                });
+              }
+              const note = new Flow.StaveNote({
+                keys: noteData.keys.map((k) => k.toLowerCase()),
+                duration: noteData.duration
+              });
+              if (noteData.graceNotes && Flow.GraceNoteGroup && Flow.GraceNote) {
+                try {
+                  const gnotes = noteData.graceNotes.map(
+                    (g) => new Flow.GraceNote({
+                      keys: (g.keys || []).map(
+                        (kk) => String(kk).toLowerCase()
+                      ),
+                      duration: "16",
+                      slash: true
+                    })
+                  );
+                  const ggroup = new Flow.GraceNoteGroup(gnotes, true);
+                  if (typeof ggroup.beamNotes === "function") {
+                    ggroup.beamNotes();
+                  }
+                  if (typeof ggroup.setContext === "function" && typeof ggroup.attachToNote === "function") {
+                    ggroup.setContext(context);
+                    ggroup.attachToNote(note);
+                  }
+                } catch {
+                }
+              }
+              if (Array.isArray(noteData.ornaments) && noteData.ornaments.length && Flow.GraceNoteGroup && Flow.GraceNote) {
+                const graceNoteOrnaments = noteData.ornaments.filter((orn) => orn.type === "grace_note");
+                if (graceNoteOrnaments.length > 0) {
+                  try {
+                    const allGraceNotes = graceNoteOrnaments.flatMap((orn) => {
+                      if (orn.parameters && orn.parameters.gracePitches) {
+                        return orn.parameters.gracePitches.map(
+                          (pitch) => new Flow.GraceNote({
+                            keys: [String(pitch).toLowerCase()],
+                            duration: "16",
+                            slash: orn.parameters.graceNoteType === "acciaccatura"
+                          })
+                        );
+                      }
+                      return [];
+                    });
+                    if (allGraceNotes.length > 0) {
+                      const ggroup = new Flow.GraceNoteGroup(allGraceNotes, true);
+                      if (typeof ggroup.beamNotes === "function") {
+                        ggroup.beamNotes();
+                      }
+                      if (typeof ggroup.setContext === "function" && typeof ggroup.attachToNote === "function") {
+                        ggroup.setContext(context);
+                        ggroup.attachToNote(note);
+                      }
+                    }
+                  } catch (e) {
+                    console.warn("Failed to render grace note ornaments:", e);
+                  }
+                }
+              }
+              if (Flow.Accidental) {
+                noteData.keys.forEach((origKey, idx2) => {
+                  const k = origKey.toLowerCase();
+                  const m = /^([a-g])(#{1,2}|b{1,2})?\/-?\d+$/.exec(k);
+                  const letter = m ? m[1] : k[0];
+                  const acc2 = m && m[2] ? m[2].includes("#") ? "#" : "b" : "";
+                  const sig = keyAccMap[letter] || "natural";
+                  let glyph = null;
+                  if (acc2 === "#" && sig !== "sharp") {
+                    glyph = "#";
+                  } else if (acc2 === "b" && sig !== "flat") {
+                    glyph = "b";
+                  }
+                  if (glyph) {
+                    if (typeof note.addAccidental === "function") {
+                      note.addAccidental(idx2, new Flow.Accidental(glyph));
+                    } else if (typeof note.addModifier === "function") {
+                      note.addModifier(new Flow.Accidental(glyph), idx2);
+                    }
+                  }
+                });
+              }
+              const articulationMap = {
+                staccato: "a.",
+                accent: "a>",
+                tenuto: "a-",
+                marcato: "a^",
+                legato: "a-"
+                // similar to tenuto for VexFlow
+              };
+              if (Array.isArray(noteData.vfArticulations) && noteData.vfArticulations.length) {
+                noteData.vfArticulations.forEach((code) => {
+                  if (Flow && Flow.Articulation && Flow.Modifier && Flow.Modifier.Position && (typeof note.addArticulation === "function" || typeof note.addModifier === "function")) {
+                    const art = new Flow.Articulation(code);
+                    if (art && typeof art.setPosition === "function") {
+                      art.setPosition(Flow.Modifier.Position.ABOVE);
+                    }
+                    if (typeof note.addArticulation === "function") {
+                      note.addArticulation(0, art);
+                    } else if (typeof note.addModifier === "function") {
+                      note.addModifier(art, 0);
+                    }
+                  }
+                });
+              } else if (Array.isArray(noteData.articulations)) {
+                noteData.articulations.forEach((a) => {
+                  const articulationType = typeof a === "string" ? a : a && a.type;
+                  const code = articulationMap[articulationType] || null;
+                  if (!code)
+                    return;
+                  if (Flow && Flow.Articulation && Flow.Modifier && Flow.Modifier.Position && (typeof note.addArticulation === "function" || typeof note.addModifier === "function")) {
+                    const art = new Flow.Articulation(code);
+                    if (art && typeof art.setPosition === "function") {
+                      art.setPosition(Flow.Modifier.Position.ABOVE);
+                    }
+                    if (typeof note.addArticulation === "function") {
+                      note.addArticulation(0, art);
+                    } else if (typeof note.addModifier === "function") {
+                      note.addModifier(art, 0);
+                    }
+                  }
+                });
+              }
+              if (noteData.stroke && Flow && Flow.Stroke) {
+                try {
+                  const dir = (noteData.stroke.direction || "up").toLowerCase();
+                  const style = (noteData.stroke.style || "roll").toLowerCase();
+                  const type = Flow.Stroke.Type && (style === "brush" ? dir === "down" ? Flow.Stroke.Type.BRUSH_DOWN : Flow.Stroke.Type.BRUSH_UP : dir === "down" ? Flow.Stroke.Type.ROLL_DOWN : Flow.Stroke.Type.ROLL_UP);
+                  if (type && typeof note.addStroke === "function") {
+                    note.addStroke(0, new Flow.Stroke(type));
+                  }
+                } catch (_) {
+                }
+              }
+              return note;
+            });
+            tickables.forEach((n, i) => {
+              const d = mNotes[i];
+              if (!d || d.isRest)
+                return;
+              const dotCount = typeof d.dots === "number" ? d.dots : d.dots === true || d.dot === true || d.dotted === true ? 1 : 0;
+              for (let k = 0; k < dotCount; k++) {
+                if (typeof n.addDotToAll === "function") {
+                  n.addDotToAll();
+                } else if (Flow.Dot) {
+                  d.keys.forEach((_, idx2) => {
+                    if (typeof n.addModifier === "function") {
+                      n.addModifier(new Flow.Dot(), idx2);
+                    }
+                  });
+                }
+              }
+              createdNotes.push({ vf: n, data: d });
+            });
+            allTickables.push(...tickables);
+            if (Flow.Beam && typeof Flow.Beam.generateBeams === "function") {
+              const beamables = tickables.filter(
+                (t) => typeof t.isRest !== "function" || !t.isRest()
+              );
+              try {
+                const beams = Flow.Beam.generateBeams(beamables);
+                beams.forEach((b) => b.setContext(context));
+                allBeams.push(...beams);
+              } catch (_) {
+              }
+            }
+            if (idx < measures.length - 1 && Flow.BarNote && Flow.Barline && Flow.Barline.type) {
+              allTickables.push(new Flow.BarNote(Flow.Barline.type.SINGLE));
+            }
+          });
+          const totalTicks = measures.length * measureCapacity;
+          const voice = new Flow.Voice({
+            num_beats: totalTicks,
+            beat_value: 32
+          });
+          if (voice.setMode && Flow.Voice && Flow.Voice.Mode && Flow.Voice.Mode.SOFT !== void 0) {
+            voice.setMode(Flow.Voice.Mode.SOFT);
+          } else if (typeof voice.setStrict === "function") {
+            voice.setStrict(false);
+          }
+          voice.addTickables(
+            allTickables.filter(
+              (t) => typeof t.getTicks === "function" ? t.getTicks().value() > 0 : true
+            )
+          );
+          if (allBeams.length) {
+            allBeams.forEach((b) => {
+              try {
+                b.draw();
+              } catch (_) {
+              }
+            });
+          }
+          try {
+            const details = document.createElement("details");
+            details.style.marginTop = "10px";
+            const summary = document.createElement("summary");
+            summary.textContent = "VexFlow Source";
+            summary.style.cursor = "pointer";
+            details.appendChild(summary);
+            const pre = document.createElement("pre");
+            pre.textContent = JSON.stringify(vexFlowData, null, 2);
+            details.appendChild(pre);
+          } catch (_) {
+          }
+          if (createdNotes.length && Flow.StaveTie) {
+            for (let i = 0; i < createdNotes.length - 1; i++) {
+              const cur2 = createdNotes[i];
+              if (!cur2)
+                continue;
+              const d = cur2.data || {};
+              const isTieStart = !!(d.tieToNext || d.tieStart || d.tie === "start");
+              if (!isTieStart)
+                continue;
+              let next = null;
+              for (let j = i + 1; j < createdNotes.length; j++) {
+                if (createdNotes[j]) {
+                  next = createdNotes[j];
+                  break;
+                }
+              }
+              if (next) {
+                try {
+                  new Flow.StaveTie({
+                    first_note: cur2.vf,
+                    last_note: next.vf,
+                    first_indices: [0],
+                    last_indices: [0]
+                  }).setContext(context).draw();
+                } catch (_) {
+                }
+              }
+            }
+          }
+          if (createdNotes.length && Flow && Flow.Glissando) {
+            for (let i = 0; i < createdNotes.length - 1; i++) {
+              const start = createdNotes[i];
+              if (!start || !start.data || !start.vf)
+                continue;
+              const g = start.data.gliss;
+              if (!g)
+                continue;
+              let end = null;
+              if (g.targetKey) {
+                for (let j = i + 1; j < createdNotes.length; j++) {
+                  const cand = createdNotes[j];
+                  if (cand && cand.data && Array.isArray(cand.data.keys)) {
+                    const hasKey = cand.data.keys.some(
+                      (k) => String(k).toLowerCase() === String(g.targetKey).toLowerCase()
+                    );
+                    if (hasKey) {
+                      end = cand;
+                      break;
+                    }
+                  }
+                }
+              }
+              if (!end) {
+                for (let j = i + 1; j < createdNotes.length; j++) {
+                  if (createdNotes[j]) {
+                    end = createdNotes[j];
+                    break;
+                  }
+                }
+              }
+              if (end && end.vf) {
+                try {
+                  const gl = new Flow.Glissando({
+                    from: start.vf,
+                    to: end.vf,
+                    text: g.text || (g.type === "portamento" ? "port." : "gliss.")
+                  });
+                  if (gl && typeof gl.setContext === "function") {
+                    gl.setContext(context).draw();
+                  }
+                } catch (_) {
+                }
+              }
+            }
+          }
+        } catch (factoryError) {
+          console.warn(
+            "Factory API failed, trying low-level API:",
+            factoryError
+          );
+          const Flow = VFNS && (VFNS.Flow || VFNS.VF || VFNS) || {};
+          const accMode = rendererConfig.accidentalsMode || "auto";
+          const getKeyAccidentalMap = (key) => {
+            const k = (key || "C").trim();
+            const majorSharps = {
+              C: 0,
+              G: 1,
+              D: 2,
+              A: 3,
+              E: 4,
+              B: 5,
+              "F#": 6,
+              "C#": 7
+            };
+            const majorFlats = {
+              C: 0,
+              F: 1,
+              Bb: 2,
+              Eb: 3,
+              Ab: 4,
+              Db: 5,
+              Gb: 6,
+              Cb: 7
+            };
+            const minorSharps = {
+              A: 0,
+              E: 1,
+              B: 2,
+              "F#": 3,
+              "C#": 4,
+              "G#": 5,
+              "D#": 6,
+              "A#": 7
+            };
+            const minorFlats = {
+              A: 0,
+              D: 1,
+              G: 2,
+              C: 3,
+              F: 4,
+              Bb: 5,
+              Eb: 6,
+              Ab: 7
+            };
+            const orderSharps = ["f", "c", "g", "d", "a", "e", "b"];
+            const orderFlats = ["b", "e", "a", "d", "g", "c", "f"];
+            const isMinor = /m(in)?$/i.test(k);
+            const base = k.replace(/m(in)?$/i, "");
+            let count = 0;
+            let type = "natural";
+            if (isMinor && minorSharps[base] !== void 0) {
+              count = minorSharps[base];
+              type = "sharp";
+            } else if (isMinor && minorFlats[base] !== void 0) {
+              count = minorFlats[base];
+              type = "flat";
+            } else if (majorSharps[base] !== void 0) {
+              count = majorSharps[base];
+              type = "sharp";
+            } else if (majorFlats[base] !== void 0) {
+              count = majorFlats[base];
+              type = "flat";
+            }
+            const map = {
+              a: "natural",
+              b: "natural",
+              c: "natural",
+              d: "natural",
+              e: "natural",
+              f: "natural",
+              g: "natural"
+            };
+            if (type === "sharp") {
+              for (let i = 0; i < count; i++)
+                map[orderSharps[i]] = "sharp";
+            }
+            if (type === "flat") {
+              for (let i = 0; i < count; i++)
+                map[orderFlats[i]] = "flat";
+            }
+            return map;
+          };
+          const keyAccMap = getKeyAccidentalMap(vexFlowData.keySignature);
+          const Renderer = Flow && Flow.Renderer || VFNS.Renderer || VFNS.Flow && VFNS.Flow.Renderer;
+          if (!Renderer || !Renderer.Backends) {
+            throw new Error(
+              "VexFlow low-level API not available (Renderer missing)"
+            );
+          }
+          const renderer = new Renderer(
+            div,
+            Renderer.Backends.SVG
+          );
+          renderer.resize(rendererConfig.width, rendererConfig.height);
+          const context = renderer.getContext();
+          const durToTicks = (d) => {
+            const s = String(d).replace(/r/g, "");
+            const map = { w: 32, h: 16, q: 8, "8": 4, "16": 2, "32": 1 };
+            return map[s] || 0;
+          };
+          const parseTS = (ts2) => {
+            const [n, d] = (ts2 || "4/4").split("/").map((x) => parseInt(x, 10));
+            return { n: n || 4, d: d || 4 };
+          };
+          const ts = parseTS(vexFlowData.timeSignature);
+          const measureCapacity = Math.max(1, Math.round(32 * ts.n / ts.d));
+          const ticksToDur = (ticks) => {
+            const inv = { 32: "w", 16: "h", 8: "q", 4: "8", 2: "16", 1: "32" };
+            return inv[ticks] || "q";
+          };
+          const measures = [];
+          let cur = [];
+          let acc = (() => {
+            const notes = vexFlowData.tracks[0].notes || [];
+            const minTime = notes.reduce(
+              (m, n) => Math.min(m, n.time ?? 0),
+              Number.POSITIVE_INFINITY
+            );
+            const base = minTime === Number.POSITIVE_INFINITY ? 0 : minTime;
+            return Math.round(base * 8 % measureCapacity);
+          })();
+          const originalNotes = vexFlowData.tracks[0].notes;
+          const graceBuf = [];
+          for (const nd of originalNotes) {
+            const ticks = durToTicks(nd.duration);
+            const isGrace = !!nd.grace;
+            if (isGrace) {
+              graceBuf.push(nd);
+              continue;
+            }
+            let t = ticks;
+            let firstPart = true;
+            while (t > 0) {
+              const remaining = measureCapacity - acc;
+              const slice = Math.min(t, remaining);
+              const part = { ...nd, duration: ticksToDur(slice) };
+              if (firstPart && graceBuf.length) {
+                part.graceNotes = graceBuf.splice(0, graceBuf.length);
+              }
+              if (!firstPart)
+                part.tieFromPrev = true;
+              if (slice < t)
+                part.tieToNext = true;
+              cur.push(part);
+              acc += slice;
+              t -= slice;
+              firstPart = false;
+              if (acc >= measureCapacity) {
+                measures.push(cur);
+                cur = [];
+                acc = 0;
+              }
+            }
+          }
+          if (cur.length)
+            measures.push(cur);
+          const left = 10;
+          const right = 10;
+          const top = 40;
+          const avail = Math.max(
+            100,
+            (rendererConfig.width || 800) - left - right
+          );
+          const mCount = Math.max(1, measures.length);
+          const mWidth = Math.max(300, Math.floor(avail / mCount));
+          const fallbackKeyToMidi = (k) => {
+            const m = /^([a-g])(b|#)?\/(-?\d+)$/.exec(k);
+            if (!m)
+              return 60;
+            const letters = { c: 0, d: 2, e: 4, f: 5, g: 7, a: 9, b: 11 };
+            const letter = letters[m[1]];
+            const acc2 = m[2] === "#" ? 1 : m[2] === "b" ? -1 : 0;
+            const octave = parseInt(m[3], 10);
+            return (octave + 1) * 12 + letter + acc2;
+          };
+          const fallbackPitches = [];
+          measures.forEach((ms) => {
+            ms.forEach((n) => {
+              if (n && !n.isRest && Array.isArray(n.keys) && n.keys[0]) {
+                fallbackPitches.push(
+                  fallbackKeyToMidi(String(n.keys[0]).toLowerCase())
+                );
+              }
+            });
+          });
+          const fallbackMedian = fallbackPitches.length ? (() => {
+            const arr = [...fallbackPitches].sort((a, b) => a - b);
+            const mid = arr.length / 2;
+            return arr.length % 2 ? arr[Math.floor(mid)] : (arr[mid - 1] + arr[mid]) / 2;
+          })() : 60;
+          const detectedClef = fallbackMedian < 60 ? "bass" : "treble";
+          const measuresPerLine = rendererConfig.measuresPerLine && rendererConfig.measuresPerLine > 0 ? Math.max(1, Math.floor(rendererConfig.measuresPerLine)) : Math.max(
+            1,
+            Math.floor(
+              avail / Math.max(
+                120,
+                Math.floor(avail / Math.max(1, measures.length))
+              )
+            )
+          );
+          const lines = [];
+          for (let i = 0; i < measures.length; i += measuresPerLine) {
+            lines.push(measures.slice(i, i + measuresPerLine));
+          }
+          const systemGap = 80;
+          const allBeams = [];
+          const createdNotes = [];
+          lines.forEach((lineMeasures, sysIndex) => {
+            const y = top + sysIndex * systemGap;
+            const stave = new Flow.Stave(left, y, avail);
+            const normalizeClef = (c) => {
+              const m = (c || "").toString().toLowerCase();
+              const map = {
+                g: "treble",
+                treble: "treble",
+                f: "bass",
+                bass: "bass",
+                c: "alto",
+                alto: "alto",
+                tenor: "tenor",
+                "treble-8vb": "treble-8vb",
+                "treble-8va": "treble-8va",
+                "bass-8vb": "bass-8vb"
+              };
+              return map[m] || "treble";
+            };
+            const clefToUse = normalizeClef(
+              vexFlowData.clef || vexFlowData.tracks && vexFlowData.tracks[0] && vexFlowData.tracks[0].clef || detectedClef
+            );
+            stave.addClef(clefToUse);
+            if (vexFlowData.timeSignature && sysIndex === 0) {
+              stave.addTimeSignature(vexFlowData.timeSignature);
+            }
+            if (vexFlowData.keySignature && vexFlowData.keySignature !== "C" && sysIndex === 0) {
+              stave.addKeySignature(vexFlowData.keySignature);
+            }
+            stave.setContext(context).draw();
+            if (sysIndex === 0) {
+              try {
+                const title = vexFlowData.metadata && vexFlowData.metadata.title;
+                if (title) {
+                  context.save();
+                  context.setFont("bold 16px Arial");
+                  context.fillText(title, left, y - 20);
+                  context.restore();
+                }
+                if (vexFlowData.tempo) {
+                  context.save();
+                  context.setFont("12px Arial");
+                  const tempoText = `\u2669 = ${vexFlowData.tempo}`;
+                  context.fillText(tempoText, left + 200, y - 8);
+                  context.restore();
+                }
+              } catch {
+              }
+            }
+            const tickables = [];
+            lineMeasures.forEach((mNotes, idxInLine) => {
+              const sorted = mNotes.slice().sort(
+                (a, b) => (a.time ?? 0) - (b.time ?? 0)
+              );
+              sorted.forEach((noteData) => {
+                if (noteData.isRest) {
+                  tickables.push(
+                    new Flow.StaveNote({
+                      keys: ["d/5"],
+                      duration: String(noteData.duration).replace(/r?$/, "r")
+                    })
+                  );
+                } else {
+                  const note = new Flow.StaveNote({
+                    keys: noteData.keys.map((k) => k.toLowerCase()),
+                    duration: noteData.duration
+                  });
+                  tickables.push(note);
+                  createdNotes.push({ vf: note, data: noteData });
+                }
+              });
+              if (idxInLine < lineMeasures.length - 1 && Flow.BarNote && Flow.Barline && Flow.Barline.type) {
+                tickables.push(new Flow.BarNote(Flow.Barline.type.SINGLE));
+              }
+            });
+            const voice2 = new Flow.Voice({
+              num_beats: Math.max(1, lineMeasures.length) * measureCapacity,
+              beat_value: 32
+            });
+            if (voice2.setMode && Flow.Voice && Flow.Voice.Mode && Flow.Voice.Mode.SOFT !== void 0) {
+              voice2.setMode(Flow.Voice.Mode.SOFT);
+            } else if (typeof voice2.setStrict === "function") {
+              voice2.setStrict(false);
+            }
+            voice2.addTickables(
+              tickables.filter(
+                (t) => typeof t.getTicks === "function" ? t.getTicks().value() > 0 : true
+              )
+            );
+            const formatter = new Flow.Formatter().joinVoices([voice2]);
+            formatter.format([voice2], avail - 20);
+            voice2.draw(context, stave);
+          });
+          const allTickables = [];
+          measures.forEach((mNotes, idx) => {
+            const tickables = mNotes.slice().sort(
+              (a, b) => (a.time ?? 0) - (b.time ?? 0)
+            ).map((noteData) => {
+              if (noteData.isRest) {
+                return new Flow.StaveNote({
+                  keys: ["d/5"],
+                  duration: String(noteData.duration).replace(/r?$/, "r")
+                });
+              }
+              const note = new Flow.StaveNote({
+                keys: noteData.keys.map((k) => k.toLowerCase()),
+                duration: noteData.duration
+              });
+              if (noteData.graceNotes && Flow.GraceNoteGroup && Flow.GraceNote) {
+                try {
+                  const gnotes = noteData.graceNotes.map(
+                    (g) => new Flow.GraceNote({
+                      keys: (g.keys || []).map(
+                        (kk) => String(kk).toLowerCase()
+                      ),
+                      duration: "16",
+                      slash: true
+                    })
+                  );
+                  const ggroup = new Flow.GraceNoteGroup(gnotes, true);
+                  if (typeof ggroup.beamNotes === "function") {
+                    ggroup.beamNotes();
+                  }
+                  if (typeof ggroup.setContext === "function" && typeof ggroup.attachToNote === "function") {
+                    ggroup.setContext(context);
+                    ggroup.attachToNote(note);
+                  }
+                } catch {
+                }
+              }
+              if (Array.isArray(noteData.ornaments) && noteData.ornaments.length && Flow.GraceNoteGroup && Flow.GraceNote) {
+                const graceNoteOrnaments = noteData.ornaments.filter((orn) => orn.type === "grace_note");
+                if (graceNoteOrnaments.length > 0) {
+                  try {
+                    const allGraceNotes = graceNoteOrnaments.flatMap((orn) => {
+                      if (orn.parameters && orn.parameters.gracePitches) {
+                        return orn.parameters.gracePitches.map(
+                          (pitch) => new Flow.GraceNote({
+                            keys: [String(pitch).toLowerCase()],
+                            duration: "16",
+                            slash: orn.parameters.graceNoteType === "acciaccatura"
+                          })
+                        );
+                      }
+                      return [];
+                    });
+                    if (allGraceNotes.length > 0) {
+                      const ggroup = new Flow.GraceNoteGroup(allGraceNotes, true);
+                      if (typeof ggroup.beamNotes === "function") {
+                        ggroup.beamNotes();
+                      }
+                      if (typeof ggroup.setContext === "function" && typeof ggroup.attachToNote === "function") {
+                        ggroup.setContext(context);
+                        ggroup.attachToNote(note);
+                      }
+                    }
+                  } catch (e) {
+                    console.warn("Failed to render grace note ornaments:", e);
+                  }
+                }
+              }
+              if (Flow.Accidental) {
+                noteData.keys.forEach((origKey, idx2) => {
+                  const k = origKey.toLowerCase();
+                  const m = /^([a-g])(#{1,2}|b{1,2})?\/-?\d+$/.exec(k);
+                  const letter = m ? m[1] : k[0];
+                  const acc2 = m && m[2] ? m[2].includes("#") ? "#" : "b" : "";
+                  const sig = keyAccMap[letter] || "natural";
+                  let glyph = null;
+                  if (acc2 === "#" && sig !== "sharp") {
+                    glyph = "#";
+                  } else if (acc2 === "b" && sig !== "flat") {
+                    glyph = "b";
+                  }
+                  if (glyph) {
+                    if (typeof note.addAccidental === "function") {
+                      note.addAccidental(idx2, new Flow.Accidental(glyph));
+                    } else if (typeof note.addModifier === "function") {
+                      note.addModifier(new Flow.Accidental(glyph), idx2);
+                    }
+                  }
+                });
+              }
+              const articulationMap = {
+                staccato: "a.",
+                accent: "a>",
+                tenuto: "a-",
+                marcato: "a^",
+                legato: "a-"
+                // similar to tenuto for VexFlow
+              };
+              if (Array.isArray(noteData.vfArticulations) && noteData.vfArticulations.length) {
+                noteData.vfArticulations.forEach((code) => {
+                  if (Flow && Flow.Articulation && Flow.Modifier && Flow.Modifier.Position && (typeof note.addArticulation === "function" || typeof note.addModifier === "function")) {
+                    const art = new Flow.Articulation(code);
+                    if (art && typeof art.setPosition === "function") {
+                      art.setPosition(Flow.Modifier.Position.ABOVE);
+                    }
+                    if (typeof note.addArticulation === "function") {
+                      note.addArticulation(0, art);
+                    } else if (typeof note.addModifier === "function") {
+                      note.addModifier(art, 0);
+                    }
+                  }
+                });
+              } else if (Array.isArray(noteData.articulations)) {
+                noteData.articulations.forEach((a) => {
+                  const articulationType = typeof a === "string" ? a : a && a.type;
+                  const code = articulationMap[articulationType] || null;
+                  if (!code)
+                    return;
+                  if (Flow && Flow.Articulation && Flow.Modifier && Flow.Modifier.Position && (typeof note.addArticulation === "function" || typeof note.addModifier === "function")) {
+                    const art = new Flow.Articulation(code);
+                    if (art && typeof art.setPosition === "function") {
+                      art.setPosition(Flow.Modifier.Position.ABOVE);
+                    }
+                    if (typeof note.addArticulation === "function") {
+                      note.addArticulation(0, art);
+                    } else if (typeof note.addModifier === "function") {
+                      note.addModifier(art, 0);
+                    }
+                  }
+                });
+              }
+              return note;
+            });
+            tickables.forEach((n, i) => {
+              const d = mNotes[i];
+              if (!d || d.isRest)
+                return;
+              const dotCount = typeof d.dots === "number" ? d.dots : d.dots === true || d.dot === true || d.dotted === true ? 1 : 0;
+              for (let k = 0; k < dotCount; k++) {
+                if (typeof n.addDotToAll === "function") {
+                  n.addDotToAll();
+                } else if (Flow.Dot) {
+                  d.keys.forEach((_, idx2) => {
+                    if (typeof n.addModifier === "function") {
+                      n.addModifier(new Flow.Dot(), idx2);
+                    }
+                  });
+                }
+              }
+              createdNotes.push({ vf: n, data: d });
+            });
+            allTickables.push(...tickables);
+            if (Flow.Beam && typeof Flow.Beam.generateBeams === "function") {
+              const beamables = tickables.filter(
+                (t) => typeof t.isRest !== "function" || !t.isRest()
+              );
+              try {
+                const beams = Flow.Beam.generateBeams(beamables);
+                beams.forEach((b) => b.setContext(context));
+                allBeams.push(...beams);
+              } catch (_) {
+              }
+            }
+            if (idx < measures.length - 1 && Flow.BarNote && Flow.Barline && Flow.Barline.type) {
+              allTickables.push(new Flow.BarNote(Flow.Barline.type.SINGLE));
+            }
+          });
+          const totalTicks = measures.length * measureCapacity;
+          const voice = new Flow.Voice({
+            num_beats: totalTicks,
+            beat_value: 32
+          });
+          if (voice.setMode && Flow.Voice && Flow.Voice.Mode && Flow.Voice.Mode.SOFT !== void 0) {
+            voice.setMode(Flow.Voice.Mode.SOFT);
+          } else if (typeof voice.setStrict === "function") {
+            voice.setStrict(false);
+          }
+          voice.addTickables(
+            allTickables.filter(
+              (t) => typeof t.getTicks === "function" ? t.getTicks().value() > 0 : true
+            )
+          );
+          if (allBeams.length) {
+            allBeams.forEach((b) => {
+              try {
+                b.draw();
+              } catch (_) {
+              }
+            });
+          }
+          if (createdNotes.length && Flow.StaveTie) {
+            for (let i = 0; i < createdNotes.length - 1; i++) {
+              const cur2 = createdNotes[i];
+              if (!cur2)
+                continue;
+              const d = cur2.data || {};
+              const isTieStart = !!(d.tieToNext || d.tieStart || d.tie === "start");
+              if (!isTieStart)
+                continue;
+              let next = null;
+              for (let j = i + 1; j < createdNotes.length; j++) {
+                if (createdNotes[j]) {
+                  next = createdNotes[j];
+                  break;
+                }
+              }
+              if (next) {
+                try {
+                  new Flow.StaveTie({
+                    first_note: cur2.vf,
+                    last_note: next.vf,
+                    first_indices: [0],
+                    last_indices: [0]
+                  }).setContext(context).draw();
+                } catch (_) {
+                }
+              }
+            }
+          }
+        }
+      }
+    };
+  }
+};
+function convertToVexFlow(composition, options = {}) {
+  const converter = new VexFlowConverter();
+  const vexFlowData = converter.convertToVexFlow(composition);
+  if (options.elementId) {
+    const rendererConfig = converter.createRenderer(
+      options.elementId,
+      options.width,
+      options.height
+    );
+    return converter.generateRenderingInstructions(vexFlowData, rendererConfig);
+  }
+  return vexFlowData;
+}
 
 // src/browser/score-renderer.js
 function jmonToABC(composition) {
@@ -12457,10 +10581,10 @@ function jmonToABC(composition) {
   let currentMeasureDuration = 0;
   track.notes.forEach((note, index) => {
     const duration = note.duration || 1;
-    const abcDuration = durationToABC2(duration);
+    const abcDuration = durationToABC(duration);
     let abcNote;
     if (Array.isArray(note.pitch)) {
-      const chordNotes = note.pitch.filter((p) => typeof p === "number").map((p) => midiToABC2(p));
+      const chordNotes = note.pitch.filter((p) => typeof p === "number").map((p) => midiToABC(p));
       if (chordNotes.length > 1) {
         abcNote = `[${chordNotes.join("")}]`;
       } else if (chordNotes.length === 1) {
@@ -12471,7 +10595,7 @@ function jmonToABC(composition) {
     } else if (note.pitch === null || note.pitch === void 0) {
       abcNote = "z";
     } else {
-      abcNote = midiToABC2(note.pitch);
+      abcNote = midiToABC(note.pitch);
     }
     abcNotes.push(`${abcNote}${abcDuration}`);
     currentMeasureDuration += duration;
@@ -12485,7 +10609,7 @@ function jmonToABC(composition) {
   lines.push(abcNotes.join(" "));
   return lines.join("\n");
 }
-function midiToABC2(midi2) {
+function midiToABC(midi2) {
   if (typeof midi2 !== "number")
     return "C";
   const noteNames = ["C", "^C", "D", "^D", "E", "F", "^F", "G", "^G", "A", "^A", "B"];
@@ -12505,7 +10629,7 @@ function midiToABC2(midi2) {
     return noteName + commas;
   }
 }
-function durationToABC2(duration) {
+function durationToABC(duration) {
   if (duration >= 4)
     return "4";
   if (duration >= 3)
@@ -12662,6 +10786,7 @@ var jm = {
   analysis: algorithms_default.analysis,
   constants: algorithms_default.constants,
   audio: algorithms_default.audio,
+  visualization: algorithms_default.visualization,
   // Utils
   utils: {
     ...algorithms_default.utils,

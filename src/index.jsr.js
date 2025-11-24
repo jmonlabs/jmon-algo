@@ -3,7 +3,7 @@
  * Excludes browser-specific functionality (render/play) that requires CDN imports
  *
  * JSR users can access:
- * - algorithms (theory, generative, analysis, audio)
+ * - algorithms (theory, generative, analysis, audio, visualization)
  * - converters (midi, tonejs, wav, supercollider, vexflow)
  * - utils and constants
  * - validation
@@ -152,6 +152,7 @@ function score(jmonObj, renderingEngine = {}, options = {}) {
  * @property {Object} analysis - Music analysis tools
  * @property {Object} constants - Musical constants and reference data
  * @property {Object} audio - Audio processing utilities
+ * @property {Object} visualization - Visualization tools for algorithms
  * @property {Object} utils - Utility functions and helpers
  * @property {string} VERSION - Library version number
  *
@@ -181,6 +182,7 @@ const jm = {
   analysis: algorithms.analysis,
   constants: algorithms.constants,
   audio: algorithms.audio,
+  visualization: algorithms.visualization,
 
   // Utils
   utils: {

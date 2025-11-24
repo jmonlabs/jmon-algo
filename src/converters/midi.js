@@ -65,7 +65,7 @@ export function midi(composition) {
  * import ToneMidi from "npm:@tonejs/midi@2.0.28";
  * await jm.converters.downloadMidi(composition, ToneMidi, "my-song.mid");
  */
-export async function downloadMidi(composition, ToneMidi, filename = "composition.mid") {
+export function downloadMidi(composition, ToneMidi, filename = "composition.mid") {
     // Convert JMON to MIDI data structure
     const midiData = Midi.convert(composition);
 

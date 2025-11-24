@@ -1,11 +1,38 @@
 /**
- * Represents a collection of loops, which are sequences of musical notes.
- * JMON-compliant implementation inspired by the Python version but using JMON format.
+ * Represents a collection of loops for rhythm and melody pattern generation
+ *
+ * @example Observable
+ * ```js
+ * jm = await import("https://esm.sh/jsr/@jmon/algo")
+ *
+ * // Create a simple melody loop
+ * melody = [
+ *   {pitch: 60, duration: 0.5, time: 0},
+ *   {pitch: 62, duration: 0.5, time: 0.5},
+ *   {pitch: 64, duration: 1, time: 1}
+ * ]
+ *
+ * loop = new jm.generative.loops(melody)
+ * sequences = loop.toJMonSequences()
+ *
+ * // Or use the static Euclidean rhythm helper
+ * euclidean = jm.generative.loops.euclidean(16, 5)
+ * ```
+ *
+ * @example Node.js
+ * ```js
+ * import { jm } from '@jmon/algo'
+ *
+ * const loop = jm.generative.loops.fromTrack({
+ *   notes: [{pitch: 60, duration: 1, time: 0}]
+ * })
+ * const result = loop.toJMonSequences()
+ * ```
  */
 export class Loop {
   /**
    * Initializes a Loop object.
-   * 
+   *
    * @param {Object|Array} loops - Dictionary or array of JMON tracks. Each track has notes: [{pitch, duration, time, velocity}, ...]
    * @param {number} measureLength - The length of a measure in beats. Defaults to 4.
    * @param {boolean} insertRests - Whether to insert rests. Defaults to true.

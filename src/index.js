@@ -100,7 +100,7 @@ function play(jmonObj, options = {}) {
   const playOptions = { Tone: externalTone, autoplay, ...otherOptions };
 
   // Check if we can return synchronously
-  const toneAvailable = externalTone || (typeof window !== 'undefined' && window.Tone) || (typeof globalThis.Tone !== 'undefined' ? globalThis.Tone : null);
+  const toneAvailable = externalTone || (typeof globalThis !== 'undefined' && globalThis.Tone) || (typeof globalThis.Tone !== 'undefined' ? globalThis.Tone : null);
   const needsAsync = !toneAvailable || autoplay || playOptions.preloadTone;
 
   if (!needsAsync && toneAvailable) {
@@ -180,6 +180,7 @@ const jm = {
   analysis: algorithms.analysis,
   constants: algorithms.constants,
   audio: algorithms.audio,
+  visualization: algorithms.visualization,
 
   // Utils
   utils: {

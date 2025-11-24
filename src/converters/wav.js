@@ -364,7 +364,7 @@ async function buildAudioGraphInstruments(composition, Tone) {
  * Convert an AudioBuffer to a WAV blob
  * @private
  */
-async function audioBufferToWav(buffer) {
+function audioBufferToWav(buffer) {
 	const numberOfChannels = buffer.numberOfChannels;
 	const sampleRate = buffer.sampleRate;
 	const length = buffer.length * numberOfChannels * 2;

@@ -1,7 +1,24 @@
 import { MusicTheoryConstants } from '../../constants/MusicTheoryConstants.js';
 
 /**
- * Represents a musical scale
+ * Represents a musical scale for generating note sequences
+ *
+ * @example Observable
+ * ```js
+ * jm = await import("https://esm.sh/jsr/@jmon/algo")
+ *
+ * // Create a C major scale
+ * const scale = new jm.theory.harmony.Scale('C', 'major')
+ * scale.generate({ length: 8 })
+ * // => [60, 62, 64, 65, 67, 69, 71, 72]
+ * ```
+ *
+ * @example Node.js
+ * ```js
+ * import { jm } from '@jmon/algo'
+ * const scale = new jm.theory.harmony.Scale('D', 'minor')
+ * const notes = scale.generate({ start: 'D4', length: 7 })
+ * ```
  */
 export class Scale {
     /**
