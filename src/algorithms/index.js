@@ -1,5 +1,5 @@
 // Constants
-import { MusicTheoryConstants, ARTICULATION_TYPES, ORNAMENT_TYPES } from './constants/index.js';
+import { MusicTheoryConstants, ARTICULATION_TYPES, ORNAMENT_TYPES, ConstantsAPI } from './constants/index.js';
 
 // Theory imports
 import harmony from './theory/harmony/index.js';
@@ -40,7 +40,16 @@ export const theory = {
 export const constants = {
     theory: MusicTheoryConstants,
     articulations: ARTICULATION_TYPES,
-    ornaments: ORNAMENT_TYPES
+    ornaments: ORNAMENT_TYPES,
+    // Convenience methods from ConstantsAPI
+    list: ConstantsAPI.list.bind(ConstantsAPI),
+    get: ConstantsAPI.get.bind(ConstantsAPI),
+    describe: ConstantsAPI.describe.bind(ConstantsAPI),
+    search: ConstantsAPI.search.bind(ConstantsAPI),
+    listArticulations: ConstantsAPI.listArticulations.bind(ConstantsAPI),
+    listOrnaments: ConstantsAPI.listOrnaments.bind(ConstantsAPI),
+    listScales: ConstantsAPI.listScales.bind(ConstantsAPI),
+    listIntervals: ConstantsAPI.listIntervals.bind(ConstantsAPI)
 };
 
 export const generative = {

@@ -6,3 +6,4 @@
 export { ARTICULATION_TYPES } from './ArticulationTypes.js';
 export { ORNAMENT_TYPES } from './OrnamentTypes.js';
 export { MusicTheoryConstants } from './MusicTheoryConstants.js';
+export { ConstantsAPI } from './ConstantsAPI.js';
