@@ -40,9 +40,9 @@ export function createPlayer(composition, options = {}) {
   const container = document.createElement("div");
   container.style.cssText = `
     font-family: Arial, sans-serif;
-    background: #2a2a2a;
+    background: #434F43;
     color: #fff;
-    padding: 20px;
+    padding: 12px;
     border-radius: 8px;
     max-width: 800px;
     margin: 0 auto;
@@ -57,7 +57,7 @@ export function createPlayer(composition, options = {}) {
   `;
 
   const buttonStyle = `
-    background: #4CAF50;
+    background: #2D3931;
     border: none;
     color: white;
     padding: 8px 16px;
@@ -89,7 +89,7 @@ export function createPlayer(composition, options = {}) {
   timeline.style.cssText = `
     flex: 1;
     height: 8px;
-    background: #444;
+    background: #F0C0C0;
     border-radius: 4px;
     cursor: pointer;
     position: relative;
@@ -98,7 +98,7 @@ export function createPlayer(composition, options = {}) {
   const timelineProgress = document.createElement("div");
   timelineProgress.style.cssText = `
     height: 100%;
-    background: #4CAF50;
+    background: #AD8B8B;
     border-radius: 4px;
     width: 0%;
     transition: width 0.1s linear;
@@ -203,25 +203,48 @@ export function createPlayer(composition, options = {}) {
 
       // Create synth or sampler based on track configuration
       let synth;
+      const synthSpec = originalTrack.synth;
 
-      // Check if track specifies a GM instrument number
-      if (originalTrack.instrument !== undefined && !originalTrack.synth) {
-        // Create Sampler for GM instrument
-        const urls = generateSamplerUrls(originalTrack.instrument);
+      if (typeof synthSpec === 'number') {
+        // GM instrument number (0-127)
+        const urls = generateSamplerUrls(synthSpec);
         synth = new ToneLib.Sampler({
           urls,
           baseUrl: "", // URLs are already complete
-          onload: () => console.log(`Loaded GM instrument ${originalTrack.instrument}`)
+          onload: () => console.log(`Loaded GM instrument ${synthSpec}`)
         }).toDestination();
-        console.log(`Creating Sampler for GM instrument ${originalTrack.instrument}`);
-      } else {
-        // Create synth from specified type or default PolySynth
-        const requestedSynthType = originalTrack.synth || "PolySynth";
+        console.log(`Creating Sampler for GM instrument ${synthSpec}`);
+      } else if (typeof synthSpec === 'string') {
+        // Synth type name or audioGraph reference
         try {
-          synth = new ToneLib[requestedSynthType]().toDestination();
+          synth = new ToneLib[synthSpec]().toDestination();
         } catch {
           synth = new ToneLib.PolySynth().toDestination();
         }
+      } else if (typeof synthSpec === 'object' && synthSpec !== null) {
+        // Inline synth definition { type, options }
+        const synthType = synthSpec.type || 'PolySynth';
+        try {
+          const options = synthSpec.options || {};
+          if (synthType === 'Sampler') {
+            // Sampler needs special handling for loading
+            synth = new ToneLib.Sampler({
+              ...options,
+              onload: () => console.log(`[SAMPLER] Loaded custom sampler for track ${originalTrackIndex}`),
+              onerror: (error) => console.error(`[SAMPLER] Failed to load sample:`, error)
+            }).toDestination();
+            console.log(`[SAMPLER] Creating custom Sampler with URLs:`, options.urls);
+          } else {
+            synth = new ToneLib[synthType](options).toDestination();
+            console.log(`[SYNTH] Creating ${synthType} for track ${originalTrackIndex}`);
+          }
+        } catch (e) {
+          console.error(`[SYNTH] Failed to create ${synthType}:`, e);
+          synth = new ToneLib.PolySynth().toDestination();
+        }
+      } else {
+        // Default to PolySynth
+        synth = new ToneLib.PolySynth().toDestination();
       }
 
       activeSynths.push(synth);

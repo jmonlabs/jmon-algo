@@ -22,6 +22,7 @@ import * as analysisModule from './analysis/index.js';
 // Visualization imports
 import { CAVisualizer } from './visualization/cellular-automata/CAVisualizer.js';
 import { FractalVisualizer } from './visualization/fractals/FractalVisualizer.js';
+import { LoopVisualizer } from './visualization/loops/LoopVisualizer.js';
 import { PlotRenderer } from './visualization/plots/PlotRenderer.js';
 
 // Utils imports
@@ -89,6 +90,7 @@ export const analysis = {
 export const visualization = {
     CAVisualizer,
     FractalVisualizer,
+    LoopVisualizer,
     PlotRenderer
 };
 

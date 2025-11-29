@@ -30,12 +30,18 @@ function jmonToABC(composition) {
   // Default note length
   lines.push('L:1/4');
 
-  // Get notes from first track
-  const track = composition.tracks?.[0];
-
-  // Key signature with clef
+  // Key signature
   const keySignature = composition.keySignature || 'C';
-  const clef = track?.clef || 'treble';
+  lines.push(`K:${keySignature}`);
+
+  // Get tracks
+  const tracks = composition.tracks || [];
+
+  if (tracks.length === 0 || !tracks.some(t => t?.notes?.length)) {
+    // Empty composition
+    lines.push('z4');
+    return lines.join('\n');
+  }
 
   // Map JMON clef names to ABC clef names
   const clefMap = {
@@ -45,74 +51,91 @@ function jmonToABC(composition) {
     'tenor': 'tenor',
     'percussion': 'perc'
   };
-  const abcClef = clefMap[clef] || 'treble';
-
-  // In ABC, clef is specified with the K: field
-  lines.push(`K:${keySignature} clef=${abcClef}`);
-
-  if (!track?.notes?.length) {
-    // Empty composition
-    lines.push('z4');
-    return lines.join('\n');
-  }
 
   // Parse time signature to get beats per measure
   const [beatsPerMeasure, beatValue] = timeSignature.split('/').map(Number);
   const measureDuration = beatsPerMeasure * (4 / beatValue); // in quarter notes
 
-  // Convert JMON notes to ABC notation with measure bars
-  const abcNotes = [];
-  let currentMeasureDuration = 0;
+  // Helper function to convert track notes to ABC
+  const convertTrackToABC = (track) => {
+    if (!track?.notes?.length) return [];
 
-  track.notes.forEach((note, index) => {
-    // Convert duration to ABC duration
-    const duration = note.duration || 1;
-    const abcDuration = durationToABC(duration);
+    const abcNotes = [];
+    let currentMeasureDuration = 0;
 
-    // Handle chords (array of pitches) vs single notes
-    let abcNote;
-    if (Array.isArray(note.pitch)) {
-      // Chord: convert each pitch and wrap in brackets
-      const chordNotes = note.pitch
-        .filter(p => typeof p === 'number') // Filter out nulls/invalid pitches
-        .map(p => midiToABC(p));
+    track.notes.forEach((note, index) => {
+      // Convert duration to ABC duration
+      const duration = note.duration || 1;
+      const abcDuration = durationToABC(duration);
 
-      if (chordNotes.length > 1) {
-        // Multiple notes = chord notation [CEG]
-        abcNote = `[${chordNotes.join('')}]`;
-      } else if (chordNotes.length === 1) {
-        // Single note in array
-        abcNote = chordNotes[0];
-      } else {
-        // Empty array or all nulls = rest
+      // Handle chords (array of pitches) vs single notes
+      let abcNote;
+      if (Array.isArray(note.pitch)) {
+        // Chord: convert each pitch and wrap in brackets
+        const chordNotes = note.pitch
+          .filter(p => typeof p === 'number') // Filter out nulls/invalid pitches
+          .map(p => midiToABC(p));
+
+        if (chordNotes.length > 1) {
+          // Multiple notes = chord notation [CEG]
+          abcNote = `[${chordNotes.join('')}]`;
+        } else if (chordNotes.length === 1) {
+          // Single note in array
+          abcNote = chordNotes[0];
+        } else {
+          // Empty array or all nulls = rest
+          abcNote = 'z';
+        }
+      } else if (note.pitch === null || note.pitch === undefined) {
+        // Rest
         abcNote = 'z';
+      } else {
+        // Single note
+        abcNote = midiToABC(note.pitch);
       }
-    } else if (note.pitch === null || note.pitch === undefined) {
-      // Rest
-      abcNote = 'z';
-    } else {
-      // Single note
-      abcNote = midiToABC(note.pitch);
-    }
 
-    // Add the note/chord with duration
-    abcNotes.push(`${abcNote}${abcDuration}`);
+      // Add the note/chord with duration
+      abcNotes.push(`${abcNote}${abcDuration}`);
 
-    // Track measure duration
-    currentMeasureDuration += duration;
+      // Track measure duration
+      currentMeasureDuration += duration;
 
-    // Add measure bar if we've completed a measure
-    if (currentMeasureDuration >= measureDuration) {
-      // Add bar line unless it's the last note
-      if (index < track.notes.length - 1) {
-        abcNotes.push('|');
+      // Add measure bar if we've completed a measure
+      if (currentMeasureDuration >= measureDuration) {
+        // Add bar line unless it's the last note
+        if (index < track.notes.length - 1) {
+          abcNotes.push('|');
+        }
+        currentMeasureDuration = 0;
       }
-      currentMeasureDuration = 0;
-    }
-  });
+    });
 
-  // Join notes with spaces
-  lines.push(abcNotes.join(' '));
+    return abcNotes;
+  };
+
+  // Render tracks - use voices if multiple tracks
+  if (tracks.length === 1) {
+    // Single track - simple rendering
+    const abcNotes = convertTrackToABC(tracks[0]);
+    lines.push(abcNotes.join(' '));
+  } else {
+    // Multiple tracks - use ABC voice notation
+    tracks.forEach((track, index) => {
+      if (!track?.notes?.length) return;
+
+      const voiceId = `V${index + 1}`;
+      const label = track.label || `Track ${index + 1}`;
+      const clef = track.clef || 'treble';
+      const abcClef = clefMap[clef] || 'treble';
+
+      // Voice header
+      lines.push(`V:${voiceId} clef=${abcClef} name="${label}"`);
+
+      // Voice notes
+      const abcNotes = convertTrackToABC(track);
+      lines.push(abcNotes.join(' '));
+    });
+  }
 
   return lines.join('\n');
 }

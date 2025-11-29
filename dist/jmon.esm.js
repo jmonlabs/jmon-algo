@@ -1753,9 +1753,9 @@ function createPlayer(composition, options = {}) {
   const container = document.createElement("div");
   container.style.cssText = `
     font-family: Arial, sans-serif;
-    background: #2a2a2a;
+    background: #434F43;
     color: #fff;
-    padding: 20px;
+    padding: 12px;
     border-radius: 8px;
     max-width: 800px;
     margin: 0 auto;
@@ -1767,7 +1767,7 @@ function createPlayer(composition, options = {}) {
     gap: 12px;
   `;
   const buttonStyle = `
-    background: #4CAF50;
+    background: #2D3931;
     border: none;
     color: white;
     padding: 8px 16px;
@@ -1794,7 +1794,7 @@ function createPlayer(composition, options = {}) {
   timeline.style.cssText = `
     flex: 1;
     height: 8px;
-    background: #444;
+    background: #F0C0C0;
     border-radius: 4px;
     cursor: pointer;
     position: relative;
@@ -1802,7 +1802,7 @@ function createPlayer(composition, options = {}) {
   const timelineProgress = document.createElement("div");
   timelineProgress.style.cssText = `
     height: 100%;
-    background: #4CAF50;
+    background: #AD8B8B;
     border-radius: 4px;
     width: 0%;
     transition: width 0.1s linear;
@@ -1882,22 +1882,43 @@ function createPlayer(composition, options = {}) {
         console.warn("Failed to compile articulations:", e);
       }
       let synth;
-      if (originalTrack.instrument !== void 0 && !originalTrack.synth) {
-        const urls = generateSamplerUrls(originalTrack.instrument);
+      const synthSpec = originalTrack.synth;
+      if (typeof synthSpec === "number") {
+        const urls = generateSamplerUrls(synthSpec);
         synth = new ToneLib.Sampler({
           urls,
           baseUrl: "",
           // URLs are already complete
-          onload: () => console.log(`Loaded GM instrument ${originalTrack.instrument}`)
+          onload: () => console.log(`Loaded GM instrument ${synthSpec}`)
         }).toDestination();
-        console.log(`Creating Sampler for GM instrument ${originalTrack.instrument}`);
-      } else {
-        const requestedSynthType = originalTrack.synth || "PolySynth";
+        console.log(`Creating Sampler for GM instrument ${synthSpec}`);
+      } else if (typeof synthSpec === "string") {
         try {
-          synth = new ToneLib[requestedSynthType]().toDestination();
+          synth = new ToneLib[synthSpec]().toDestination();
         } catch {
           synth = new ToneLib.PolySynth().toDestination();
         }
+      } else if (typeof synthSpec === "object" && synthSpec !== null) {
+        const synthType = synthSpec.type || "PolySynth";
+        try {
+          const options2 = synthSpec.options || {};
+          if (synthType === "Sampler") {
+            synth = new ToneLib.Sampler({
+              ...options2,
+              onload: () => console.log(`[SAMPLER] Loaded custom sampler for track ${originalTrackIndex}`),
+              onerror: (error) => console.error(`[SAMPLER] Failed to load sample:`, error)
+            }).toDestination();
+            console.log(`[SAMPLER] Creating custom Sampler with URLs:`, options2.urls);
+          } else {
+            synth = new ToneLib[synthType](options2).toDestination();
+            console.log(`[SYNTH] Creating ${synthType} for track ${originalTrackIndex}`);
+          }
+        } catch (e) {
+          console.error(`[SYNTH] Failed to create ${synthType}:`, e);
+          synth = new ToneLib.PolySynth().toDestination();
+        }
+      } else {
+        synth = new ToneLib.PolySynth().toDestination();
       }
       activeSynths.push(synth);
       const vibratoMods = modulations.filter(
@@ -3265,6 +3286,41 @@ var Progression = class extends MusicTheoryConstants {
   }
 };
 
+// src/algorithms/theory/harmony/Chordify.js
+function chordify(pitch, options = {}) {
+  const {
+    tonic = "C",
+    mode = "major",
+    degrees = [0, 2, 4],
+    scale = null
+  } = options;
+  const scaleNotes = scale || new Scale(tonic, mode).generate();
+  const octave = getOctave(pitch);
+  const tonicCdePitch = tonic + octave.toString();
+  const tonicMidiPitch = cdeToMidi(tonicCdePitch);
+  const scalePattern = scaleNotes.slice(0, 7);
+  const scaleDegrees = scalePattern.map((p) => getDegreeFromPitch(p, scalePattern, tonicMidiPitch));
+  const basePitchDegree = Math.round(getDegreeFromPitch(pitch, scaleNotes, tonicMidiPitch));
+  const pitchInPattern = pitch % 12;
+  const tonicPitchClass = scalePattern[0] % 12;
+  const chord = [];
+  for (const degree of degrees) {
+    const targetDegree = (basePitchDegree + degree) % scaleDegrees.length;
+    const octaveOffset = Math.floor((basePitchDegree + degree) / scaleDegrees.length);
+    const targetIndex = scaleDegrees.indexOf(targetDegree);
+    if (targetIndex !== -1) {
+      const targetPitch = scalePattern[targetIndex] + octaveOffset * 12;
+      chord.push(targetPitch);
+    }
+  }
+  return chord;
+}
+function chordifyMany(pitches, options = {}) {
+  const { tonic = "C", mode = "major", scale = null } = options;
+  const scaleNotes = scale || new Scale(tonic, mode).generate();
+  return pitches.map((pitch) => chordify(pitch, { ...options, scale: scaleNotes }));
+}
+
 // src/algorithms/theory/harmony/Voice.js
 var Voice = class extends MusicTheoryConstants {
   /**
@@ -3294,20 +3350,11 @@ var Voice = class extends MusicTheoryConstants {
    * @returns {Array} Array of MIDI notes representing the chord
    */
   pitchToChord(pitch) {
-    const octave = getOctave(pitch);
-    const tonicCdePitch = this.tonic + octave.toString();
-    const tonicMidiPitch = cdeToMidi(tonicCdePitch);
-    const scaleDegrees = this.scale.map((p) => getDegreeFromPitch(p, this.scale, tonicMidiPitch));
-    const pitchDegree = Math.round(getDegreeFromPitch(pitch, this.scale, tonicMidiPitch));
-    const chord = [];
-    for (const degree of this.degrees) {
-      const absoluteDegree = pitchDegree + degree;
-      const absoluteIndex = scaleDegrees.indexOf(absoluteDegree);
-      if (absoluteIndex !== -1) {
-        chord.push(this.scale[absoluteIndex]);
-      }
-    }
-    return chord;
+    return chordify(pitch, {
+      tonic: this.tonic,
+      degrees: this.degrees,
+      scale: this.scale
+    });
   }
   /**
    * Generate chords or arpeggios based on the given notes
@@ -3948,7 +3995,9 @@ var harmony_default = {
   Progression,
   Voice,
   Ornament,
-  Articulation
+  Articulation,
+  chordify,
+  chordifyMany
 };
 
 // src/algorithms/theory/rhythm/Rhythm.js
@@ -10559,9 +10608,13 @@ function jmonToABC(composition) {
   const timeSignature = composition.timeSignature || "4/4";
   lines.push(`M:${timeSignature}`);
   lines.push("L:1/4");
-  const track = composition.tracks?.[0];
   const keySignature = composition.keySignature || "C";
-  const clef = track?.clef || "treble";
+  lines.push(`K:${keySignature}`);
+  const tracks = composition.tracks || [];
+  if (tracks.length === 0 || !tracks.some((t) => t?.notes?.length)) {
+    lines.push("z4");
+    return lines.join("\n");
+  }
   const clefMap = {
     "treble": "treble",
     "bass": "bass",
@@ -10569,44 +10622,58 @@ function jmonToABC(composition) {
     "tenor": "tenor",
     "percussion": "perc"
   };
-  const abcClef = clefMap[clef] || "treble";
-  lines.push(`K:${keySignature} clef=${abcClef}`);
-  if (!track?.notes?.length) {
-    lines.push("z4");
-    return lines.join("\n");
-  }
   const [beatsPerMeasure, beatValue] = timeSignature.split("/").map(Number);
   const measureDuration = beatsPerMeasure * (4 / beatValue);
-  const abcNotes = [];
-  let currentMeasureDuration = 0;
-  track.notes.forEach((note, index) => {
-    const duration = note.duration || 1;
-    const abcDuration = durationToABC(duration);
-    let abcNote;
-    if (Array.isArray(note.pitch)) {
-      const chordNotes = note.pitch.filter((p) => typeof p === "number").map((p) => midiToABC(p));
-      if (chordNotes.length > 1) {
-        abcNote = `[${chordNotes.join("")}]`;
-      } else if (chordNotes.length === 1) {
-        abcNote = chordNotes[0];
-      } else {
+  const convertTrackToABC = (track) => {
+    if (!track?.notes?.length)
+      return [];
+    const abcNotes = [];
+    let currentMeasureDuration = 0;
+    track.notes.forEach((note, index) => {
+      const duration = note.duration || 1;
+      const abcDuration = durationToABC(duration);
+      let abcNote;
+      if (Array.isArray(note.pitch)) {
+        const chordNotes = note.pitch.filter((p) => typeof p === "number").map((p) => midiToABC(p));
+        if (chordNotes.length > 1) {
+          abcNote = `[${chordNotes.join("")}]`;
+        } else if (chordNotes.length === 1) {
+          abcNote = chordNotes[0];
+        } else {
+          abcNote = "z";
+        }
+      } else if (note.pitch === null || note.pitch === void 0) {
         abcNote = "z";
+      } else {
+        abcNote = midiToABC(note.pitch);
       }
-    } else if (note.pitch === null || note.pitch === void 0) {
-      abcNote = "z";
-    } else {
-      abcNote = midiToABC(note.pitch);
-    }
-    abcNotes.push(`${abcNote}${abcDuration}`);
-    currentMeasureDuration += duration;
-    if (currentMeasureDuration >= measureDuration) {
-      if (index < track.notes.length - 1) {
-        abcNotes.push("|");
+      abcNotes.push(`${abcNote}${abcDuration}`);
+      currentMeasureDuration += duration;
+      if (currentMeasureDuration >= measureDuration) {
+        if (index < track.notes.length - 1) {
+          abcNotes.push("|");
+        }
+        currentMeasureDuration = 0;
       }
-      currentMeasureDuration = 0;
-    }
-  });
-  lines.push(abcNotes.join(" "));
+    });
+    return abcNotes;
+  };
+  if (tracks.length === 1) {
+    const abcNotes = convertTrackToABC(tracks[0]);
+    lines.push(abcNotes.join(" "));
+  } else {
+    tracks.forEach((track, index) => {
+      if (!track?.notes?.length)
+        return;
+      const voiceId = `V${index + 1}`;
+      const label = track.label || `Track ${index + 1}`;
+      const clef = track.clef || "treble";
+      const abcClef = clefMap[clef] || "treble";
+      lines.push(`V:${voiceId} clef=${abcClef} name="${label}"`);
+      const abcNotes = convertTrackToABC(track);
+      lines.push(abcNotes.join(" "));
+    });
+  }
   return lines.join("\n");
 }
 function midiToABC(midi2) {
@@ -10742,7 +10809,7 @@ async function render(jmonObj, options = {}) {
 function play(jmonObj, options = {}) {
   const { Tone: externalTone, autoplay = false, ...otherOptions } = options;
   const playOptions = { Tone: externalTone, autoplay, ...otherOptions };
-  const toneAvailable = externalTone || typeof window !== "undefined" && window.Tone || (typeof globalThis.Tone !== "undefined" ? globalThis.Tone : null);
+  const toneAvailable = externalTone || typeof globalThis !== "undefined" && globalThis.Tone || (typeof globalThis.Tone !== "undefined" ? globalThis.Tone : null);
   const needsAsync = !toneAvailable || autoplay || playOptions.preloadTone;
   if (!needsAsync && toneAvailable) {
     if (!createPlayer2) {

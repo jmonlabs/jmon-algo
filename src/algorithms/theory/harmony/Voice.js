@@ -1,5 +1,6 @@
 import { MusicTheoryConstants } from '../../constants/MusicTheoryConstants.js';
 import { Scale } from './Scale.js';
+import { chordify } from './Chordify.js';
 import { getDegreeFromPitch, getOctave, cdeToMidi } from '../../utils.js';
 
 /**
@@ -38,24 +39,11 @@ export class Voice extends MusicTheoryConstants {
      * @returns {Array} Array of MIDI notes representing the chord
      */
     pitchToChord(pitch) {
-        // Get the tonic in the right octave
-        const octave = getOctave(pitch);
-        const tonicCdePitch = this.tonic + octave.toString();
-        const tonicMidiPitch = cdeToMidi(tonicCdePitch);
-
-        // The degrees of the whole scale
-        const scaleDegrees = this.scale.map(p => getDegreeFromPitch(p, this.scale, tonicMidiPitch));
-        const pitchDegree = Math.round(getDegreeFromPitch(pitch, this.scale, tonicMidiPitch));
-
-        const chord = [];
-        for (const degree of this.degrees) {
-            const absoluteDegree = pitchDegree + degree;
-            const absoluteIndex = scaleDegrees.indexOf(absoluteDegree);
-            if (absoluteIndex !== -1) {
-                chord.push(this.scale[absoluteIndex]);
-            }
-        }
-        return chord; // Chord is now directly from the scale
+        return chordify(pitch, {
+            tonic: this.tonic,
+            degrees: this.degrees,
+            scale: this.scale
+        });
     }
 
     /**

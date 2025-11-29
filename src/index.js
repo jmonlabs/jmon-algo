@@ -11,10 +11,14 @@ import algorithms from "./algorithms/index.js";
 import {
   convertToVexFlow,
   midi,
+  downloadMidi,
   midiToJmon,
   supercollider,
   tonejs,
   wav,
+  downloadWav,
+  downloadABC,
+  abc,
 } from "./converters/index.js";
 import * as jmonUtils from "./utils/jmon-utils.js";
 import * as scoreRenderer from "./browser/score-renderer.js";
@@ -167,9 +171,13 @@ const jm = {
   // Converters
   converters: {
     midi,
+    downloadMidi,
     midiToJmon,
     tonejs,
     wav,
+    downloadWav,
+    abc,
+    downloadABC,
     supercollider,
     vexflow: convertToVexFlow,
   },
