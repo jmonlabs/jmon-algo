@@ -7,12 +7,10 @@ import rhythm from './theory/rhythm/index.js';
 import { MotifBank } from './theory/motifs/index.js';
 
 // Generative algorithm imports
-import { GaussianProcessRegressor } from './generative/gaussian-processes/index.js';
 import { CellularAutomata } from './generative/cellular-automata/index.js';
 import { Loop } from './generative/loops/index.js';
 import { Darwin } from './generative/genetic/index.js';
 import { RandomWalk, Chain, Phasor, PhasorSystem } from './generative/walks/index.js';
-import { KernelGenerator } from './generative/gaussian-processes/index.js';
 import { Mandelbrot, LogisticMap } from './generative/fractals/index.js';
 import { MinimalismProcess, Tintinnabuli } from './generative/minimalism/index.js';
 
@@ -54,10 +52,6 @@ export const constants = {
 };
 
 export const generative = {
-    gaussian: {
-        Regressor: GaussianProcessRegressor,
-        Kernel: KernelGenerator
-    },
     automata: {
         Cellular: CellularAutomata
     },

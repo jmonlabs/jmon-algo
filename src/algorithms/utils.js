@@ -146,26 +146,30 @@ export function getPitchFromDegree(degree, scaleList, tonicPitch) {
 }
 
 /**
- * Set offsets according to durations
- * @param {Array} notes - Array of [pitch, duration, offset] notes
- * @returns {Array} Notes with adjusted offsets
+ * Set time according to durations (sequential timing)
+ * Works with tuple format [pitch, duration, time]
+ * @param {Array} notes - Array of [pitch, duration, time] notes
+ * @returns {Array} Notes with recalculated time
  */
-export function setOffsetsAccordingToDurations(notes) {
+export function setTimeAccordingToDurations(notes) {
     // Handle case where notes only have [pitch, duration]
     if (notes.length > 0 && notes[0].length === 2) {
         notes = notes.map(note => [note[0], note[1], 0]);
     }
     
     const adjustedNotes = [];
-    let currentOffset = 0;
+    let currentTime = 0;
     
     for (const [pitch, duration, _] of notes) {
-        adjustedNotes.push([pitch, duration, currentOffset]);
-        currentOffset += duration;
+        adjustedNotes.push([pitch, duration, currentTime]);
+        currentTime += duration;
     }
     
     return adjustedNotes;
 }
+
+// Alias for backwards compatibility
+export const setOffsetsAccordingToDurations = setTimeAccordingToDurations;
 
 /**
  * Fill gaps with rests
@@ -346,25 +350,26 @@ export function offsetTrack(track, by) {
 
 /**
  * Quantize note durations and offsets
- * @param {Array} notes - Array of notes
- * @param {number} measureLength - Measure length
- * @param {number} timeResolution - Time resolution for quantization
+ * @param {Object} options - Configuration object
+ * @param {Array} options.notes - Array of notes in [pitch, duration, time] tuple format
+ * @param {number} options.measureLength - Measure length
+ * @param {number} options.timeResolution - Time resolution for quantization
  * @returns {Array} Quantized notes
  */
-export function quantizeNotes(notes, measureLength, timeResolution) {
+export function quantizeNotes({ notes, measureLength, timeResolution }) {
     const quantizedNotes = [];
-    
+
     for (const [pitch, duration, offset] of notes) {
         const quantizedOffset = Math.round(offset / timeResolution) * timeResolution;
         const measureEnd = (Math.floor(quantizedOffset / measureLength) + 1) * measureLength;
         let quantizedDuration = Math.round(duration / timeResolution) * timeResolution;
         quantizedDuration = Math.min(quantizedDuration, measureEnd - quantizedOffset);
-        
+
         if (quantizedDuration > 0) {
             quantizedNotes.push([pitch, quantizedDuration, quantizedOffset]);
         }
     }
-    
+
     return quantizedNotes;
 }
 

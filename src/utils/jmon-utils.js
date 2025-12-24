@@ -200,42 +200,86 @@ export function createScale(pitches, duration = 1, startTime = 0) {
 }
 
 /**
- * Offset all notes in a sequence by a given time
+ * Shift all notes in a sequence by a given time
  * @param {Array} notes - JMON notes
- * @param {number} offsetBeats - Offset in beats
- * @returns {Array} Offset notes
+ * @param {number} timeShift - Time shift in beats
+ * @returns {Array} Time-shifted notes
  */
-export function offsetNotes(notes, offsetBeats) {
-  return notes.map(note => ({
-    ...note,
-    time: beatsToTime(timeToBeats(note.time) + offsetBeats)
-  }));
+export function shiftTime(notes, timeShift) {
+  return notes.map(note => {
+    const currentTime = typeof note.time === 'number' ? note.time : timeToBeats(note.time);
+    return {
+      ...note,
+      time: typeof note.time === 'number' 
+        ? currentTime + timeShift 
+        : beatsToTime(currentTime + timeShift)
+    };
+  });
 }
+
+// Alias for backwards compatibility
+export const offsetNotes = shiftTime;
 
 /**
  * Concatenate multiple note sequences with proper timing
+ * Each sequence's timing is adjusted to start after the previous one ends
  * @param {Array} sequences - Array of note sequences
- * @returns {Array} Concatenated notes
+ * @returns {Array} Concatenated notes with adjusted timing
  */
 export function concatenateSequences(sequences) {
   if (sequences.length === 0) return [];
   
   const result = [];
-  let currentOffset = 0;
+  let currentTime = 0;
+  
+  // Detect if we're using numeric or string time format from first sequence
+  const useNumericTime = sequences[0]?.length > 0 && typeof sequences[0][0]?.time === 'number';
   
   for (const sequence of sequences) {
-    // Offset this sequence by the current offset
-    const offsetSequence = offsetNotes(sequence, currentOffset);
-    result.push(...offsetSequence);
+    // Shift this sequence by the current time
+    const shiftedSequence = shiftTime(sequence, currentTime);
+    result.push(...shiftedSequence);
     
     // Calculate the end time of this sequence
-    const endTimes = offsetSequence.map(note => 
-      timeToBeats(note.time) + note.duration
-    );
-    currentOffset = Math.max(...endTimes, currentOffset);
+    const endTimes = shiftedSequence.map(note => {
+      const noteTime = typeof note.time === 'number' ? note.time : timeToBeats(note.time);
+      return noteTime + note.duration;
+    });
+    currentTime = Math.max(...endTimes, currentTime);
   }
   
   return result;
+}
+
+/**
+ * Chain/concatenate tracks with proper timing adjustment
+ * Alias for concatenateSequences for clarity
+ * @param {...Array} tracks - Note sequences to chain
+ * @returns {Array} Chained notes with sequential timing
+ */
+export function chain(...tracks) {
+  return concatenateSequences(tracks);
+}
+
+/**
+ * Recalculate timing based on durations (sequential playback)
+ * Useful after processes that don't preserve timing
+ * @param {Array} notes - Notes to recalculate timing for
+ * @param {number} startTime - Starting time (default: 0)
+ * @returns {Array} Notes with recalculated timing
+ */
+export function recalculateTiming(notes, startTime = 0) {
+  let currentTime = startTime;
+  const useNumericTime = notes.length > 0 && typeof notes[0]?.time === 'number';
+  
+  return notes.map(note => {
+    const newNote = {
+      ...note,
+      time: useNumericTime ? currentTime : beatsToTime(currentTime)
+    };
+    currentTime += note.duration;
+    return newNote;
+  });
 }
 
 /**

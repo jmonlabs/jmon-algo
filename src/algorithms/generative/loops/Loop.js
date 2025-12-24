@@ -12,11 +12,11 @@
  *   {pitch: 64, duration: 1, time: 1}
  * ]
  *
- * loop = new jm.generative.loops(melody)
+ * loop = new jm.generative.loops({ loops: melody })
  * sequences = loop.toJMonSequences()
  *
  * // Or use the static Euclidean rhythm helper
- * euclidean = jm.generative.loops.euclidean(16, 5)
+ * euclidean = jm.generative.loops.euclidean({ beats: 16, pulses: 5 })
  * ```
  *
  * @example Node.js
@@ -33,14 +33,21 @@ export class Loop {
   /**
    * Initializes a Loop object.
    *
-   * @param {Object|Array} loops - Dictionary or array of JMON tracks. Each track has notes: [{pitch, duration, time, velocity}, ...]
-   * @param {number} measureLength - The length of a measure in beats. Defaults to 4.
-   * @param {boolean} insertRests - Whether to insert rests. Defaults to true.
+   * @param {Object} options - Configuration options
+   * @param {Object|Array} options.loops - Dictionary or array of JMON tracks. Each track has notes: [{pitch, duration, time, velocity}, ...]
+   * @param {number} [options.measureLength=4] - The length of a measure in beats
+   * @param {boolean} [options.insertRests=true] - Whether to insert rests
    */
-  constructor(loops, measureLength = 4, insertRests = true) {
+  constructor(options = {}) {
+    const {
+      loops,
+      measureLength = 4,
+      insertRests = true
+    } = options;
+    
     // Input validation
     if (!loops) {
-      throw new Error('Loops parameter is required');
+      throw new Error('loops is required');
     }
     
     if (typeof measureLength !== 'number' || measureLength <= 0) {
@@ -54,26 +61,26 @@ export class Loop {
     this.measureLength = measureLength;
     
     // Convert array to object if needed
+    let loopsObj = loops;
     if (Array.isArray(loops)) {
       if (loops.length === 0) {
         throw new Error('Loops array cannot be empty');
       }
-      const loopObj = {};
+      loopsObj = {};
       loops.forEach((loop, i) => {
         const label = loop?.label || `Loop ${i + 1}`;
-        loopObj[label] = loop;
+        loopsObj[label] = loop;
       });
-      loops = loopObj;
     }
     
     // Validate that loops object is not empty
-    if (typeof loops !== 'object' || Object.keys(loops).length === 0) {
+    if (typeof loopsObj !== 'object' || Object.keys(loopsObj).length === 0) {
       throw new Error('Loops must be a non-empty object or array');
     }
     
     // Store loops as JMON tracks
     this.loops = {};
-    for (const [name, loopData] of Object.entries(loops)) {
+    for (const [name, loopData] of Object.entries(loopsObj)) {
       // Validate loop data
       if (!loopData) {
         throw new Error(`Loop data for "${name}" is null or undefined`);
@@ -227,8 +234,21 @@ export class Loop {
 
   /**
    * Create loop from Euclidean rhythm (JMON format)
+   * @param {Object} options - Configuration options
+   * @param {number} options.beats - Total number of beats
+   * @param {number} options.pulses - Number of active pulses to distribute
+   * @param {Array} [options.pitches=[60]] - Array of MIDI pitches to cycle through
+   * @param {string} [options.label] - Label for the loop
+   * @returns {Loop} A new Loop instance
    */
-  static euclidean(beats, pulses, pitches = [60], label = null) {
+  static euclidean(options = {}) {
+    const {
+      beats,
+      pulses,
+      pitches = [60],
+      label
+    } = options;
+    
     // Input validation
     if (typeof beats !== 'number' || beats <= 0 || !Number.isInteger(beats)) {
       throw new Error('beats must be a positive integer');
@@ -263,8 +283,9 @@ export class Loop {
       }
     });
 
+    const trackLabel = label || `Euclidean ${pulses}/${beats}`;
     const track = {
-      label: label || `Euclidean ${pulses}/${beats}`,
+      label: trackLabel,
       notes,
       synth: {
         type: 'Synth',
@@ -275,7 +296,7 @@ export class Loop {
       }
     };
 
-    return new Loop({ [track.label]: track }, beats);
+    return new Loop({ loops: { [trackLabel]: track }, measureLength: beats });
   }
 
   /**

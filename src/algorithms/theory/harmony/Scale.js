@@ -8,7 +8,7 @@ import { MusicTheoryConstants } from '../../constants/MusicTheoryConstants.js';
  * jm = await import("https://esm.sh/jsr/@jmon/algo")
  *
  * // Create a C major scale
- * const scale = new jm.theory.harmony.Scale('C', 'major')
+ * const scale = new jm.theory.harmony.Scale({ tonic: 'C', mode: 'major' })
  * scale.generate({ length: 8 })
  * // => [60, 62, 64, 65, 67, 69, 71, 72]
  * ```
@@ -16,17 +16,24 @@ import { MusicTheoryConstants } from '../../constants/MusicTheoryConstants.js';
  * @example Node.js
  * ```js
  * import { jm } from '@jmon/algo'
- * const scale = new jm.theory.harmony.Scale('D', 'minor')
+ * const scale = new jm.theory.harmony.Scale({ tonic: 'D', mode: 'minor' })
  * const notes = scale.generate({ start: 'D4', length: 7 })
  * ```
  */
 export class Scale {
     /**
      * Create a Scale
-     * @param {string} tonic - The tonic note of the scale
-     * @param {string} mode - The type of scale
+     * @param {Object} options - Configuration options
+     * @param {string} options.tonic - The tonic note of the scale (e.g., 'C', 'D#', 'Bb')
+     * @param {string} [options.mode='major'] - The type of scale (e.g., 'major', 'minor', 'dorian')
      */
-    constructor(tonic, mode = 'major') {
+    constructor(options = {}) {
+        const { tonic, mode = 'major' } = options;
+        
+        if (!tonic) {
+            throw new Error("'tonic' is required. Provide a note name like 'C', 'D#', or 'Bb'.");
+        }
+        
         const convertedTonic = MusicTheoryConstants.convertFlatToSharp(tonic);
         if (!MusicTheoryConstants.chromatic_scale.includes(convertedTonic)) {
             throw new Error(`'${tonic}' is not a valid tonic note. Select one among '${MusicTheoryConstants.chromatic_scale.join(', ')}'.`);
@@ -60,9 +67,6 @@ export class Scale {
             options.end = MusicTheoryConstants.noteNameToMidi(options.end);
         }
 
-        // Default to C4 if no start point specified
-        const startNote = options.start ?? 60;
-
         // Get scale pattern
         const tonicIndex = MusicTheoryConstants.chromatic_scale.indexOf(this.tonic);
         if (tonicIndex === -1) {
@@ -70,12 +74,21 @@ export class Scale {
             return [];
         }
 
+        // Default start: tonic at octave 4 (e.g., E4 = 64 for E major)
+        const defaultStart = 60 + tonicIndex; // C4 + tonic offset
+        const startNote = options.start ?? defaultStart;
+
         // Helper to get next scale note
+        // The scale intervals are relative to the tonic, so we need to:
+        // 1. Find the base octave from startNote
+        // 2. Apply intervals relative to the tonic in that octave
         const getNextNote = (baseNote, step) => {
             const scaleIndex = step % intervals.length;
             const octaveOffset = Math.floor(step / intervals.length) * 12;
             const interval = intervals[scaleIndex];
-            return baseNote + interval + octaveOffset;
+            // Calculate the tonic at the base octave, then add interval
+            const baseOctave = Math.floor(baseNote / 12) * 12;
+            return baseOctave + tonicIndex + interval + octaveOffset;
         };
 
         // Generate notes

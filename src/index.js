@@ -193,8 +193,8 @@ const jm = {
   // Utils
   utils: {
     ...algorithms.utils,
+    ...jmonUtils,
     JmonValidator,
-    jmon: jmonUtils,
   },
 
   // Instruments (optional; may be undefined in non-browser builds)

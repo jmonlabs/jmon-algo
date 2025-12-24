@@ -189,7 +189,7 @@ try {
   // T-chord: C major triad
   const tChord = [60, 64, 67]; // C, E, G
 
-  const tintinnabuli = new Tintinnabuli(tChord, 'down', 0);
+  const tintinnabuli = new Tintinnabuli({ tChord, direction: 'down', rank: 0 });
 
   // M-voice (melody)
   const mVoice = [

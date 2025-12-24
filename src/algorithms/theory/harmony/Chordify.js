@@ -1,5 +1,30 @@
 import { Scale } from './Scale.js';
-import { getDegreeFromPitch, getOctave, cdeToMidi } from '../../utils.js';
+
+function generateScaleForRange({ tonic, mode }, minPitch, maxPitch) {
+    const scaleBuilder = new Scale({ tonic, mode });
+    const safeMin = Number.isFinite(minPitch) ? minPitch : 60;
+    const safeMax = Number.isFinite(maxPitch) ? maxPitch : safeMin + 12;
+    const startOctave = Math.max(0, Math.floor(safeMin / 12) * 12);
+    const extendedMax = safeMax + 12; // leave headroom for chord extensions
+    const range = Math.max(12, extendedMax - startOctave);
+    const octavesNeeded = Math.ceil(range / 12);
+    const notesPerOctave = 7;
+    const length = Math.max(notesPerOctave, (octavesNeeded + 1) * notesPerOctave);
+    return scaleBuilder.generate({ start: startOctave, length });
+}
+
+function findClosestScaleIndex(pitch, scaleNotes) {
+    let closestIndex = 0;
+    let smallestDistance = Infinity;
+    for (let i = 0; i < scaleNotes.length; i++) {
+        const distance = Math.abs(scaleNotes[i] - pitch);
+        if (distance < smallestDistance) {
+            smallestDistance = distance;
+            closestIndex = i;
+        }
+    }
+    return closestIndex;
+}
 
 /**
  * Build a chord from a pitch based on a scale and degree pattern
@@ -29,33 +54,17 @@ export function chordify(pitch, options = {}) {
         scale = null
     } = options;
 
-    // Generate scale if not provided
-    const scaleNotes = scale || new Scale(tonic, mode).generate();
+    // Generate a scale that spans the chord's register if not provided
+    const scaleNotes = scale || generateScaleForRange({ tonic, mode }, pitch - 24, pitch + 24);
 
-    // Get the tonic in the right octave
-    const octave = getOctave(pitch);
-    const tonicCdePitch = tonic + octave.toString();
-    const tonicMidiPitch = cdeToMidi(tonicCdePitch);
-
-    // Find the base pitch degree within the scale pattern (0-6 for a 7-note scale)
-    const scalePattern = scaleNotes.slice(0, 7); // Use first octave as pattern
-    const scaleDegrees = scalePattern.map(p => getDegreeFromPitch(p, scalePattern, tonicMidiPitch));
-    const basePitchDegree = Math.round(getDegreeFromPitch(pitch, scaleNotes, tonicMidiPitch));
-
-    // Find which note in the scale pattern corresponds to our pitch
-    const pitchInPattern = pitch % 12; // Get pitch class
-    const tonicPitchClass = scalePattern[0] % 12;
+    // Locate the closest scale degree index to anchor the chord
+    const baseIndex = findClosestScaleIndex(pitch, scaleNotes);
 
     const chord = [];
     for (const degree of degrees) {
-        const targetDegree = (basePitchDegree + degree) % scaleDegrees.length;
-        const octaveOffset = Math.floor((basePitchDegree + degree) / scaleDegrees.length);
-
-        // Find the target note in the scale pattern
-        const targetIndex = scaleDegrees.indexOf(targetDegree);
-        if (targetIndex !== -1) {
-            const targetPitch = scalePattern[targetIndex] + (octaveOffset * 12);
-            chord.push(targetPitch);
+        const targetIndex = baseIndex + degree;
+        if (targetIndex >= 0 && targetIndex < scaleNotes.length) {
+            chord.push(scaleNotes[targetIndex]);
         }
     }
 
@@ -74,9 +83,11 @@ export function chordify(pitch, options = {}) {
  * // => [[60, 64, 67], [62, 65, 69], [64, 67, 71]]
  */
 export function chordifyMany(pitches, options = {}) {
-    // Generate scale once if not provided
     const { tonic = 'C', mode = 'major', scale = null } = options;
-    const scaleNotes = scale || new Scale(tonic, mode).generate();
+    const numericPitches = (pitches || []).filter(p => typeof p === 'number');
+    const minPitch = numericPitches.length ? Math.min(...numericPitches) : undefined;
+    const maxPitch = numericPitches.length ? Math.max(...numericPitches) : undefined;
+    const scaleNotes = scale || generateScaleForRange({ tonic, mode }, minPitch, maxPitch);
 
     return pitches.map(pitch => chordify(pitch, { ...options, scale: scaleNotes }));
 }

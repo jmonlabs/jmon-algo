@@ -3,43 +3,54 @@ import { cdeToMidi } from '../../utils.js';
 
 /**
  * A class representing a musical progression generator based on the circle of fifths (or any other interval)
+ * 
+ * @example
+ * ```js
+ * // Generate a chord progression from roman numerals
+ * const prog = new Progression({ tonic: 'C', mode: 'major' })
+ * prog.generate(['I', 'IV', 'V', 'I'])
+ * 
+ * // Generate a random progression
+ * const prog2 = new Progression({ tonic: 'A', mode: 'minor', type: 'chords' })
+ * prog2.generate(4)
+ * ```
  */
 export class Progression extends MusicTheoryConstants {
     /**
      * Initialize a Progression object
-     * @param {string} tonicPitch - The tonic pitch or key of the progression (e.g., 'C4', 'C', 'D')
-     * @param {string} scaleOrCircleOf - The scale/mode ('major', 'minor') or interval to form the circle (default: 'P5')
-     * @param {string} type - The type of progression ('chords' or 'pitches')
-     * @param {Array} radius - Range for major, minor, and diminished chords [3, 3, 1]
-     * @param {Array} weights - Weights for selecting chord types
+     * @param {Object} options - Configuration options
+     * @param {string} [options.tonic='C4'] - The tonic pitch or key (e.g., 'C4', 'C', 'D')
+     * @param {string} [options.mode='major'] - The scale/mode ('major', 'minor', 'dorian', etc.)
+     * @param {string} [options.circleOf='P5'] - Interval to form the circle (e.g., 'P5', 'P4')
+     * @param {string} [options.type='chords'] - Output type: 'chords' or 'pitches'
+     * @param {Array} [options.radius=[3, 3, 1]] - Range for major, minor, and diminished chords
+     * @param {Array} [options.weights] - Weights for selecting chord types (defaults to radius)
      */
-    constructor(tonicPitch = 'C4', scaleOrCircleOf = 'major', type = 'chords', radius = [3, 3, 1], weights = null) {
+    constructor(options = {}) {
         super();
+        
+        const {
+            tonic = 'C4',
+            mode = 'major',
+            circleOf = 'P5',
+            type = 'chords',
+            radius = [3, 3, 1],
+            weights
+        } = options;
 
         // Parse tonic - handle both 'C' and 'C4' formats
-        if (tonicPitch.length <= 2) {
+        if (tonic.length <= 2) {
             // Just note name, add octave
-            this.tonicMidi = cdeToMidi(tonicPitch + '4');
-            this.tonicNote = tonicPitch;
+            this.tonicMidi = cdeToMidi(tonic + '4');
+            this.tonicNote = tonic;
         } else {
-            this.tonicMidi = cdeToMidi(tonicPitch);
-            this.tonicNote = tonicPitch.replace(/[0-9]/g, '');
+            this.tonicMidi = cdeToMidi(tonic);
+            this.tonicNote = tonic.replace(/[0-9]/g, '');
         }
 
-        // Check if second argument is a scale/mode or an interval
-        if (scaleOrCircleOf === 'major' || scaleOrCircleOf === 'minor' ||
-            scaleOrCircleOf === 'dorian' || scaleOrCircleOf === 'lydian' ||
-            scaleOrCircleOf === 'mixolydian' || scaleOrCircleOf === 'aeolian' ||
-            scaleOrCircleOf === 'locrian' || scaleOrCircleOf === 'phrygian') {
-            this.scale = scaleOrCircleOf;
-            this.mode = scaleOrCircleOf;
-            this.circleOf = 'P5'; // Default to circle of fifths
-        } else {
-            this.circleOf = scaleOrCircleOf;
-            this.scale = 'major'; // Default scale
-            this.mode = 'major';
-        }
-
+        this.scale = mode;
+        this.mode = mode;
+        this.circleOf = circleOf;
         this.type = type;
         this.radius = radius;
         this.weights = weights || radius;

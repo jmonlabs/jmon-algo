@@ -245,46 +245,52 @@ export class Mandelbrot {
   }
 
   /**
-   * Map fractal values to musical scale
-   * @param {number[]} sequence - Fractal sequence
-   * @param {number[]} [scale=[0, 2, 4, 5, 7, 9, 11]] - Musical scale intervals
-   * @param {number} [octaveRange=3] - Number of octaves to span
+   * Map fractal values to musical scale pitches
+   * @param {Object} options - Mapping options
+   * @param {number[]} options.sequence - Fractal sequence to map
+   * @param {number[]} options.pitches - Array of MIDI pitch values to map to
    * @returns {number[]} MIDI note sequence
+   *
+   * @example
+   * const mbSequence = [10, 25, 15, 30, 5];
+   * const gMajorPitches = [55, 57, 59, 60, 62, 64, 66, 67]; // G major scale
+   * const mapped = mb.mapToScale({ sequence: mbSequence, pitches: gMajorPitches });
+   * // Maps each value to a pitch based on normalized position
    */
-  mapToScale(sequence, scale = [0, 2, 4, 5, 7, 9, 11], octaveRange = 3) {
+  mapToScale({ sequence, pitches }) {
     if (sequence.length === 0) return [];
-    
+    if (!pitches || pitches.length === 0) {
+      throw new Error('pitches array is required and must not be empty');
+    }
+
     const minVal = Math.min(...sequence);
     const maxVal = Math.max(...sequence);
     const range = maxVal - minVal || 1;
-    
+
     return sequence.map(value => {
       // Normalize to 0-1
       const normalized = (value - minVal) / range;
-      
-      // Map to scale indices
-      const scaleIndex = Math.floor(normalized * scale.length * octaveRange);
-      const octave = Math.floor(scaleIndex / scale.length);
-      const noteIndex = scaleIndex % scale.length;
-      
-      // Convert to MIDI note (C4 = 60)
-      return 60 + octave * 12 + scale[noteIndex];
+
+      // Map to pitch array index
+      const index = Math.floor(normalized * (pitches.length - 1));
+      return pitches[index];
     });
   }
 
   /**
    * Generate rhythmic pattern from fractal data
-   * @param {number[]} sequence - Fractal sequence
-   * @param {number[]} [subdivisions=[1, 2, 4, 8, 16]] - Rhythmic subdivisions
+   * @param {Object} options - Mapping options
+   * @param {number[]} options.sequence - Fractal sequence
+   * @param {number[]} [options.subdivisions=[1, 2, 4, 8, 16]] - Rhythmic subdivisions
    * @returns {number[]} Rhythmic durations
    */
-  mapToRhythm(sequence, subdivisions = [1, 2, 4, 8, 16]) {
+  mapToRhythm({ sequence, subdivisions = [1, 2, 4, 8, 16] }) {
     if (sequence.length === 0) return [];
-    
+
     const minVal = Math.min(...sequence);
     const maxVal = Math.max(...sequence);
     const range = maxVal - minVal || 1;
-    
+
     return sequence.map(value => {
       const normalized = (value - minVal) / range;
       const subdivisionIndex = Math.floor(normalized * subdivisions.length);

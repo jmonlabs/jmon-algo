@@ -79,7 +79,7 @@ test('Minimalism: Subtractive inward', () => {
 
 test('Tintinnabuli: Generate T-voice', () => {
   const tChord = [60, 64, 67];
-  const tintinnabuli = new Tintinnabuli(tChord, 'down', 0);
+  const tintinnabuli = new Tintinnabuli({ tChord, direction: 'down', rank: 0 });
   const mVoice = [
     { pitch: 62, duration: 1, time: 0 },
     { pitch: 65, duration: 1, time: 1 }
@@ -133,13 +133,13 @@ console.log('\n=== MUSIC THEORY ===\n');
 
 import { Scale } from '../src/algorithms/theory/harmony/Scale.js';
 test('Scale: Generate C major', () => {
-  const scale = new Scale('C', 'major');
+  const scale = new Scale({ tonic: 'C', mode: 'major' });
   const notes = scale.generate({ octave: 4 });
   if (!Array.isArray(notes) || !notes.includes(60)) throw new Error('Invalid scale');
 });
 
 test('Scale: Generate D dorian', () => {
-  const scale = new Scale('D', 'dorian');
+  const scale = new Scale({ tonic: 'D', mode: 'dorian' });
   const notes = scale.generate({ octave: 4 });
   if (!Array.isArray(notes) || notes.length < 7) throw new Error('Invalid scale');
 });
@@ -152,10 +152,11 @@ test('Progression: Generate chords', () => {
 });
 
 import { Voice } from '../src/algorithms/theory/harmony/Voice.js';
-test('Voice: Create chord from pitch', () => {
-  const voice = new Voice('major', 'C', [0, 2, 4]);
-  const chord = voice.pitchToChord(60);
-  if (!Array.isArray(chord) || chord.length === 0) throw new Error('Invalid chord');
+test('Voice: Generate chords from track', () => {
+  const voice = new Voice({ tonic: 'C', mode: 'major', degrees: [0, 2, 4], extractRoots: false });
+  const track = [{ pitch: 60, duration: 4, time: 0 }];
+  const chords = voice.generate(track);
+  if (!Array.isArray(chords) || chords.length === 0) throw new Error('Invalid chords');
 });
 
 import { Ornament } from '../src/algorithms/theory/harmony/Ornament.js';
@@ -216,11 +217,14 @@ test('Beatcycle: Generate pattern', () => {
   const durations = [1, 0.5, 0.5];
   const result = beatcycle(pitches, durations);
   if (!Array.isArray(result) || result.length !== 4) throw new Error('Invalid beatcycle');
+  if (!result.every(n => typeof n.pitch === 'number' && typeof n.time === 'number')) {
+    throw new Error('Beatcycle should return note objects');
+  }
 });
 
 import { Rhythm } from '../src/algorithms/theory/rhythm/Rhythm.js';
 test('Rhythm: Generate random rhythm', () => {
-  const rhythm = new Rhythm({ measureLength: 4, durations: [0.25, 0.5, 1, 2] });
+  const rhythm = new Rhythm(4, [0.25, 0.5, 1, 2]);
   const result = rhythm.random({ restProbability: 0.2 });
   if (!Array.isArray(result)) throw new Error('Invalid rhythm');
   const total = result.reduce((sum, r) => sum + r.duration, 0);

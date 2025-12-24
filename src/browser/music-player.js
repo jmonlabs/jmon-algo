@@ -45,7 +45,7 @@ export function createPlayer(composition, options = {}) {
     padding: 12px;
     border-radius: 8px;
     max-width: 800px;
-    margin: 0 auto;
+    margin: 16px 0;
   `;
 
   // Controls row: [Play] [Stop] [Current Time] [========Timeline========] [Total Time]
@@ -186,6 +186,18 @@ export function createPlayer(composition, options = {}) {
     activeSynths = [];
     scheduledEvents = [];
 
+    // Create a master limiter to prevent clipping when multiple tracks play
+    const masterLimiter = new ToneLib.Limiter(-3).toDestination();
+    const masterGain = new ToneLib.Gain(0.7).connect(masterLimiter); // Reduce overall volume
+    activeSynths.push(masterLimiter);
+    activeSynths.push(masterGain);
+
+    // Helper to connect synth to master chain
+    const connectToMaster = (node) => {
+      node.disconnect();
+      node.connect(masterGain);
+    };
+
     // Create synths and schedule notes
     convertedTracks.forEach((trackConfig) => {
       const { originalTrackIndex, partEvents } = trackConfig;
@@ -212,14 +224,17 @@ export function createPlayer(composition, options = {}) {
           urls,
           baseUrl: "", // URLs are already complete
           onload: () => console.log(`Loaded GM instrument ${synthSpec}`)
-        }).toDestination();
+        });
+        synth.connect(masterGain);
         console.log(`Creating Sampler for GM instrument ${synthSpec}`);
       } else if (typeof synthSpec === 'string') {
         // Synth type name or audioGraph reference
         try {
-          synth = new ToneLib[synthSpec]().toDestination();
+          synth = new ToneLib[synthSpec]();
+          synth.connect(masterGain);
         } catch {
-          synth = new ToneLib.PolySynth().toDestination();
+          synth = new ToneLib.PolySynth();
+          synth.connect(masterGain);
         }
       } else if (typeof synthSpec === 'object' && synthSpec !== null) {
         // Inline synth definition { type, options }
@@ -232,19 +247,23 @@ export function createPlayer(composition, options = {}) {
               ...options,
               onload: () => console.log(`[SAMPLER] Loaded custom sampler for track ${originalTrackIndex}`),
               onerror: (error) => console.error(`[SAMPLER] Failed to load sample:`, error)
-            }).toDestination();
+            });
+            synth.connect(masterGain);
             console.log(`[SAMPLER] Creating custom Sampler with URLs:`, options.urls);
           } else {
-            synth = new ToneLib[synthType](options).toDestination();
+            synth = new ToneLib[synthType](options);
+            synth.connect(masterGain);
             console.log(`[SYNTH] Creating ${synthType} for track ${originalTrackIndex}`);
           }
         } catch (e) {
           console.error(`[SYNTH] Failed to create ${synthType}:`, e);
-          synth = new ToneLib.PolySynth().toDestination();
+          synth = new ToneLib.PolySynth();
+          synth.connect(masterGain);
         }
       } else {
         // Default to PolySynth
-        synth = new ToneLib.PolySynth().toDestination();
+        synth = new ToneLib.PolySynth();
+        synth.connect(masterGain);
       }
 
       activeSynths.push(synth);
@@ -287,17 +306,17 @@ export function createPlayer(composition, options = {}) {
           activeSynths.push(tremoloEffect);
         }
 
-        // Connect effect chain
+        // Connect effect chain to master
         if (vibratoEffect && tremoloEffect) {
           synth.connect(vibratoEffect);
           vibratoEffect.connect(tremoloEffect);
-          tremoloEffect.toDestination();
+          tremoloEffect.connect(masterGain);
         } else if (vibratoEffect) {
           synth.connect(vibratoEffect);
-          vibratoEffect.toDestination();
+          vibratoEffect.connect(masterGain);
         } else if (tremoloEffect) {
           synth.connect(tremoloEffect);
-          tremoloEffect.toDestination();
+          tremoloEffect.connect(masterGain);
         }
 
         // Schedule effect enable/disable based on modulations
@@ -413,7 +432,8 @@ export function createPlayer(composition, options = {}) {
             // (PolySynth and Sampler don't expose detune for automation)
             console.log(`[GLISSANDO] Creating temporary MonoSynth: ${noteName} -> ${toNote} (${cents} cents)`);
 
-            const glissSynth = new ToneLib.MonoSynth().toDestination();
+            const glissSynth = new ToneLib.MonoSynth();
+            glissSynth.connect(masterGain);
             activeSynths.push(glissSynth);
 
             const eventId = ToneLib.Transport.schedule((schedTime) => {

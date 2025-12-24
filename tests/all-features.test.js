@@ -86,7 +86,7 @@ test('Minimalism: Subtractive inward process', () => {
 
 test('Tintinnabuli: Generate T-voice', () => {
   const tChord = [60, 64, 67];
-  const tintinnabuli = new Tintinnabuli(tChord, 'down', 0);
+  const tintinnabuli = new Tintinnabuli({ tChord, direction: 'down', rank: 0 });
   const mVoice = [
     { pitch: 62, duration: 1, time: 0 },
     { pitch: 65, duration: 1, time: 1 }
@@ -146,13 +146,13 @@ console.log('\n=== MUSIC THEORY ===\n');
 
 import { Scale } from '../src/algorithms/theory/harmony/Scale.js';
 test('Scale: Generate C major', () => {
-  const scale = new Scale('C', 'major');
+  const scale = new Scale({ tonic: 'C', mode: 'major' });
   const notes = scale.generate({ octave: 4 });
   if (!Array.isArray(notes) || !notes.includes(60)) throw new Error('Invalid scale');
 });
 
 test('Scale: Generate D dorian', () => {
-  const scale = new Scale('D', 'dorian');
+  const scale = new Scale({ tonic: 'D', mode: 'dorian' });
   const notes = scale.generate({ octave: 4 });
   if (!Array.isArray(notes) || notes.length < 7) throw new Error('Invalid scale');
 });
@@ -246,15 +246,24 @@ test('Beatcycle: Generate pattern', () => {
   const durations = [1, 0.5, 0.5];
   const result = beatcycle(pitches, durations);
   if (!Array.isArray(result) || result.length !== 4) throw new Error('Invalid beatcycle');
+  if (!result.every(n => typeof n.pitch === 'number' && typeof n.duration === 'number' && typeof n.time === 'number')) {
+    throw new Error('Beatcycle should return JMON note objects');
+  }
+  const legacy = beatcycle(pitches, durations, { legacy: true });
+  if (!Array.isArray(legacy) || !Array.isArray(legacy[0]) || legacy[0].length !== 3) {
+    throw new Error('Legacy beatcycle output malformed');
+  }
 });
 
 import { Rhythm } from '../src/algorithms/theory/rhythm/Rhythm.js';
 test('Rhythm: Generate random rhythm', () => {
-  const rhythm = new Rhythm({ measureLength: 4, durations: [0.25, 0.5, 1, 2] });
+  const rhythm = new Rhythm(4, [0.25, 0.5, 1, 2]);
   const result = rhythm.random({ restProbability: 0.2 });
-  if (!Array.isArray(result)) throw new Error('Invalid rhythm');
+  if (!Array.isArray(result) || result.length === 0) throw new Error('Invalid rhythm');
   const total = result.reduce((sum, r) => sum + r.duration, 0);
   if (total > 4) throw new Error('Rhythm exceeds measure length');
+  const legacy = rhythm.random(null, 0, 100, { legacy: true });
+  if (!Array.isArray(legacy) || !Array.isArray(legacy[0])) throw new Error('Legacy rhythm output malformed');
 });
 
 // ===== ANALYSIS =====

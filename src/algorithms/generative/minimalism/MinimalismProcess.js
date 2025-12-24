@@ -325,26 +325,64 @@ export class MinimalismProcess {
 /**
  * Tintinnabuli style implementation for modal composition
  * JMON-compliant: accepts mixed inputs, returns JMON notes
+ * 
+ * @example
+ * ```js
+ * // Object-based API (recommended)
+ * const tint = new Tintinnabuli({
+ *   tChord: [60, 64, 67],  // C major triad
+ *   direction: 'up',
+ *   rank: 1,
+ *   extendOctaves: true
+ * });
+ * const tVoice = tint.generate(mVoice);
+ * ```
  */
 export class Tintinnabuli {
   tChord;
+  extendedChord;
   direction;
   rank;
   isAlternate;
   currentDirection;
   timingConfig;
+  extendOctaves;
 
-  constructor(
-    tChord,
-    direction = 'down',
-    rank = 0,
-    timingConfig = DEFAULT_TIMING_CONFIG
-  ) {
+  /**
+   * Create a Tintinnabuli generator
+   * @param {Object} options - Configuration options
+   * @param {number[]} options.tChord - The t-chord pitches (e.g., [60, 64, 67] for C major triad)
+   * @param {string} [options.direction='down'] - Direction to find t-voice: 'up', 'down', 'any', or 'alternate'
+   * @param {number} [options.rank=0] - Which chord tone to select (0 = closest, 1 = second closest, etc.)
+   * @param {boolean} [options.extendOctaves=true] - If true, chord is extended across all octaves (pitch classes matter).
+   *                                                  If false, uses exact pitches provided.
+   * @param {Object} [options.timingConfig] - Timing configuration
+   */
+  constructor(options = {}) {
+    const {
+      tChord,
+      direction = 'down',
+      rank = 0,
+      extendOctaves = true,
+      timingConfig = DEFAULT_TIMING_CONFIG
+    } = options;
+    
+    if (!tChord || !Array.isArray(tChord) || tChord.length === 0) {
+      throw new Error("tChord is required and must be a non-empty array of pitches.");
+    }
+    
     if (!['up', 'down', 'any', 'alternate'].includes(direction)) {
       throw new Error("Invalid direction. Choose 'up', 'down', 'any' or 'alternate'.");
     }
     
     this.tChord = tChord;
+    this.extendOctaves = extendOctaves;
+    
+    // Extend chord across multiple octaves if enabled
+    this.extendedChord = extendOctaves 
+      ? this.extendChordAcrossOctaves(tChord)
+      : [...tChord].sort((a, b) => a - b);
+    
     this.isAlternate = direction === 'alternate';
     this.currentDirection = this.isAlternate ? 'up' : direction;
     this.direction = direction;
@@ -354,11 +392,28 @@ export class Tintinnabuli {
       throw new Error("Rank must be a non-negative integer.");
     }
     
-    this.rank = Math.min(rank, tChord.length - 1);
+    this.rank = rank;
+  }
+  
+  /**
+   * Extend chord pitches across the full MIDI range (0-127)
+   * This ensures there are always enough notes above/below any melody pitch
+   */
+  extendChordAcrossOctaves(tChord) {
+    // Get pitch classes from the chord (0-11)
+    const pitchClasses = [...new Set(tChord.map(p => p % 12))].sort((a, b) => a - b);
     
-    if (this.rank >= tChord.length) {
-      console.warn("Rank exceeds the length of the t-chord. Using last note of the t-chord.");
+    // Generate all pitches across MIDI range
+    const extended = [];
+    for (let octave = 0; octave <= 10; octave++) {
+      for (const pc of pitchClasses) {
+        const pitch = octave * 12 + pc;
+        if (pitch >= 0 && pitch <= 127) {
+          extended.push(pitch);
+        }
+      }
     }
+    return extended.sort((a, b) => a - b);
   }
 
   /**
@@ -371,6 +426,11 @@ export class Tintinnabuli {
   generate(sequence, useStringTime = false) {
     const normalizedSequence = this.normalizeInput(sequence);
     const tVoice = [];
+    
+    // Reset direction for alternate mode at the start of each generate call
+    if (this.isAlternate) {
+      this.currentDirection = 'up';
+    }
     
     for (const note of normalizedSequence) {
       if (note.pitch === undefined) {
@@ -385,37 +445,46 @@ export class Tintinnabuli {
       }
       
       const mPitch = note.pitch;
-      const differences = this.tChord.map(t => t - mPitch);
-      const sortedDifferences = differences
-        .map((diff, index) => ({ index, value: diff }))
-        .sort((a, b) => Math.abs(a.value) - Math.abs(b.value));
       
-      let effectiveRank = this.rank;
+      // Use extended chord for finding t-voice pitches
+      // This ensures we always have notes above/below any melody pitch
       let tVoicePitch;
       
-      if (this.currentDirection === 'up' || this.currentDirection === 'down') {
-        const filteredDifferences = sortedDifferences.filter(({ value }) =>
-          this.currentDirection === 'up' ? value >= 0 : value <= 0
-        );
-        
-        if (filteredDifferences.length === 0) {
-          // No notes in desired direction, use extreme note
-          tVoicePitch = this.currentDirection === 'up' 
-            ? Math.max(...this.tChord) 
-            : Math.min(...this.tChord);
+      if (this.currentDirection === 'up') {
+        // Find all chord pitches > mPitch, sorted ascending
+        const pitchesAbove = this.extendedChord.filter(p => p > mPitch);
+        if (pitchesAbove.length > this.rank) {
+          tVoicePitch = pitchesAbove[this.rank];
+        } else if (pitchesAbove.length > 0) {
+          tVoicePitch = pitchesAbove[pitchesAbove.length - 1];
         } else {
-          if (effectiveRank >= filteredDifferences.length) {
-            effectiveRank = filteredDifferences.length - 1;
-          }
-          const chosenIndex = filteredDifferences[effectiveRank].index;
-          tVoicePitch = this.tChord[chosenIndex];
+          // No pitches above, use highest in chord
+          tVoicePitch = this.extendedChord[this.extendedChord.length - 1];
         }
-      } else { // 'any'
-        if (effectiveRank >= sortedDifferences.length) {
-          effectiveRank = sortedDifferences.length - 1;
+      } else if (this.currentDirection === 'down') {
+        // Find all chord pitches < mPitch, sorted descending
+        const pitchesBelow = this.extendedChord.filter(p => p < mPitch).reverse();
+        if (pitchesBelow.length > this.rank) {
+          tVoicePitch = pitchesBelow[this.rank];
+        } else if (pitchesBelow.length > 0) {
+          tVoicePitch = pitchesBelow[pitchesBelow.length - 1];
+        } else {
+          // No pitches below, use lowest in chord
+          tVoicePitch = this.extendedChord[0];
         }
-        const chosenIndex = sortedDifferences[effectiveRank].index;
-        tVoicePitch = this.tChord[chosenIndex];
+      } else { // 'any' - find closest pitches regardless of direction
+        const sortedByDistance = [...this.extendedChord]
+          .map(p => ({ pitch: p, distance: Math.abs(p - mPitch) }))
+          .filter(({ distance }) => distance > 0) // Exclude same pitch
+          .sort((a, b) => a.distance - b.distance);
+        
+        if (sortedByDistance.length > this.rank) {
+          tVoicePitch = sortedByDistance[this.rank].pitch;
+        } else if (sortedByDistance.length > 0) {
+          tVoicePitch = sortedByDistance[sortedByDistance.length - 1].pitch;
+        } else {
+          tVoicePitch = mPitch; // Fallback to same pitch
+        }
       }
       
       // Change direction if alternate

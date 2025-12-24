@@ -1,256 +1,443 @@
 /**
  * Score Renderer
- * Uses abcjs for rendering musical notation.
+ * Uses Verovio for rendering musical notation.
  */
 
 /**
- * Convert JMON composition to ABC notation
+ * Convert JMON composition to MusicXML
  *
  * @param {Object} composition - The JMON composition
- * @returns {string} ABC notation string
+ * @returns {string} MusicXML string
  */
-function jmonToABC(composition) {
-  const lines = [];
-
-  // Header: Reference number
-  lines.push('X:1');
-
-  // Title - use composition.title directly
+function jmonToMusicXML(composition) {
   const title = composition.title || composition.metadata?.title || 'Untitled';
-  lines.push(`T:${title}`);
-
-  // Tempo (Q: = BPM)
   const tempo = composition.tempo || 120;
-  lines.push(`Q:1/4=${tempo}`);
-
-  // Meter (time signature)
   const timeSignature = composition.timeSignature || '4/4';
-  lines.push(`M:${timeSignature}`);
-
-  // Default note length
-  lines.push('L:1/4');
-
-  // Key signature
   const keySignature = composition.keySignature || 'C';
-  lines.push(`K:${keySignature}`);
-
-  // Get tracks
   const tracks = composition.tracks || [];
 
-  if (tracks.length === 0 || !tracks.some(t => t?.notes?.length)) {
-    // Empty composition
-    lines.push('z4');
-    return lines.join('\n');
-  }
-
-  // Map JMON clef names to ABC clef names
-  const clefMap = {
-    'treble': 'treble',
-    'bass': 'bass',
-    'alto': 'alto',
-    'tenor': 'tenor',
-    'percussion': 'perc'
-  };
-
-  // Parse time signature to get beats per measure
+  // Parse time signature
   const [beatsPerMeasure, beatValue] = timeSignature.split('/').map(Number);
   const measureDuration = beatsPerMeasure * (4 / beatValue); // in quarter notes
 
-  // Helper function to convert track notes to ABC
-  const convertTrackToABC = (track) => {
-    if (!track?.notes?.length) return [];
+  // Parse key signature
+  const { fifths, mode } = parseKeySignature(keySignature);
 
-    const abcNotes = [];
-    let currentMeasureDuration = 0;
+  // Filter valid tracks
+  const validTracks = tracks.filter(t => t?.notes?.length);
+  if (validTracks.length === 0) {
+    return createEmptyMusicXML(title, tempo, beatsPerMeasure, beatValue, fifths, mode);
+  }
 
-    track.notes.forEach((note, index) => {
-      // Convert duration to ABC duration
-      const duration = note.duration || 1;
-      const abcDuration = durationToABC(duration);
+  // Add time to notes if missing (JMON notes are sequential)
+  const tracksWithTime = validTracks.map(track => {
+    let currentTime = 0;
+    const notesWithTime = track.notes.map(note => {
+      const noteWithTime = { ...note, time: note.time !== undefined ? note.time : currentTime };
+      currentTime += (note.duration || 1);
+      return noteWithTime;
+    });
+    return { ...track, notes: notesWithTime };
+  });
 
-      // Handle chords (array of pitches) vs single notes
-      let abcNote;
-      if (Array.isArray(note.pitch)) {
-        // Chord: convert each pitch and wrap in brackets
-        const chordNotes = note.pitch
-          .filter(p => typeof p === 'number') // Filter out nulls/invalid pitches
-          .map(p => midiToABC(p));
+  // Calculate total duration
+  const totalDuration = tracksWithTime.reduce((maxDur, track) => {
+    const trackEnd = track.notes.reduce((max, note) => {
+      return Math.max(max, (note.time || 0) + (note.duration || 1));
+    }, 0);
+    return Math.max(maxDur, trackEnd);
+  }, 0);
 
-        if (chordNotes.length > 1) {
-          // Multiple notes = chord notation [CEG]
-          abcNote = `[${chordNotes.join('')}]`;
-        } else if (chordNotes.length === 1) {
-          // Single note in array
-          abcNote = chordNotes[0];
+  // Split tracks into measures
+  const trackMeasures = tracksWithTime.map(track => {
+    return splitIntoMeasures(track.notes, measureDuration, totalDuration);
+  });
+
+  // Generate MusicXML
+  let xml = '<?xml version="1.0" encoding="UTF-8"?>\n';
+  xml += '<!DOCTYPE score-partwise PUBLIC "-//Recordare//DTD MusicXML 3.1 Partwise//EN" "http://www.musicxml.org/dtds/partwise.dtd">\n';
+  xml += '<score-partwise version="3.1">\n';
+
+  // Work title
+  xml += '  <work>\n';
+  xml += `    <work-title>${escapeXML(title)}</work-title>\n`;
+  xml += '  </work>\n';
+
+  // Part list
+  xml += '  <part-list>\n';
+  validTracks.forEach((track, index) => {
+    const partId = `P${index + 1}`;
+    const partName = track.label || `Track ${index + 1}`;
+    xml += `    <score-part id="${partId}">\n`;
+    xml += `      <part-name>${escapeXML(partName)}</part-name>\n`;
+    xml += '    </score-part>\n';
+  });
+  xml += '  </part-list>\n';
+
+  // Parts
+  validTracks.forEach((track, trackIndex) => {
+    const partId = `P${trackIndex + 1}`;
+    const clef = track.clef || 'treble';
+    const measures = trackMeasures[trackIndex];
+
+    xml += `  <part id="${partId}">\n`;
+
+    measures.forEach((measure, measureIndex) => {
+      const measureNumber = measureIndex + 1;
+      xml += `    <measure number="${measureNumber}">\n`;
+
+      // First measure: add attributes
+      if (measureIndex === 0) {
+        xml += '      <attributes>\n';
+        xml += '        <divisions>4</divisions>\n'; // 4 divisions per quarter note
+        xml += `        <key>\n`;
+        xml += `          <fifths>${fifths}</fifths>\n`;
+        xml += `          <mode>${mode}</mode>\n`;
+        xml += `        </key>\n`;
+        xml += `        <time>\n`;
+        xml += `          <beats>${beatsPerMeasure}</beats>\n`;
+        xml += `          <beat-type>${beatValue}</beat-type>\n`;
+        xml += `        </time>\n`;
+        xml += `        <clef>\n`;
+        xml += `          <sign>${getClefSign(clef)}</sign>\n`;
+        xml += `          <line>${getClefLine(clef)}</line>\n`;
+        xml += `        </clef>\n`;
+        xml += '      </attributes>\n';
+
+        // Tempo in first measure
+        xml += '      <direction placement="above">\n';
+        xml += '        <direction-type>\n';
+        xml += '          <metronome>\n';
+        xml += '            <beat-unit>quarter</beat-unit>\n';
+        xml += `            <per-minute>${tempo}</per-minute>\n`;
+        xml += '          </metronome>\n';
+        xml += '        </direction-type>\n';
+        xml += '        <sound tempo="${tempo}"/>\n';
+        xml += '      </direction>\n';
+      }
+
+      // Notes in measure
+      measure.forEach(note => {
+        if (note.isRest) {
+          xml += '      <note>\n';
+          xml += '        <rest/>\n';
+          xml += `        <duration>${Math.round(note.duration * 4)}</duration>\n`;
+          xml += `        <type>${getDurationType(note.duration)}</type>\n`;
+          xml += '      </note>\n';
+        } else if (Array.isArray(note.pitch)) {
+          // Chord
+          note.pitch.forEach((p, i) => {
+            xml += '      <note>\n';
+            if (i > 0) {
+              xml += '        <chord/>\n';
+            }
+            const { step, alter, octave } = midiToPitch(p);
+            xml += '        <pitch>\n';
+            xml += `          <step>${step}</step>\n`;
+            if (alter !== 0) {
+              xml += `          <alter>${alter}</alter>\n`;
+            }
+            xml += `          <octave>${octave}</octave>\n`;
+            xml += '        </pitch>\n';
+            xml += `        <duration>${Math.round(note.duration * 4)}</duration>\n`;
+            xml += `        <type>${getDurationType(note.duration)}</type>\n`;
+            xml += '      </note>\n';
+          });
         } else {
-          // Empty array or all nulls = rest
-          abcNote = 'z';
+          // Single note
+          xml += '      <note>\n';
+          const { step, alter, octave } = midiToPitch(note.pitch);
+          xml += '        <pitch>\n';
+          xml += `          <step>${step}</step>\n`;
+          if (alter !== 0) {
+            xml += `          <alter>${alter}</alter>\n`;
+          }
+          xml += `          <octave>${octave}</octave>\n`;
+          xml += '        </pitch>\n';
+          xml += `        <duration>${Math.round(note.duration * 4)}</duration>\n`;
+          xml += `        <type>${getDurationType(note.duration)}</type>\n`;
+          xml += '      </note>\n';
         }
-      } else if (note.pitch === null || note.pitch === undefined) {
-        // Rest
-        abcNote = 'z';
-      } else {
-        // Single note
-        abcNote = midiToABC(note.pitch);
-      }
+      });
 
-      // Add the note/chord with duration
-      abcNotes.push(`${abcNote}${abcDuration}`);
-
-      // Track measure duration
-      currentMeasureDuration += duration;
-
-      // Add measure bar if we've completed a measure
-      if (currentMeasureDuration >= measureDuration) {
-        // Add bar line unless it's the last note
-        if (index < track.notes.length - 1) {
-          abcNotes.push('|');
-        }
-        currentMeasureDuration = 0;
-      }
+      xml += '    </measure>\n';
     });
 
-    return abcNotes;
+    xml += '  </part>\n';
+  });
+
+  xml += '</score-partwise>\n';
+
+  return xml;
+}
+
+/**
+ * Split notes into measures
+ */
+function splitIntoMeasures(notes, measureDuration, totalDuration) {
+  const measures = [];
+  let currentMeasure = [];
+  let measureStartTime = 0;
+  let currentTime = 0;
+
+  // Sort notes by time
+  const sortedNotes = [...notes].sort((a, b) => (a.time || 0) - (b.time || 0));
+
+  for (const note of sortedNotes) {
+    const noteTime = note.time || 0;
+    const noteDuration = note.duration || 1;
+
+    // Fill gap with rest if needed
+    if (noteTime > currentTime + 0.001) {
+      const restDuration = noteTime - currentTime;
+
+      // Check if rest crosses measure boundary
+      if (currentTime + restDuration > measureStartTime + measureDuration) {
+        // Split rest at measure boundary
+        const restInThisMeasure = measureStartTime + measureDuration - currentTime;
+        if (restInThisMeasure > 0.001) {
+          currentMeasure.push({ isRest: true, duration: restInThisMeasure });
+        }
+        measures.push(currentMeasure);
+        currentMeasure = [];
+        measureStartTime += measureDuration;
+        currentTime += restInThisMeasure;
+
+        // Continue with remaining rest
+        while (currentTime + 0.001 < noteTime) {
+          const remaining = noteTime - currentTime;
+          const restDur = Math.min(remaining, measureDuration);
+          currentMeasure.push({ isRest: true, duration: restDur });
+          currentTime += restDur;
+
+          if (restDur >= measureDuration - 0.001) {
+            measures.push(currentMeasure);
+            currentMeasure = [];
+            measureStartTime += measureDuration;
+          }
+        }
+      } else {
+        currentMeasure.push({ isRest: true, duration: restDuration });
+        currentTime += restDuration;
+      }
+    }
+
+    // Add note (check if it crosses measure boundary)
+    if (currentTime + noteDuration > measureStartTime + measureDuration + 0.001) {
+      // Note crosses measure boundary - split it
+      const durationInThisMeasure = measureStartTime + measureDuration - currentTime;
+      if (durationInThisMeasure > 0.001) {
+        currentMeasure.push({ ...note, duration: durationInThisMeasure });
+      }
+      measures.push(currentMeasure);
+      currentMeasure = [];
+      measureStartTime += measureDuration;
+      currentTime += durationInThisMeasure;
+
+      // Add tied note in next measure
+      const remainingDuration = noteDuration - durationInThisMeasure;
+      if (remainingDuration > 0.001) {
+        currentMeasure.push({ ...note, duration: remainingDuration });
+        currentTime += remainingDuration;
+      }
+    } else {
+      currentMeasure.push(note);
+      currentTime += noteDuration;
+    }
+
+    // Check if measure is complete
+    if (currentTime >= measureStartTime + measureDuration - 0.001) {
+      measures.push(currentMeasure);
+      currentMeasure = [];
+      measureStartTime += measureDuration;
+    }
+  }
+
+  // Fill remaining time with rests
+  while (currentTime < totalDuration - 0.001) {
+    const remaining = totalDuration - currentTime;
+    const restDur = Math.min(remaining, measureStartTime + measureDuration - currentTime);
+
+    if (restDur > 0.001) {
+      currentMeasure.push({ isRest: true, duration: restDur });
+      currentTime += restDur;
+    }
+
+    if (currentTime >= measureStartTime + measureDuration - 0.001) {
+      measures.push(currentMeasure);
+      currentMeasure = [];
+      measureStartTime += measureDuration;
+    }
+  }
+
+  if (currentMeasure.length > 0) {
+    measures.push(currentMeasure);
+  }
+
+  return measures;
+}
+
+/**
+ * Convert MIDI pitch to MusicXML pitch
+ */
+function midiToPitch(midi) {
+  if (typeof midi !== 'number') return { step: 'C', alter: 0, octave: 4 };
+
+  const pitchClass = midi % 12;
+  const octave = Math.floor(midi / 12) - 1;
+
+  const pitchMap = {
+    0: { step: 'C', alter: 0 },
+    1: { step: 'C', alter: 1 },
+    2: { step: 'D', alter: 0 },
+    3: { step: 'E', alter: -1 },
+    4: { step: 'E', alter: 0 },
+    5: { step: 'F', alter: 0 },
+    6: { step: 'F', alter: 1 },
+    7: { step: 'G', alter: 0 },
+    8: { step: 'G', alter: 1 },
+    9: { step: 'A', alter: 0 },
+    10: { step: 'B', alter: -1 },
+    11: { step: 'B', alter: 0 }
   };
 
-  // Render tracks - use voices if multiple tracks
-  if (tracks.length === 1) {
-    // Single track - simple rendering
-    const abcNotes = convertTrackToABC(tracks[0]);
-    lines.push(abcNotes.join(' '));
-  } else {
-    // Multiple tracks - use ABC voice notation
-    tracks.forEach((track, index) => {
-      if (!track?.notes?.length) return;
-
-      const voiceId = `V${index + 1}`;
-      const label = track.label || `Track ${index + 1}`;
-      const clef = track.clef || 'treble';
-      const abcClef = clefMap[clef] || 'treble';
-
-      // Voice header
-      lines.push(`V:${voiceId} clef=${abcClef} name="${label}"`);
-
-      // Voice notes
-      const abcNotes = convertTrackToABC(track);
-      lines.push(abcNotes.join(' '));
-    });
-  }
-
-  return lines.join('\n');
+  return { ...pitchMap[pitchClass], octave };
 }
 
 /**
- * Convert MIDI pitch number to ABC note name
- *
- * @param {number} midi - MIDI pitch number (60 = middle C)
- * @returns {string} ABC note name
+ * Get MusicXML duration type from quarter note duration
  */
-function midiToABC(midi) {
-  if (typeof midi !== 'number') return 'C';
-
-  const noteNames = ['C', '^C', 'D', '^D', 'E', 'F', '^F', 'G', '^G', 'A', '^A', 'B'];
-  const octave = Math.floor(midi / 12) - 1;
-  const noteName = noteNames[midi % 12];
-
-  // ABC notation:
-  // C, D, E, F, G, A, B = octave 4 (middle octave)
-  // c, d, e, f, g, a, b = octave 5
-  // c', d', e' = octave 6
-  // C, D, E = octave 3
-  // C, D, E = octave 2
-
-  if (octave === 4) {
-    return noteName; // C D E F G A B
-  } else if (octave === 5) {
-    return noteName.toLowerCase(); // c d e f g a b
-  } else if (octave > 5) {
-    const ticks = "'".repeat(octave - 5);
-    return noteName.toLowerCase() + ticks; // c' d'' etc
-  } else if (octave === 3) {
-    return noteName; // Same as octave 4 in basic ABC
-  } else {
-    // Lower octaves use comma notation
-    const commas = ','.repeat(4 - octave);
-    return noteName + commas; // C, D,, etc
-  }
+function getDurationType(duration) {
+  if (duration >= 4) return 'whole';
+  if (duration >= 2) return 'half';
+  if (duration >= 1) return 'quarter';
+  if (duration >= 0.5) return 'eighth';
+  if (duration >= 0.25) return '16th';
+  return '32nd';
 }
 
 /**
- * Convert JMON duration to ABC duration
- *
- * @param {number} duration - Duration in quarter notes
- * @returns {string} ABC duration suffix
+ * Parse key signature to get fifths and mode
  */
-function durationToABC(duration) {
-  // ABC durations relative to L:1/4 (quarter note)
-  // 4 = whole note = 4
-  // 2 = half note = 2
-  // 1 = quarter note = (no suffix)
-  // 0.5 = eighth note = /2
-  // 0.25 = sixteenth = /4
+function parseKeySignature(keySignature) {
+  const key = keySignature.replace(/[-_]?(major|minor|m)$/i, '').trim().toUpperCase();
+  const isMinor = /[-_]?(minor|m)$/i.test(keySignature);
 
-  if (duration >= 4) return '4';
-  if (duration >= 3) return '3';
-  if (duration >= 2) return '2';
-  if (duration >= 1.5) return '3/2';
-  if (duration >= 1) return ''; // Default quarter note
-  if (duration >= 0.75) return '3/4';
-  if (duration >= 0.5) return '/2';
-  if (duration >= 0.25) return '/4';
-  return '/8';
+  const fifthsMap = {
+    'C': 0, 'G': 1, 'D': 2, 'A': 3, 'E': 4, 'B': 5, 'F#': 6, 'C#': 7,
+    'F': -1, 'BB': -2, 'EB': -3, 'AB': -4, 'DB': -5, 'GB': -6, 'CB': -7
+  };
+
+  return {
+    fifths: fifthsMap[key] || 0,
+    mode: isMinor ? 'minor' : 'major'
+  };
 }
 
 /**
- * Render sheet music notation using abcjs
+ * Get clef sign from clef name
+ */
+function getClefSign(clef) {
+  const clefMap = {
+    'treble': 'G',
+    'bass': 'F',
+    'alto': 'C',
+    'tenor': 'C',
+    'percussion': 'percussion'
+  };
+  return clefMap[clef] || 'G';
+}
+
+/**
+ * Get clef line from clef name
+ */
+function getClefLine(clef) {
+  const lineMap = {
+    'treble': 2,
+    'bass': 4,
+    'alto': 3,
+    'tenor': 4,
+    'percussion': 3
+  };
+  return lineMap[clef] || 2;
+}
+
+/**
+ * Escape XML special characters
+ */
+function escapeXML(str) {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
+/**
+ * Create empty MusicXML document
+ */
+function createEmptyMusicXML(title, tempo, beatsPerMeasure, beatValue, fifths, mode) {
+  let xml = '<?xml version="1.0" encoding="UTF-8"?>\n';
+  xml += '<!DOCTYPE score-partwise PUBLIC "-//Recordare//DTD MusicXML 3.1 Partwise//EN" "http://www.musicxml.org/dtds/partwise.dtd">\n';
+  xml += '<score-partwise version="3.1">\n';
+  xml += '  <work>\n';
+  xml += `    <work-title>${escapeXML(title)}</work-title>\n`;
+  xml += '  </work>\n';
+  xml += '  <part-list>\n';
+  xml += '    <score-part id="P1">\n';
+  xml += '      <part-name>Music</part-name>\n';
+  xml += '    </score-part>\n';
+  xml += '  </part-list>\n';
+  xml += '  <part id="P1">\n';
+  xml += '    <measure number="1">\n';
+  xml += '      <attributes>\n';
+  xml += '        <divisions>4</divisions>\n';
+  xml += '        <key>\n';
+  xml += `          <fifths>${fifths}</fifths>\n`;
+  xml += `          <mode>${mode}</mode>\n`;
+  xml += '        </key>\n';
+  xml += '        <time>\n';
+  xml += `          <beats>${beatsPerMeasure}</beats>\n`;
+  xml += `          <beat-type>${beatValue}</beat-type>\n`;
+  xml += '        </time>\n';
+  xml += '        <clef>\n';
+  xml += '          <sign>G</sign>\n';
+  xml += '          <line>2</line>\n';
+  xml += '        </clef>\n';
+  xml += '      </attributes>\n';
+  xml += '      <note>\n';
+  xml += '        <rest/>\n';
+  xml += '        <duration>16</duration>\n';
+  xml += '        <type>whole</type>\n';
+  xml += '      </note>\n';
+  xml += '    </measure>\n';
+  xml += '  </part>\n';
+  xml += '</score-partwise>\n';
+  return xml;
+}
+
+/**
+ * Render sheet music notation using Verovio
  *
  * @param {Object} composition - The JMON composition to render
  * @param {Object} options - Rendering options
- * @param {Object} [options.ABCJS] - abcjs library instance (optional, will use window.ABCJS if available)
- * @param {number} [options.width] - Staff width in pixels (if omitted, uses responsive mode)
- * @param {number} [options.scale] - Scale factor for rendering (if omitted with width, uses responsive mode)
- * @param {number} [options.height] - Not used (abcjs calculates height automatically)
+ * @param {Object} [options.verovio] - Verovio module (from import verovio from "npm:verovio@4.3.1/wasm")
+ * @param {number} [options.width] - Staff width in pixels (default: auto)
+ * @param {number} [options.scale] - Scale factor for rendering (default: 100)
  * @returns {HTMLElement} DOM element containing the rendered score
- *
- * @example
- * // Responsive mode (default) - fills container width
- * const svg = jm.score(composition, { ABCJS });
- *
- * @example
- * // Fixed width mode
- * const svg = jm.score(composition, { ABCJS, width: 938 });
- *
- * @example
- * // With custom dimensions and scale
- * const svg = jm.score(composition, { ABCJS, width: 938, scale: 0.6 });
  */
-export function score(composition, options = {}) {
+export async function score(composition, options = {}) {
   const {
-    ABCJS: abcjsLib,
+    verovio: createVerovioModule,
     width,
-    height = 300,
-    scale,
+    scale = 40,
   } = options;
-
-  // Determine if we should use responsive mode
-  // Use responsive if neither width nor scale are specified
-  const useResponsive = (width === undefined && scale === undefined);
-  const finalWidth = width ?? 938;
-  const finalScale = scale ?? 1.0;
 
   // Create container
   const container = document.createElement('div');
-
-  if (useResponsive) {
-    // Responsive mode - full width
-    container.style.width = '100%';
-    container.style.overflow = 'visible';
-  } else {
-    // Fixed width mode
-    const actualWidth = finalWidth * finalScale;
-    container.style.width = `${actualWidth}px`;
-    container.style.overflow = 'visible';
-  }
+  container.style.width = '100%';
+  container.style.overflow = 'visible';
 
   // Create rendering target
   const notationDiv = document.createElement('div');
@@ -258,35 +445,43 @@ export function score(composition, options = {}) {
   container.appendChild(notationDiv);
 
   try {
-    // Get ABCJS library
-    const ABCJS = abcjsLib || (typeof window !== 'undefined' && window.ABCJS);
-
-    if (!ABCJS) {
-      notationDiv.innerHTML = '<p style="color:#ff6b6b">abcjs library not loaded</p>';
+    if (!createVerovioModule) {
+      notationDiv.innerHTML = '<p style="color:#ff6b6b">Verovio library not loaded. Import with: import verovio from "npm:verovio@4.3.1/wasm"</p>';
       return container;
     }
 
-    // Convert JMON to ABC notation
-    const abcNotation = jmonToABC(composition);
+    notationDiv.innerHTML = '<p style="color:#888">Initializing Verovio...</p>';
 
-    // Render with abcjs
+    // Initialize Verovio WASM module
+    const VerovioModule = await createVerovioModule();
+
+    // Import VerovioToolkit class
+    const { VerovioToolkit } = await import('verovio/esm');
+
+    // Create toolkit instance
+    const vrvToolkit = new VerovioToolkit(VerovioModule);
+
+    // Convert JMON to MusicXML
+    const musicXML = jmonToMusicXML(composition);
+
+    // Set options
     const renderOptions = {
-      paddingtop: 0,
-      paddingbottom: 0,
-      paddingright: 10,
-      paddingleft: 10,
+      scale: scale,
+      adjustPageHeight: true,
+      breaks: 'auto',
+      pageWidth: width || 2100,
+      pageHeight: 2970,
+      spacingStaff: 12,
+      spacingSystem: 12
     };
 
-    if (useResponsive) {
-      // Responsive mode
-      renderOptions.responsive = 'resize';
-    } else {
-      // Fixed width mode
-      renderOptions.staffwidth = finalWidth;
-      renderOptions.scale = finalScale;
-    }
+    vrvToolkit.setOptions(renderOptions);
 
-    ABCJS.renderAbc(notationDiv, abcNotation, renderOptions);
+    // Load and render MusicXML
+    vrvToolkit.loadData(musicXML);
+    const svg = vrvToolkit.renderToSVG(1);
+
+    notationDiv.innerHTML = svg;
 
   } catch (error) {
     console.error('[SCORE] Render error:', error);
