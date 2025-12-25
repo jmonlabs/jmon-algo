@@ -1,0 +1,564 @@
+<!doctype html>
+<notebook>
+  <title>4. Minimalism</title>
+
+  <script type="text/markdown">
+# 4. Minimalism
+
+This chapter covers minimalist composition techniques in jmon/algo:
+- Isorhythm
+- Additive processes (forward, backward, inward, outward)
+- Subtractive processes
+- Tintinnabuli technique (Arvo Pärt)
+- Combining techniques for rich minimalist compositions
+  </script>
+
+  <script type="module" pinned>
+import jm from "../src/index.js";
+import * as Tone from "npm:tone";
+import * as ABCJS from "npm:abcjs";
+  </script>
+
+  <script type="text/markdown">
+## 1. Isorhythm
+
+Isorhythm maps durations to pitches. The process repeats until the lengths of pitch and duration sequences coincide (their least common multiple).
+  </script>
+
+  <script type="module" pinned>
+// Simple isorhythm: C major scale
+const cMajorScale = new jm.theory.harmony.Scale({tonic: "C", mode: "major"});
+const pitches = cMajorScale.generate({ start: 60, length: 8 });
+const durations = Array(8).fill(1);  // All quarter notes
+
+const solfege = jm.theory.rhythm.isorhythm(pitches, durations);
+
+display("Solfege (simple):");
+display(`  Pitches: ${pitches.length}`);
+display(`  Durations: ${durations.length}`);
+display(`  Result: ${solfege.length} notes`);
+
+const solfegePiece = {
+  title: "Solfege",
+  tempo: 120,
+  tracks: [{ notes: solfege }]
+};
+
+display(jm.score(solfegePiece, { ABCJS }));
+display(await jm.play(solfegePiece, { Tone }));
+  </script>
+
+  <script type="text/markdown">
+### Complex patterns
+
+When pitch and duration lengths don't match, interesting evolving patterns emerge:
+  </script>
+
+  <script type="module" pinned>
+const complexDurations = [2, 1, 1, 2, 1, 1, 2, 1];  // 8 items
+const complexPitches = [60, 62, 64, 65, 67];         // 5 items
+const complexIso = jm.theory.rhythm.isorhythm(complexPitches, complexDurations);
+
+display("Complex isorhythm:");
+display(`  Pitches: ${complexPitches.length}`);
+display(`  Durations: ${complexDurations.length}`);
+display(`  Result: ${complexIso.length} notes (LCM: 40)`);
+display("  Pattern creates interesting evolution");
+
+const complexIsoPiece = {
+  title: "Complex Isorhythm",
+  tempo: 120,
+  tracks: [{ notes: complexIso }]
+};
+
+display(await jm.play(complexIsoPiece, { Tone }));
+  </script>
+
+  <script type="text/markdown">
+## 2. Additive Processes
+
+Additive processes gradually build up a musical pattern by adding notes. Different directions create different effects.
+
+### Base sequence
+
+We'll use this simple sequence to demonstrate all processes:
+  </script>
+
+  <script type="module" pinned>
+const baseSequence = [
+  { pitch: 60, duration: 0.5, time: 0, velocity: 0.8 },   // C
+  { pitch: 62, duration: 0.5, time: 0.5, velocity: 0.8 }, // D
+  { pitch: 64, duration: 0.5, time: 1, velocity: 0.8 },   // E
+  { pitch: 65, duration: 0.5, time: 1.5, velocity: 0.8 }  // F
+];
+display(baseSequence);
+  </script>
+
+  <script type="text/markdown">
+### 2.1 Additive Forward
+
+Gradually adds notes from the beginning:
+```
+C
+C, D
+C, D, E
+C, D, E, F
+```
+  </script>
+
+  <script type="module" pinned>
+const additiveForward = new jm.generative.minimalism.Process({
+  operation: 'additive',
+  direction: 'forward',
+  repetition: 1
+});
+const afResult = additiveForward.generate(baseSequence);
+
+display(`Original: ${baseSequence.length} notes`);
+display(`Result: ${afResult.length} notes`);
+display("Pattern: Builds from start");
+display(`Sample pitches: ${afResult.slice(0, 6).map(n => n.pitch)}`);
+
+const afPiece = {
+  title: "Additive Forward",
+  tempo: 120,
+  tracks: [{ notes: afResult }]
+};
+
+display(jm.score(afPiece, { ABCJS }));
+display(await jm.play(afPiece, { Tone }));
+  </script>
+
+  <script type="text/markdown">
+### 2.2 Additive Backward
+
+Gradually adds notes from the end:
+```
+F
+E, F
+D, E, F
+C, D, E, F
+```
+  </script>
+
+  <script type="module" pinned>
+const additiveBackward = new jm.generative.minimalism.Process({
+  operation: 'additive',
+  direction: 'backward',
+  repetition: 1
+});
+const abResult = additiveBackward.generate(baseSequence);
+
+display(`Original: ${baseSequence.length} notes`);
+display(`Result: ${abResult.length} notes`);
+display("Pattern: Builds from end");
+display(`Sample pitches: ${abResult.slice(0, 6).map(n => n.pitch)}`);
+
+const abPiece = {
+  title: "Additive Backward",
+  tempo: 120,
+  tracks: [{ notes: abResult }]
+};
+
+display(await jm.play(abPiece, { Tone }));
+  </script>
+
+  <script type="text/markdown">
+### 2.3 Additive Inward
+
+Gradually adds notes from outside to inside:
+```
+C, F
+C, E, F
+C, D, E, F
+```
+  </script>
+
+  <script type="module" pinned>
+const additiveInward = new jm.generative.minimalism.Process({
+  operation: 'additive',
+  direction: 'inward',
+  repetition: 0
+});
+const aiResult = additiveInward.generate(baseSequence);
+
+display(`Original: ${baseSequence.length} notes`);
+display(`Result: ${aiResult.length} notes`);
+display("Pattern: Builds from edges to center");
+display(`Sample pitches: ${aiResult.slice(0, 6).map(n => n.pitch)}`);
+
+const aiPiece = {
+  title: "Additive Inward",
+  tempo: 120,
+  tracks: [{ notes: aiResult }]
+};
+
+display(await jm.play(aiPiece, { Tone }));
+  </script>
+
+  <script type="text/markdown">
+### 2.4 Additive Outward
+
+Gradually adds notes from inside to outside:
+```
+D, E
+C, D, E, F
+```
+  </script>
+
+  <script type="module" pinned>
+const additiveOutward = new jm.generative.minimalism.Process({
+  operation: 'additive',
+  direction: 'outward',
+  repetition: 0
+});
+const aoResult = additiveOutward.generate(baseSequence);
+
+display(`Original: ${baseSequence.length} notes`);
+display(`Result: ${aoResult.length} notes`);
+display("Pattern: Builds from center to edges");
+display(`Sample pitches: ${aoResult.slice(0, 4).map(n => n.pitch)}`);
+
+const aoPiece = {
+  title: "Additive Outward",
+  tempo: 120,
+  tracks: [{ notes: aoResult }]
+};
+
+display(await jm.play(aoPiece, { Tone }));
+  </script>
+
+  <script type="text/markdown">
+## 3. Subtractive Processes
+
+Subtractive processes are the inverse - they gradually remove notes. Let's use a longer sequence:
+  </script>
+
+  <script type="module" pinned>
+const longSequence = [
+  { pitch: 60, duration: 0.5, time: 0, velocity: 0.8 },
+  { pitch: 62, duration: 0.5, time: 0.5, velocity: 0.8 },
+  { pitch: 64, duration: 0.5, time: 1, velocity: 0.8 },
+  { pitch: 65, duration: 0.5, time: 1.5, velocity: 0.8 },
+  { pitch: 67, duration: 0.5, time: 2, velocity: 0.8 },
+  { pitch: 69, duration: 0.5, time: 2.5, velocity: 0.8 }
+];
+display(longSequence);
+  </script>
+
+  <script type="text/markdown">
+### 3.1 Subtractive Forward
+
+Gradually removes notes from the beginning:
+```
+C, D, E, F, G, A
+D, E, F, G, A
+E, F, G, A
+...
+```
+  </script>
+
+  <script type="module" pinned>
+const subtractiveForward = new jm.generative.minimalism.Process({
+  operation: 'subtractive',
+  direction: 'forward',
+  repetition: 0
+});
+const sfResult = subtractiveForward.generate(longSequence);
+
+display(`Original: ${longSequence.length} notes`);
+display(`Result: ${sfResult.length} notes`);
+display("Pattern: Removes from start");
+display(`Last pitches: ${sfResult.slice(-3).map(n => n.pitch)}`);
+
+const sfPiece = {
+  title: "Subtractive Forward",
+  tempo: 120,
+  tracks: [{ notes: sfResult }]
+};
+
+display(await jm.play(sfPiece, { Tone }));
+  </script>
+
+  <script type="text/markdown">
+### 3.2 Subtractive Backward
+
+Gradually removes notes from the end:
+```
+C, D, E, F, G, A
+C, D, E, F, G
+C, D, E, F
+...
+```
+  </script>
+
+  <script type="module" pinned>
+const subtractiveBackward = new jm.generative.minimalism.Process({
+  operation: 'subtractive',
+  direction: 'backward',
+  repetition: 0
+});
+const sbResult = subtractiveBackward.generate(longSequence);
+
+display(`Original: ${longSequence.length} notes`);
+display(`Result: ${sbResult.length} notes`);
+display("Pattern: Removes from end");
+display(`First pitches: ${sbResult.slice(0, 6).map(n => n.pitch)}`);
+
+const sbPiece = {
+  title: "Subtractive Backward",
+  tempo: 120,
+  tracks: [{ notes: sbResult }]
+};
+
+display(await jm.play(sbPiece, { Tone }));
+  </script>
+
+  <script type="text/markdown">
+### 3.3 Subtractive Inward
+
+Gradually removes notes from outside edges:
+```
+C, D, E, F, G, A
+D, E, F, G
+E, F
+```
+  </script>
+
+  <script type="module" pinned>
+const subtractiveInward = new jm.generative.minimalism.Process({
+  operation: 'subtractive',
+  direction: 'inward',
+  repetition: 0
+});
+const siResult = subtractiveInward.generate(longSequence);
+
+display(`Original: ${longSequence.length} notes`);
+display(`Result: ${siResult.length} notes`);
+display("Pattern: Removes from edges");
+display(`Final pitches: ${siResult.slice(-2).map(n => n.pitch)}`);
+
+const siPiece = {
+  title: "Subtractive Inward",
+  tempo: 120,
+  tracks: [{ notes: siResult }]
+};
+
+display(await jm.play(siPiece, { Tone }));
+  </script>
+
+  <script type="text/markdown">
+## 4. Repetition Parameter
+
+The repetition parameter controls how many times each stage repeats before moving to the next. This slows down the process, making changes more gradual.
+  </script>
+
+  <script type="module" pinned>
+const withoutRepetition = new jm.generative.minimalism.Process({
+  operation: 'additive',
+  direction: 'forward',
+  repetition: 0  // No repetition
+});
+const withRepetition = new jm.generative.minimalism.Process({
+  operation: 'additive',
+  direction: 'forward',
+  repetition: 2  // Each stage repeats twice
+});
+
+const noRepResult = withoutRepetition.generate(baseSequence);
+const repResult = withRepetition.generate(baseSequence);
+
+display(`Without repetition: ${noRepResult.length} notes`);
+display(`With repetition=2: ${repResult.length} notes`);
+display("Repetition makes process more gradual");
+
+const repPiece = {
+  title: "With Repetition (2x)",
+  tempo: 120,
+  tracks: [{ notes: repResult }]
+};
+
+display(await jm.play(repPiece, { Tone }));
+  </script>
+
+  <script type="text/markdown">
+## 5. Tintinnabuli Technique
+
+Tintinnabuli is Arvo Pärt's minimalist technique. It pairs a melodic voice (M-voice) with a harmonic voice (T-voice) that always plays notes from a fixed chord (T-chord).
+
+The T-voice follows the M-voice, but for each note, it selects the nearest note from the T-chord in the specified direction (up, down, alternate, or any).
+  </script>
+
+  <script type="module" pinned>
+// T-chord: C major triad
+const tChord = [60, 64, 67];  // C, E, G
+
+// M-voice: melodic line
+const mVoice = [
+  { pitch: 62, duration: 1, time: 0, velocity: 0.8 },  // D
+  { pitch: 65, duration: 1, time: 1, velocity: 0.8 },  // F
+  { pitch: 69, duration: 1, time: 2, velocity: 0.8 },  // A
+  { pitch: 64, duration: 1, time: 3, velocity: 0.8 }   // E
+];
+
+// Generate T-voice using 'down' direction and rank 0
+const tintinnabuli = new jm.generative.minimalism.Tintinnabuli({
+  tChord: tChord,
+  direction: 'down',
+  rank: 0,
+  extendOctaves: true
+});
+const tVoice = tintinnabuli.generate(mVoice);
+
+display("Tintinnabuli:");
+display(`  T-chord: ${tChord}`);
+display(`  M-voice pitches: ${mVoice.map(n => n.pitch)}`);
+display(`  T-voice pitches: ${tVoice.map(n => n.pitch)}`);
+display(`  All T-voice pitches in chord: ${tVoice.every(n => tChord.includes(n.pitch % 12 + 60) || tChord.includes(n.pitch))}`);
+
+const tintPiece = {
+  title: "Tintinnabuli Example",
+  tempo: 100,
+  keySignature: "C-major",
+  tracks: [
+    { notes: mVoice, clef: "treble" },
+    { notes: tVoice, clef: "treble" }
+  ]
+};
+
+display(jm.score(tintPiece, { ABCJS }));
+display(await jm.play(tintPiece, { Tone }));
+  </script>
+
+  <script type="text/markdown">
+### Different positions
+
+Changing the rank parameter selects different notes from the T-chord:
+  </script>
+
+  <script type="module" pinned>
+// Position 1 (second closest note down)
+const tDown1 = new jm.generative.minimalism.Tintinnabuli({
+  tChord: tChord,
+  direction: 'down',
+  rank: 1,
+  extendOctaves: true
+});
+const tVoice1 = tDown1.generate(mVoice);
+display(`  T-voice (rank 1): ${tVoice1.map(n => n.pitch)}`);
+
+// Going up instead of down
+const tUp = new jm.generative.minimalism.Tintinnabuli({
+  tChord: tChord,
+  direction: 'up',
+  rank: 0,
+  extendOctaves: true
+});
+const tVoiceUp = tUp.generate(mVoice);
+display(`  T-voice (up): ${tVoiceUp.map(n => n.pitch)}`);
+
+const upPiece = {
+  title: "Tintinnabuli (Up)",
+  tempo: 100,
+  keySignature: "C-major",
+  tracks: [
+    { notes: mVoice, clef: "treble" },
+    { notes: tVoiceUp, clef: "treble" }
+  ]
+};
+
+display(await jm.play(upPiece, { Tone }));
+  </script>
+
+  <script type="text/markdown">
+## 6. Complete Minimalist Composition
+
+Let's combine these techniques to create a complete minimalist piece:
+  </script>
+
+  <script type="module" pinned>
+// Start with a simple motif
+const motif = [
+  { pitch: 60, duration: 0.5, time: 0, velocity: 0.8 },
+  { pitch: 64, duration: 0.5, time: 0.5, velocity: 0.8 },
+  { pitch: 67, duration: 0.5, time: 1, velocity: 0.8 },
+  { pitch: 72, duration: 0.5, time: 1.5, velocity: 0.8 }
+];
+
+// Apply additive forward with repetition
+const mainTrack = new jm.generative.minimalism.Process({
+  operation: 'additive',
+  direction: 'forward',
+  repetition: 1
+}).generate(motif);
+
+// Add tintinnabuli harmony
+const harmonyTrack = new jm.generative.minimalism.Tintinnabuli({
+  tChord: [60, 64, 67],
+  direction: 'down',
+  rank: 0,
+  extendOctaves: true
+}).generate(mainTrack).map(note => ({
+  ...note,
+  velocity: 0.5
+}));
+
+// Create composition
+const composition = {
+  title: 'Minimalist Composition',
+  tempo: 90,  // Slow, meditative
+  keySignature: 'C-major',
+  tracks: [
+    {
+      label: 'Melody (Additive)',
+      notes: mainTrack
+    },
+    {
+      label: 'Harmony (Tintinnabuli)',
+      notes: harmonyTrack
+    }
+  ]
+};
+
+display("Minimalist composition:");
+display(`  Tempo: ${composition.tempo} BPM (slow)`);
+display(`  Track 1 (Melody): ${mainTrack.length} notes`);
+display(`  Track 2 (Harmony): ${harmonyTrack.length} notes`);
+display("  Style: Additive process + Tintinnabuli");
+
+display(jm.score(composition, { ABCJS }));
+display(await jm.play(composition, { Tone }));
+  </script>
+
+  <script type="text/markdown">
+## 7. Practical Tips
+
+**Minimalist composition techniques:**
+
+- Start with simple motifs (2-4 notes)
+- Use repetition to create gradual change
+- Combine additive/subtractive for dynamic form
+- Layer tintinnabuli for harmonic richness
+- Keep tempo slow (60-90 BPM) for clarity
+- Use isorhythm to create interesting rhythmic cycles
+
+## Summary
+
+You've learned the core techniques of minimalist composition:
+
+✓ **Isorhythm** - Cyclic pitch/duration mapping
+✓ **Additive processes** - Gradually building patterns (forward, backward, inward, outward)
+✓ **Subtractive processes** - Gradually reducing patterns
+✓ **Repetition parameter** - Controlling the rate of change
+✓ **Tintinnabuli** - Arvo Pärt's harmonic technique
+✓ **Complete compositions** - Combining techniques
+
+Next chapters explore generative algorithms:
+- **Chapter 5: Walks** - Random walks and Gaussian processes
+- **Chapter 6: Fractals** - Cellular automata and fractal patterns
+- **Chapter 7: Genetic Algorithms** - Evolutionary music generation
+
+Happy composing! 🎵
+  </script>
+
+</notebook>
