@@ -716,44 +716,55 @@
             "description": "Default MIDI channel for this sequence (0-15)."
           },
           "synth": {
-            "type": "object",
-            "required": ["type"],
-            "properties": {
-              "type": {
+            "oneOf": [
+              {
                 "type": "string",
-                "enum": [
-                  "Synth",
-                  "PolySynth",
-                  "MonoSynth",
-                  "AMSynth",
-                  "FMSynth",
-                  "DuoSynth",
-                  "PluckSynth",
-                  "NoiseSynth",
-                  "Sampler"
-                ],
-                "description": "Type of synthesizer (Synth, Sampler, AMSynth, FMSynth, etc.)."
+                "description": "Synth type name (e.g., 'PolySynth', 'MonoSynth') or audioGraph node ID reference"
               },
-              "options": {
+              {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 127,
+                "description": "General MIDI instrument program number (0-127)"
+              },
+              {
                 "type": "object",
-                "description": "Synthesizer options."
-              },
-              "presetRef": {
-                "type": "string",
-                "description": "Reference to a custom preset."
-              },
-              "modulationTarget": {
-                "type": "string",
-                "enum": ["vibrato", "tremolo", "glissando", "filter"],
-                "description": "Target for modulation wheel (CC1) control. Determines how modulation wheel affects the synth."
+                "required": ["type"],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "Synth",
+                      "PolySynth",
+                      "MonoSynth",
+                      "AMSynth",
+                      "FMSynth",
+                      "DuoSynth",
+                      "PluckSynth",
+                      "NoiseSynth",
+                      "Sampler"
+                    ],
+                    "description": "Type of synthesizer"
+                  },
+                  "options": {
+                    "type": "object",
+                    "description": "Synthesizer options"
+                  },
+                  "presetRef": {
+                    "type": "string",
+                    "description": "Reference to a custom preset"
+                  },
+                  "modulationTarget": {
+                    "type": "string",
+                    "enum": ["vibrato", "tremolo", "glissando", "filter"],
+                    "description": "Target for modulation wheel (CC1) control"
+                  }
+                },
+                "additionalProperties": false,
+                "description": "Inline synth definition with type and options"
               }
-            },
-            "additionalProperties": false,
-            "description": "Synthesizer definition for this sequence."
-          },
-          "synthRef": {
-            "type": "string",
-            "description": "Reference to an audioGraph node to use as the synth."
+            ],
+            "description": "Synth specification: synth type name (string), GM instrument number (0-127), audioGraph node reference (string), or inline synth object with type/options"
           },
           "clef": {
             "type": "string",

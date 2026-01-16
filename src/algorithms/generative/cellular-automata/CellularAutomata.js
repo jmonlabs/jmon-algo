@@ -1,6 +1,6 @@
 /**
  * @typedef {Object} CellularAutomataOptions
- * @property {number} [width=51] - Width of the cellular automaton
+ * @property {number|number[]} [width=51] - Width of the cellular automaton, or [min, max] range for pitch indices
  * @property {number} [ruleNumber=30] - Rule number (0-255)
  * @property {number[]} [initialState] - Initial state array
  */
@@ -53,10 +53,47 @@
  */
 export class CellularAutomata {
   /**
+   * Static helper: Convert any CA grid to plot data in piano roll format
+   * @param {number[][]} grid - Grid to convert
+   * @param {number} [pitchOffset=0] - Offset to add to pitch indices
+   * @returns {Array<{time: number, pitch: number}>} Array of data points for plotting
+   *
+   * @example
+   * const grid = [[0, 1, 0], [1, 0, 1]];
+   * const plotData = CellularAutomata.gridToPlotData(grid);
+   * // Returns: [{time: 0, pitch: 1}, {time: 1, pitch: 0}, {time: 1, pitch: 2}]
+   *
+   * @example With pitch offset
+   * const grid = [[0, 1, 0], [1, 0, 1]];
+   * const plotData = CellularAutomata.gridToPlotData(grid, 60);
+   * // Returns: [{time: 0, pitch: 61}, {time: 1, pitch: 60}, {time: 1, pitch: 62}]
+   */
+  static gridToPlotData(grid, pitchOffset = 0) {
+    const data = [];
+    grid.forEach((row, time) => {
+      row.forEach((cell, cellIndex) => {
+        if (cell === 1) {
+          data.push({ time, pitch: pitchOffset + cellIndex });
+        }
+      });
+    });
+    return data;
+  }
+  /**
    * @param {CellularAutomataOptions} [options={}] - Configuration options
    */
   constructor(options = {}) {
-    this.width = options.width || 51;
+    // Parse width: can be a number or [min, max] range
+    if (Array.isArray(options.width)) {
+      this.pitchMin = options.width[0];
+      this.pitchMax = options.width[1];
+      this.width = this.pitchMax - this.pitchMin + 1;
+    } else {
+      this.pitchMin = 0;
+      this.pitchMax = (options.width || 51) - 1;
+      this.width = options.width || 51;
+    }
+
     this.ruleNumber = options.ruleNumber || 30;
     this.initialState = options.initialState || this.generateRandomInitialState();
     this.state = [...this.initialState];
@@ -232,6 +269,66 @@ export class CellularAutomata {
       width: this.width,
       height: this.history.length,
     };
+  }
+
+  /**
+   * Convert CA grid to plot data in piano roll format (time, pitch)
+   * @param {number[][]} [grid] - Optional grid to convert (defaults to current history)
+   * @returns {Array<{time: number, pitch: number}>} Array of data points for plotting
+   *
+   * @example
+   * const ca = new CellularAutomata({ ruleNumber: 110, width: 20 });
+   * ca.generate(30);
+   * const plotData = ca.toPlotData();
+   * // Use with Observable Plot:
+   * Plot.cell(plotData, { x: "time", y: "pitch", fill: "black" })
+   *
+   * @example With pitch range
+   * const ca = new CellularAutomata({ ruleNumber: 110, width: [60, 72] });
+   * ca.generate(30);
+   * const plotData = ca.toPlotData();
+   * // Returns pitch values in range 60-72 (MIDI notes C4-C5)
+   */
+  toPlotData(grid = null) {
+    const dataGrid = grid || this.getHistory();
+    const data = [];
+
+    dataGrid.forEach((row, time) => {
+      row.forEach((cell, cellIndex) => {
+        if (cell === 1) {
+          // Map cell index to actual pitch value
+          const pitch = this.pitchMin + cellIndex;
+          data.push({ time, pitch });
+        }
+      });
+    });
+
+    return data;
+  }
+
+  /**
+   * Convert strip to pitch sequence using a pitch set
+   * Each row in the strip becomes a chord (multiple pitches) or single note or null (rest)
+   * @param {number[][]} strip - CA strip grid
+   * @param {number[]} pitchSet - Array of MIDI pitch values to map to
+   * @returns {Array<number|number[]|null>} Pitch sequence where each element is a pitch, array of pitches, or null
+   *
+   * @example
+   * const strip = [[0, 1, 0], [1, 0, 1], [0, 0, 0]];
+   * const pitchSet = [60, 62, 64]; // C4, D4, E4
+   * const pitches = CellularAutomata.stripToPitches(strip, pitchSet);
+   * // Returns: [62, [60, 64], null]
+   */
+  static stripToPitches(strip, pitchSet) {
+    return strip.map(row => {
+      const pitches = [];
+      row.forEach((cell, idx) => {
+        if (cell === 1 && idx < pitchSet.length) {
+          pitches.push(pitchSet[idx]);
+        }
+      });
+      return pitches.length === 1 ? pitches[0] : (pitches.length > 0 ? pitches : null);
+    });
   }
 
   /**

@@ -41,8 +41,8 @@ export class MidiToJmon {
    * @returns {Promise<Object>} JMON composition
    */
   async convertToJmon(midiData) {
-    // Initialize Tone.js instance following music-player pattern
-    const Tone = await this.initializeTone();
+    // Initialize Tone.js instance
+    const Tone = this.initializeTone();
 
     // Parse MIDI using Tone.js Midi
     let parsed;
@@ -70,37 +70,15 @@ export class MidiToJmon {
   }
 
   /**
-   * Initialize Tone.js instance following music-player.js pattern
-   * @returns {Promise<Object>} Tone.js instance
+   * Initialize Tone.js instance
+   * @returns {Object} Tone.js instance
    */
-  async initializeTone() {
-    const externalTone = this.options.Tone;
-
-    if (typeof globalThis.window !== "undefined") {
-      // Browser environment - check multiple sources
-      const existingTone = externalTone || globalThis.window.Tone ||
-        (typeof Tone !== "undefined" ? Tone : null);
-
-      if (existingTone) {
-        return existingTone;
-      }
-
-      // Dynamic import fallback (like music-player does)
-      try {
-        const toneModule = await import("tone");
-        return toneModule.default || toneModule;
-      } catch (error) {
-        throw new Error(
-          "Tone.js not found. Please provide Tone instance or load Tone.js",
-        );
-      }
-    } else {
-      // Node.js environment - require explicit Tone instance
-      if (externalTone) {
-        return externalTone;
-      }
-      throw new Error("Tone instance required in Node.js environment");
+  initializeTone() {
+    const Tone = this.options.Tone;
+    if (!Tone) {
+      throw new Error("Tone.js instance required. Please provide Tone via options: { Tone: Tone }");
     }
+    return Tone;
   }
 
   /**

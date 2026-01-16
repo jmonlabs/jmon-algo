@@ -1,6 +1,6 @@
 // %%
 import { show, showScore, showPlayer, clear } from "./viewer.js";
-import jm from "../../src/index.js";
+import jm from "../../../src/index.js";
 clear();
 
 // %% Execute this

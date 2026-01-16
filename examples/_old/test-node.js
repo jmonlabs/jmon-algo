@@ -1,5 +1,5 @@
 // For use in Zed REPL / Deno kernel
-import { jm } from '../dist/jmon.esm.js';
+import { jm } from '../../dist/jmon.esm.js';
 
 const notes = [
   { pitch: 60, duration: 1, time: 0 },

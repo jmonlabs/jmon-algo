@@ -435,23 +435,24 @@ export class Darwin {
 
   /**
    * Evolve for multiple generations
-   * @param {number} generations - Number of generations to evolve
-   * @param {number} k - Number of parents per generation
-   * @param {Function} callback - Optional callback for progress updates
+   * @param {Object} options - Configuration object
+   * @param {number} options.generations - Number of generations to evolve
+   * @param {number} [options.k=25] - Number of parents per generation
+   * @param {Function} [options.callback=null] - Optional callback for progress updates
    * @returns {Array} Array of evolution statistics
    */
-  evolveGenerations(generations, k = 25, callback = null) {
+  evolveGenerations({ generations, k = 25, callback = null }) {
     const stats = [];
-    
+
     for (let i = 0; i < generations; i++) {
       const generationStats = this.evolve(k);
       stats.push(generationStats);
-      
+
       if (callback) {
         callback(generationStats, i, generations);
       }
     }
-    
+
     return stats;
   }
 

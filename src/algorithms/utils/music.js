@@ -26,45 +26,30 @@ export class MusicUtils {
   static fillGapsWithRests(notes, tolerance = 0.01) {
     if (notes.length === 0) return [];
     
-    // Sort notes by offset
-    const sortedNotes = [...notes].sort((a, b) => a.offset - b.offset);
+    // Sort notes by time
+    const sortedNotes = [...notes].sort((a, b) => (a.time || 0) - (b.time || 0));
     const result = [];
     
     let currentTime = 0;
     
     for (const note of sortedNotes) {
+      const noteTime = note.time || 0;
       // Check if there's a gap before this note
-      if (note.offset > currentTime + tolerance) {
+      if (noteTime > currentTime + tolerance) {
         // Add a rest to fill the gap
         result.push({
           pitch: undefined, // Rest
-          duration: note.offset - currentTime,
-          offset: currentTime,
+          duration: noteTime - currentTime,
+          time: currentTime,
           velocity: 0
         });
       }
       
       result.push(note);
-      currentTime = Math.max(currentTime, note.offset + note.duration);
+      currentTime = Math.max(currentTime, noteTime + note.duration);
     }
     
     return result;
-  }
-
-  /**
-   * Set offsets according to durations (sequential timing)
-   */
-  static setOffsetsAccordingToDurations(notes) {
-    let currentOffset = 0;
-    
-    return notes.map(note => {
-      const newNote = {
-        ...note,
-        offset: currentOffset
-      };
-      currentOffset += note.duration;
-      return newNote;
-    });
   }
 
   /**
@@ -184,27 +169,32 @@ export class MusicUtils {
    */
   static retrograde(notes) {
     const reversed = [...notes].reverse();
-    const totalDuration = notes.reduce((sum, note) => Math.max(sum, note.offset + note.duration), 0);
     
-    return this.setOffsetsAccordingToDurations(reversed.map(note => ({
-      ...note,
-      offset: 0 // Will be recalculated
-    })));
+    // Recalculate time sequentially
+    let currentTime = 0;
+    return reversed.map(note => {
+      const newNote = {
+        ...note,
+        time: currentTime
+      };
+      currentTime += note.duration;
+      return newNote;
+    });
   }
 
   /**
    * Create augmentation (stretch) or diminution (compress) of durations
    */
   static augment(notes, factor) {
-    let currentOffset = 0;
+    let currentTime = 0;
     
     return notes.map(note => {
       const newNote = {
         ...note,
         duration: note.duration * factor,
-        offset: currentOffset
+        time: currentTime
       };
-      currentOffset += newNote.duration;
+      currentTime += newNote.duration;
       return newNote;
     });
   }

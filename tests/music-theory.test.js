@@ -8,6 +8,7 @@ import { Progression } from '../src/algorithms/theory/harmony/Progression.js';
 import { Voice } from '../src/algorithms/theory/harmony/Voice.js';
 import { Ornament } from '../src/algorithms/theory/harmony/Ornament.js';
 import { Articulation } from '../src/algorithms/theory/harmony/Articulation.js';
+import { Strum, strum } from '../src/algorithms/theory/harmony/Strum.js';
 import { Rhythm } from '../src/algorithms/theory/rhythm/Rhythm.js';
 import { isorhythm } from '../src/algorithms/theory/rhythm/isorhythm.js';
 import { beatcycle } from '../src/algorithms/theory/rhythm/beatcycle.js';
@@ -17,7 +18,7 @@ console.log('=== Testing Music Theory Modules ===\n');
 // Test 1: Scale Generation
 console.log('1. Testing Scale Generation');
 try {
-  const cMajor = new Scale('C', 'major');
+  const cMajor = new Scale({ tonic: 'C', mode: 'major' });
   const scale = cMajor.generate({ octave: 4 });
 
   console.log('  ✓ Generated C major scale');
@@ -26,11 +27,11 @@ try {
   console.log('  ✓ Contains G4 (67):', scale.includes(67));
 
   // Test different modes
-  const dorian = new Scale('D', 'dorian');
+  const dorian = new Scale({ tonic: 'D', mode: 'dorian' });
   const dorianScale = dorian.generate({ octave: 4 });
   console.log('  ✓ Generated D dorian scale:', dorianScale.slice(0, 7));
 
-  const pentatonic = new Scale('C', 'pentatonic_major');
+  const pentatonic = new Scale({ tonic: 'C', mode: 'pentatonic_major' });
   const pentScale = pentatonic.generate({ octave: 4 });
   console.log('  ✓ Generated C pentatonic (5 notes):', pentScale.length >= 5);
 } catch (error) {
@@ -280,16 +281,47 @@ console.log('');
 // Test 12: Rhythm - Random Generation
 console.log('12. Testing Rhythm - Random Generation');
 try {
-  const rhythm = new Rhythm({
-    measureLength: 4,
-    durations: [0.25, 0.5, 1, 2]
-  });
+  const rhythm = new Rhythm(4, [0.25, 0.5, 1, 2]);
 
   const randomRhythm = rhythm.random({ restProbability: 0.2 });
   console.log('  ✓ Generated random rhythm');
   console.log('  ✓ Pattern count:', randomRhythm.length);
   console.log('  ✓ Sample durations:', randomRhythm.slice(0, 5).map(r => r.duration));
   console.log('  ✓ Total duration ≤ 4:', randomRhythm.reduce((sum, r) => sum + r.duration, 0) <= 4);
+} catch (error) {
+  console.error('  ✗ Error:', error.message);
+}
+console.log('');
+
+// Test 13: Strum - Guitar Strumming
+console.log('13. Testing Strum - Guitar Strumming');
+try {
+  const chordTrack = [
+    { pitch: [60, 64, 67], duration: 2, time: 0 },
+    { pitch: [62, 65, 69], duration: 2, time: 2 }
+  ];
+
+  // Test downward strum
+  const downStrum = strum(chordTrack, { direction: 'down', speed: 0.08 });
+  console.log('  ✓ Applied downward strum');
+  console.log('  ✓ Expanded 2 chords:', downStrum.length === 6);
+  console.log('  ✓ First chord notes:', downStrum.slice(0, 3).map(n => n.pitch));
+
+  // Test upward strum
+  const upStrum = strum(chordTrack, { direction: 'up', speed: 0.1 });
+  console.log('  ✓ Applied upward strum (high to low)');
+  console.log('  ✓ First note is highest:', upStrum[0].pitch === 67);
+
+  // Test custom pattern
+  const pattern = [0, 0, 1, 1]; // down, down, up, up
+  const patternStrum = new Strum({ direction: pattern, speed: 0.05 });
+  const result = patternStrum.generate([{ pitch: [48, 52, 55, 60], duration: 2, time: 0 }]);
+  console.log('  ✓ Applied custom pattern [0,0,1,1]');
+  console.log('  ✓ Pattern notes:', result.length === 4);
+
+  // Test static method
+  const singleChord = Strum.strumChord([60, 64, 67], { direction: 'down', speed: 0.1, duration: 1 });
+  console.log('  ✓ Static strumChord method works:', singleChord.length === 3);
 } catch (error) {
   console.error('  ✗ Error:', error.message);
 }
