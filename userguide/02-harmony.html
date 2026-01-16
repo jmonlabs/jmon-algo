@@ -1,0 +1,496 @@
+<!doctype html>
+<notebook>
+  <title>2. Harmony</title>
+
+  <script type="text/markdown">
+# 2. Harmony
+
+This chapter covers the harmonic capabilities of jmon/algo:
+- Scales and modes
+- Chords and voicing
+- Ornaments (grace notes, trills, mordents, turns, arpeggios)
+- Chord progressions
+- Rhythm generation
+  </script>
+
+  <script type="module" pinned>
+import jm from "../src/index.js";
+import * as Tone from "npm:tone";
+import * as ABCJS from "npm:abcjs";
+  </script>
+
+  <script type="text/markdown">
+## 1. Scales
+
+Scales are the foundation of melody and harmony. The `Scale` class generates scale patterns in various modes.
+  </script>
+
+  <script type="module" pinned>
+// Generate C major scale
+const cMajor = new jm.theory.harmony.Scale({tonic: "C", mode: "major"});
+const cMajorNotes = cMajor.generate({ start: 60, length: 8 });
+
+display("C Major scale (C4 to C5):");
+display(cMajorNotes);
+display(`Contains C4 (60): ${cMajorNotes.includes(60)}`);
+display(`Contains G4 (67): ${cMajorNotes.includes(67)}`);
+  </script>
+
+  <script type="text/markdown">
+### Different modes
+
+Modes provide different tonal colors to your music:
+  </script>
+
+  <script type="module" pinned>
+// Different modes
+const dDorian = new jm.theory.harmony.Scale({tonic: "D", mode: "dorian"});
+const dDorianNotes = dDorian.generate({ start: 62, length: 7 });
+
+const cPentatonic = new jm.theory.harmony.Scale({tonic: "C", mode: "major pentatonic"});
+const cPentatonicNotes = cPentatonic.generate({ start: 60, length: 5 });
+
+display({
+  "D Dorian": dDorianNotes,
+  "C Pentatonic (5 notes)": cPentatonicNotes
+});
+  </script>
+
+  <script type="text/markdown">
+### Converting to JMON track
+
+Let's convert a scale to a playable JMON track:
+  </script>
+
+  <script type="module" pinned>
+const cMajorTrack = cMajorNotes.map((pitch, i) => ({
+  pitch,
+  duration: 1,
+  time: i,
+  velocity: 0.8
+}));
+
+const cMajorPiece = {
+  title: "C Major Scale",
+  tempo: 120,
+  tracks: [{ notes: cMajorTrack }]
+};
+
+display(jm.score(cMajorPiece, { ABCJS }));
+display(await jm.play(cMajorPiece, { Tone }));
+  </script>
+
+  <script type="text/markdown">
+## 2. Chords
+
+In JMON, a chord is represented as an array in the pitch field. This allows multiple pitches to sound simultaneously.
+  </script>
+
+  <script type="module" pinned>
+// C Major chord (C, E, G)
+const cMajorChord = {
+  pitch: [60, 64, 67],
+  duration: 2,
+  time: 0,
+  velocity: 0.8
+};
+
+const chordPiece = {
+  title: "C Major Chord",
+  tempo: 120,
+  tracks: [{ notes: [cMajorChord] }]
+};
+
+display(cMajorChord);
+display(jm.score(chordPiece, { ABCJS }));
+display(await jm.play(chordPiece, { Tone }));
+  </script>
+
+  <script type="text/markdown">
+## 3. Ornaments
+
+Ornaments are decorative embellishments that add expression and complexity to melodies. The `Ornament` class provides various ornament types.
+
+### Test notes
+
+We'll use these simple notes to demonstrate each ornament type:
+  </script>
+
+  <script type="module" pinned>
+const testNotes = [
+  { pitch: 60, duration: 2, time: 0, velocity: 0.8 },
+  { pitch: 64, duration: 2, time: 2, velocity: 0.8 },
+  { pitch: 67, duration: 2, time: 4, velocity: 0.8 }
+];
+display(testNotes);
+  </script>
+
+  <script type="text/markdown">
+### 3.1 Grace Note (Acciaccatura)
+
+A grace note is a quick ornamental note played just before the main note.
+  </script>
+
+  <script type="module" pinned>
+const graceNoteOrnament = new jm.theory.harmony.Ornament({
+  type: 'grace_note',
+  parameters: {
+    graceNoteType: 'acciaccatura',
+    gracePitches: [72]  // C5
+  }
+});
+const withGraceNote = graceNoteOrnament.apply([...testNotes], 0);
+
+display(`Original: ${testNotes.length} notes`);
+display(`With grace note: ${withGraceNote.length} notes`);
+display(withGraceNote.slice(0, 3));
+
+const graceNotePiece = {
+  title: "Grace Note Example",
+  tempo: 120,
+  tracks: [{ notes: withGraceNote }]
+};
+display(await jm.play(graceNotePiece, { Tone }));
+  </script>
+
+  <script type="text/markdown">
+### 3.2 Trill
+
+A trill rapidly alternates between the main note and an adjacent note.
+  </script>
+
+  <script type="module" pinned>
+const trillOrnament = new jm.theory.harmony.Ornament({
+  type: 'trill',
+  parameters: {
+    by: 2,           // Trill to note 2 steps up
+    trillRate: 0.25  // 16th notes
+  },
+  tonic: 'C',
+  mode: 'major'
+});
+const withTrill = trillOrnament.apply([...testNotes], 0);
+
+display(`Original: 1 note (duration 2)`);
+display(`With trill: ${withTrill.length} notes (alternating)`);
+display(`Trill pitches: ${withTrill.slice(0, 4).map(n => n.pitch)}`);
+
+const trillPiece = {
+  title: "Trill Example",
+  tempo: 120,
+  tracks: [{ notes: withTrill }]
+};
+display(await jm.play(trillPiece, { Tone }));
+  </script>
+
+  <script type="text/markdown">
+### 3.3 Mordent
+
+A mordent is a quick alternation with an adjacent note and back.
+  </script>
+
+  <script type="module" pinned>
+const mordentOrnament = new jm.theory.harmony.Ornament({
+  type: 'mordent',
+  parameters: {
+    by: -1  // Mordent down one step
+  },
+  tonic: 'C',
+  mode: 'major'
+});
+const withMordent = mordentOrnament.apply([...testNotes], 0);
+
+display(`With mordent: ${withMordent.length} notes (quick alternation)`);
+display(`Pattern: ${withMordent.slice(0, 3).map(n => n.pitch)}`);
+
+const mordentPiece = {
+  title: "Mordent Example",
+  tempo: 120,
+  tracks: [{ notes: withMordent }]
+};
+display(await jm.play(mordentPiece, { Tone }));
+  </script>
+
+  <script type="text/markdown">
+### 3.4 Turn
+
+A turn ornament creates a four-note pattern around the main note.
+  </script>
+
+  <script type="module" pinned>
+const turnOrnament = new jm.theory.harmony.Ornament({
+  type: 'turn',
+  tonic: 'C',
+  mode: 'major'
+});
+const withTurn = turnOrnament.apply([...testNotes], 0);
+
+display(`With turn: ${withTurn.length} notes (4-note pattern)`);
+display(`Turn pattern: ${withTurn.slice(0, 4).map(n => n.pitch)}`);
+
+const turnPiece = {
+  title: "Turn Example",
+  tempo: 120,
+  tracks: [{ notes: withTurn }]
+};
+display(await jm.play(turnPiece, { Tone }));
+  </script>
+
+  <script type="text/markdown">
+### 3.5 Arpeggio
+
+An arpeggio breaks a chord into a sequence of individual notes.
+  </script>
+
+  <script type="module" pinned>
+const arpeggioOrnament = new jm.theory.harmony.Ornament({
+  type: 'arpeggio',
+  parameters: {
+    arpeggioDegrees: [0, 2, 4, 2],  // Triad up and down
+    direction: 'up'
+  },
+  tonic: 'C',
+  mode: 'major'
+});
+const withArpeggio = arpeggioOrnament.apply([...testNotes], 0);
+
+display(`With arpeggio: ${withArpeggio.length} notes`);
+display(`Arpeggio pattern: ${withArpeggio.map(n => n.pitch)}`);
+
+const arpeggioPiece = {
+  title: "Arpeggio Example",
+  tempo: 120,
+  tracks: [{ notes: withArpeggio }]
+};
+display(await jm.play(arpeggioPiece, { Tone }));
+  </script>
+
+  <script type="text/markdown">
+## 4. Voice Leading
+
+The `Voice` class helps create harmonic accompaniment from melodies by generating chords at measure boundaries.
+  </script>
+
+  <script type="module" pinned>
+// Simple melody
+const melody = [
+  { pitch: 60, duration: 1, time: 0, velocity: 0.8 },
+  { pitch: 62, duration: 1, time: 1, velocity: 0.8 },
+  { pitch: 64, duration: 1, time: 2, velocity: 0.8 },
+  { pitch: 65, duration: 1, time: 3, velocity: 0.8 }
+];
+
+// Create a voice generator
+const voice = new jm.theory.harmony.Voice({
+  tonic: "C",
+  mode: "major",
+  measureLength: 4,
+  output: 'track'
+});
+
+const chords = voice.generate(melody);
+
+display("Original melody pitches:", melody.map(n => n.pitch));
+display("Generated chords:", chords);
+
+const harmonizedPiece = {
+  title: "Voice Leading Example",
+  tempo: 120,
+  keySignature: "C-major",
+  tracks: [
+    { notes: melody, clef: "treble" },
+    { notes: chords, clef: "bass" }
+  ]
+};
+
+display(jm.score(harmonizedPiece, { ABCJS }));
+display(await jm.play(harmonizedPiece, { Tone }));
+  </script>
+
+  <script type="text/markdown">
+## 5. Chord Progressions
+
+Generate random chord progressions using the circle of fifths or other intervallic relationships.
+  </script>
+
+  <script type="module" pinned>
+// Generate random progression using circle of fifths
+const progression = new jm.theory.harmony.Progression({
+  root: 'C4',
+  interval: 'P5',
+  type: 'chords',
+  degrees: [3, 3, 1]
+});
+const chordProgression = progression.generate(8, 5); // 8 chords, seed 5
+
+display(`Generated ${chordProgression.length} chords`);
+display("First two chords:", chordProgression.slice(0, 2));
+
+// Convert to JMON track
+const progressionTrack = chordProgression.map((chord, i) => ({
+  pitch: chord,
+  duration: 1,
+  time: i,
+  velocity: 0.7
+}));
+
+const progressionPiece = {
+  title: "Chord Progression (Circle of Fifths)",
+  tempo: 100,
+  tracks: [{ notes: progressionTrack }]
+};
+
+display(jm.score(progressionPiece, { ABCJS }));
+display(await jm.play(progressionPiece, { Tone }));
+  </script>
+
+  <script type="text/markdown">
+## 6. Rhythm
+
+The rhythm module provides various techniques for creating rhythmic patterns.
+
+### 6.1 Isorhythm
+
+Isorhythm maps durations to pitches cyclically, continuing until their lengths align (least common multiple).
+  </script>
+
+  <script type="module" pinned>
+const pitches = [60, 62, 64, 65, 67];
+const durations = [1, 0.5, 0.5, 1];
+const isoNotes = jm.theory.rhythm.isorhythm(pitches, durations);
+
+display(`Pitches: ${pitches.length}`);
+display(`Durations: ${durations.length}`);
+display(`Result: ${isoNotes.length} notes (LCM)`);
+display("First notes:", isoNotes.slice(0, 3).map(n => [n.pitch, n.duration]));
+
+const isoPiece = {
+  title: "Isorhythm Example",
+  tempo: 120,
+  tracks: [{ notes: isoNotes }]
+};
+
+display(await jm.play(isoPiece, { Tone }));
+  </script>
+
+  <script type="text/markdown">
+### 6.2 Beatcycle
+
+Beatcycle assigns durations to pitches in order, calculating timing based on cumulative durations.
+  </script>
+
+  <script type="module" pinned>
+const beatPitches = [60, 62, 64, 65, 67, 69, 71, 72];
+const beatDurations = [1, 0.5, 0.5, 1];
+const beatNotes = jm.theory.rhythm.beatcycle(beatPitches, beatDurations);
+
+display(`Result: ${beatNotes.length} notes (matches pitch count)`);
+display("Durations assigned:", beatNotes.slice(0, 4).map(n => n.duration));
+
+const beatPiece = {
+  title: "Beatcycle Example",
+  tempo: 120,
+  tracks: [{ notes: beatNotes }]
+};
+
+display(await jm.play(beatPiece, { Tone }));
+  </script>
+
+  <script type="text/markdown">
+### 6.3 Random Rhythm
+
+Generate random rhythmic patterns with optional rests.
+  </script>
+
+  <script type="module" pinned>
+const rhythm = new jm.theory.rhythm.Rhythm({
+  measureLength: 4,
+  durations: [0.25, 0.5, 1, 2]
+});
+const randomRhythm = rhythm.random({ restProbability: 0.2 });
+
+display(`Generated ${randomRhythm.length} rhythmic events`);
+display(`Total duration: ${randomRhythm.reduce((sum, r) => sum + r.duration, 0)}`);
+display("Sample:", randomRhythm.slice(0, 4).map(r => r.duration));
+  </script>
+
+  <script type="text/markdown">
+## 7. Complete Example: Twinkle with Harmony
+
+Let's put it all together by adding harmony and ornaments to "Twinkle Twinkle Little Star".
+  </script>
+
+  <script type="module" pinned>
+// Original melody
+const twinkle = [
+  { pitch: 60, duration: 1, time: 0, velocity: 0.8 },   // C
+  { pitch: 60, duration: 1, time: 1, velocity: 0.8 },   // C
+  { pitch: 67, duration: 1, time: 2, velocity: 0.8 },   // G
+  { pitch: 67, duration: 1, time: 3, velocity: 0.8 },   // G
+  { pitch: 69, duration: 1, time: 4, velocity: 0.8 },   // A
+  { pitch: 69, duration: 1, time: 5, velocity: 0.8 },   // A
+  { pitch: 67, duration: 2, time: 6, velocity: 0.8 },   // G (long note)
+  { pitch: 65, duration: 1, time: 8, velocity: 0.8 },   // F
+  { pitch: 65, duration: 1, time: 9, velocity: 0.8 },   // F
+  { pitch: 64, duration: 1, time: 10, velocity: 0.8 },  // E
+  { pitch: 64, duration: 1, time: 11, velocity: 0.8 },  // E
+  { pitch: 62, duration: 1, time: 12, velocity: 0.8 },  // D
+  { pitch: 62, duration: 1, time: 13, velocity: 0.8 },  // D
+  { pitch: 60, duration: 2, time: 14, velocity: 0.8 }   // C
+];
+
+// Add chords
+const twinkleVoice = new jm.theory.harmony.Voice({
+  tonic: "C",
+  mode: "major",
+  measureLength: 4,
+  output: 'track'
+});
+
+const twinkleChords = twinkleVoice.generate(twinkle).map(note => ({
+  ...note,
+  velocity: 0.5
+}));
+
+// Add trill to the long note (index 6)
+const ornamentedTwinkle = new jm.theory.harmony.Ornament({
+  type: 'trill',
+  parameters: { by: 1, trillRate: 0.25 },
+  tonic: 'C',
+  mode: 'major'
+}).apply(twinkle, 6);
+
+// Create complete composition
+const twinkleComplete = {
+  title: 'Twinkle Twinkle Little Star (with harmony)',
+  tempo: 120,
+  keySignature: 'C-major',
+  tracks: [
+    {
+      label: 'Melody with Trill',
+      notes: ornamentedTwinkle
+    },
+    {
+      label: 'Chords',
+      notes: twinkleChords
+    }
+  ]
+};
+
+display(jm.score(twinkleComplete, { ABCJS }));
+display(await jm.play(twinkleComplete, { Tone }));
+  </script>
+
+  <script type="text/markdown">
+That's it for the harmony chapter! You've learned:
+- ✓ Scales and modes
+- ✓ Chords and voicing
+- ✓ Five types of ornaments
+- ✓ Voice leading
+- ✓ Chord progressions
+- ✓ Rhythm generation
+
+Next up: **Chapter 3 - Loops** where you'll learn about polyloops and rhythmic patterns!
+  </script>
+
+</notebook>
