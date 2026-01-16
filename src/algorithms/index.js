@@ -14,6 +14,9 @@ import { RandomWalk, Chain, Phasor, PhasorSystem } from './generative/walks/inde
 import { Mandelbrot, LogisticMap } from './generative/fractals/index.js';
 import { MinimalismProcess, Tintinnabuli } from './generative/minimalism/index.js';
 
+// Processor imports
+import { Corruptor, corruptJmon } from './processors/Corruptor.js';
+
 // Analysis imports
 import * as analysisModule from './analysis/index.js';
 
@@ -77,6 +80,11 @@ export const generative = {
     }
 };
 
+export const processors = {
+    Corruptor,
+    corruptJmon
+};
+
 export const analysis = {
     ...analysisModule
 };
@@ -98,6 +106,7 @@ export default {
     theory,
     constants,
     generative,
+    processors,
     analysis,
     visualization,
     audio,
