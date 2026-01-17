@@ -185,6 +185,7 @@ const jm = {
   // Namespaces from algorithms
   theory: algorithms.theory,
   generative: algorithms.generative,
+  processors: algorithms.processors,
   analysis: algorithms.analysis,
   constants: algorithms.constants,
   audio: algorithms.audio,
