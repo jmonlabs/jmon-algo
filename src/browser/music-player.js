@@ -415,6 +415,11 @@ export function createPlayer(composition, options = {}) {
           const endFreq = ToneLib.Frequency(toNote).toFrequency();
           const cents = 1200 * Math.log2(endFreq / startFreq);
 
+          // Account for microtuning offset if present
+          const microtuningCents = (note.microtuning || 0) * 100;
+          const startDetune = microtuningCents;
+          const endDetune = microtuningCents + cents;
+
           // Check if main synth supports detune
           if (synth.detune) {
             // Main synth supports detune (e.g., MonoSynth, Synth)
@@ -422,8 +427,8 @@ export function createPlayer(composition, options = {}) {
 
             const eventId = ToneLib.Transport.schedule((schedTime) => {
               synth.triggerAttack(noteName, schedTime, velocity);
-              synth.detune.setValueAtTime(0, schedTime);
-              synth.detune.linearRampToValueAtTime(cents, schedTime + duration);
+              synth.detune.setValueAtTime(startDetune, schedTime);
+              synth.detune.linearRampToValueAtTime(endDetune, schedTime + duration);
               synth.triggerRelease(schedTime + duration);
             }, time);
             scheduledEvents.push(eventId);
@@ -438,8 +443,8 @@ export function createPlayer(composition, options = {}) {
 
             const eventId = ToneLib.Transport.schedule((schedTime) => {
               glissSynth.triggerAttack(noteName, schedTime, velocity);
-              glissSynth.detune.setValueAtTime(0, schedTime);
-              glissSynth.detune.linearRampToValueAtTime(cents, schedTime + duration);
+              glissSynth.detune.setValueAtTime(startDetune, schedTime);
+              glissSynth.detune.linearRampToValueAtTime(endDetune, schedTime + duration);
               glissSynth.triggerRelease(schedTime + duration);
             }, time);
             scheduledEvents.push(eventId);
@@ -447,7 +452,15 @@ export function createPlayer(composition, options = {}) {
         } else {
           // Normal note
           const eventId = ToneLib.Transport.schedule((schedTime) => {
-            synth.triggerAttackRelease(noteName, duration, schedTime, velocity);
+            // Apply microtuning if present (microtuning is in semitones, detune expects cents)
+            if (note.microtuning && synth.detune) {
+              const cents = note.microtuning * 100; // Convert semitones to cents
+              synth.triggerAttack(noteName, schedTime, velocity);
+              synth.detune.setValueAtTime(cents, schedTime);
+              synth.triggerRelease(schedTime + duration);
+            } else {
+              synth.triggerAttackRelease(noteName, duration, schedTime, velocity);
+            }
           }, time);
           scheduledEvents.push(eventId);
         }
