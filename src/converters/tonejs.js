@@ -52,7 +52,8 @@ export class Tonejs {
                 time: note.time,
                 pitch: note.pitch,
                 duration: note.duration,
-                velocity: note.velocity || 0.8
+                velocity: note.velocity || 0.8,
+                microtuning: note.microtuning // Pass through microtuning in semitones
             }))
         }));
     }
